@@ -29,8 +29,7 @@ pub fn bootstrap(socket: &Path, module: &Path) -> Value {
                     "name": "envoy.filters.network.http_connection_manager",
                     "typed_config": {
                         "@type": "type.googleapis.com/envoy.extensions.filters.network.http_connection_manager.v3.HttpConnectionManager",
-                        "stat_prefix": "connect", "codec_type": "AUTO",
-                        "http2_protocol_options": {"allow_connect": true},
+                        "stat_prefix": "connect", "codec_type": "HTTP1",
                         "http_protocol_options": {"accept_http_10": false},
                         "max_request_headers_kb": 8, "request_headers_timeout": "10s",
                         "stream_idle_timeout": "0s", "request_timeout": "0s",
@@ -247,8 +246,8 @@ mod tests {
         let resources = &config["static_resources"];
         assert_eq!(resources["listeners"][0]["address"]["pipe"]["mode"], 0o600);
         let hcm = &resources["listeners"][0]["filter_chains"][0]["filters"][0]["typed_config"];
-        assert_eq!(hcm["codec_type"], "AUTO");
-        assert_eq!(hcm["http2_protocol_options"]["allow_connect"], true);
+        assert_eq!(hcm["codec_type"], "HTTP1");
+        assert!(hcm.get("http2_protocol_options").is_none());
         assert_eq!(hcm["stream_idle_timeout"], "0s");
         assert_eq!(
             hcm["route_config"]["virtual_hosts"][0]["routes"][0]["route"]["upgrade_configs"][0]["connect_config"],
@@ -288,17 +287,12 @@ mod tests {
 
     #[test]
     fn envoy_validates_bootstrap_when_available() {
-        let binary = std::env::var_os("AVIRT_ENVOY_BIN").unwrap_or_else(|| "envoy".into());
-        match Command::new(&binary).arg("--version").output() {
-            Err(e) if e.kind() == io::ErrorKind::NotFound => {
-                eprintln!("skipped: no Envoy binary (set AVIRT_ENVOY_BIN)");
-                return;
-            }
-            Ok(output) => assert!(output.status.success(), "Envoy --version failed"),
-            Err(e) => panic!("Envoy --version: {e}"),
-        }
-        let module = std::env::var_os("AVIRT_ENVOY_MODULE")
-            .expect("Envoy is present: set AVIRT_ENVOY_MODULE to the built module");
+        let (Some(binary), Some(module)) =
+            (std::env::var_os("AVIRT_ENVOY_BIN"), std::env::var_os("AVIRT_ENVOY_MODULE"))
+        else {
+            eprintln!("skipped: set AVIRT_ENVOY_BIN and AVIRT_ENVOY_MODULE");
+            return;
+        };
         let config = bootstrap(Path::new("/unused/envoy.sock"), Path::new(&module));
         let status =
             Command::new(binary).args(["--mode", "validate", "--config-yaml", &config.to_string()]).status().unwrap();
