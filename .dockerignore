@@ -1,0 +1,7 @@
+target
+logs
+.git
+.runbook
+.claude
+**/node_modules
+**/*.log

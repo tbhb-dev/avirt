@@ -1,0 +1,8 @@
+{
+  "name": "claude-container-image",
+  "private": true,
+  "description": "Pins the ACP adapter installed into the container image.",
+  "dependencies": {
+    "@agentclientprotocol/claude-agent-acp": "0.93.0"
+  }
+}

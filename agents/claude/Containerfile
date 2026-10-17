@@ -1,0 +1,37 @@
+# Build context is the repository root: container build -f agents/claude/Containerfile -t IMAGE .
+FROM rust:1.97.1-bookworm AS build
+WORKDIR /src
+COPY Cargo.toml Cargo.lock ./
+COPY crates crates
+COPY acpd acpd
+COPY agents agents
+RUN cargo build --release --locked -p claude-entrypoint
+
+FROM ubuntu:26.04
+
+ARG NODE_VERSION=24.21.0
+
+RUN apt-get update \
+ && apt-get install -y --no-install-recommends ca-certificates curl xz-utils git ripgrep \
+ && rm -rf /var/lib/apt/lists/* \
+ && curl -fsSL "https://nodejs.org/dist/v${NODE_VERSION}/node-v${NODE_VERSION}-linux-arm64.tar.xz" \
+    | tar -xJ -C /usr/local --strip-components=1
+
+# The adapter is still a Node program; image/package-lock.json pins it and its dependencies.
+WORKDIR /opt/agent
+COPY agents/claude/image/package.json agents/claude/image/package-lock.json ./
+RUN npm ci --omit=dev
+ENV PATH=/opt/agent/node_modules/.bin:$PATH
+
+COPY --from=build /src/target/release/claude-entrypoint /usr/local/bin/entrypoint
+
+# The entrypoint starts as root: it needs to own the uplink socket and the proxy relay. It runs
+# the adapter as `agent` (uid 1000; the base image's own uid 1000 user has to go) with every
+# capability dropped, so there is no USER line.
+RUN userdel --remove ubuntu \
+ && useradd --uid 1000 --create-home --shell /bin/bash agent \
+ && mkdir /workspace \
+ && chown agent:agent /workspace
+WORKDIR /workspace
+
+ENTRYPOINT ["/usr/local/bin/entrypoint"]

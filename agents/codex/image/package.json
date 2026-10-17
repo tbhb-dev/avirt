@@ -1,0 +1,8 @@
+{
+  "name": "codex-container-image",
+  "private": true,
+  "description": "Pins the ACP adapter installed into the container image.",
+  "dependencies": {
+    "@agentclientprotocol/codex-acp": "2.2.2"
+  }
+}

@@ -1,0 +1,59 @@
+# Host toolchain and tasks. Apple `container` (1.4.1) is a prerequisite that mise cannot install.
+# Credentials live in the uncommitted mise.local.toml, which mise loads on top of this file.
+
+[tools]
+# The one source of truth for the Rust version: the crates' `rust-version` and the images'
+# builder stage (`rust:1.97.1-bookworm`) follow it.
+rust = { version = "1.97.1", profile = "minimal", components = "clippy,rustfmt" }
+
+[tasks.build]
+description = "Build every crate"
+run = "cargo build --workspace"
+
+[tasks.test]
+description = "Run the unit tests"
+run = "cargo test --workspace"
+
+[tasks.lint]
+description = "clippy with warnings denied"
+run = "cargo clippy --workspace --all-targets -- -D warnings"
+
+[tasks.fmt]
+description = "Format the code"
+run = "cargo fmt"
+
+[tasks.check]
+description = "fmt --check, clippy -D warnings and the tests"
+run = [
+  "cargo fmt --check",
+  "cargo clippy --workspace --all-targets -- -D warnings",
+  "cargo test --workspace",
+]
+
+[tasks.build-image]
+description = "Build one agent image (claude or codex); the repository root is the build context"
+usage = 'arg "<agent>" help="claude or codex"'
+run = "container build -f agents/${usage_agent}/Containerfile -t acp-${usage_agent}:dev ."
+
+[tasks.build-images]
+description = "Build both agent images"
+depends = ["build-image claude", "build-image codex"]
+
+[tasks.serve]
+description = "Run the daemon (picks CLAUDE_CODE_OAUTH_TOKEN up from mise.local.toml)"
+depends = ["build-daemon"]
+run = "./target/debug/acpd serve"
+
+[tasks.build-daemon]
+description = "Build the daemon and the per-session supervisor it starts"
+hide = true
+run = "cargo build --quiet -p acpd -p acp-supervisor"
+
+[tasks.launch]
+description = "Start a session on a running daemon: mise run launch claude \"prompt\" -- --follow"
+usage = '''
+arg "<agent>" help="claude or codex"
+arg "<prompt>"
+arg "[flags]" var=#true help="extra flags such as --cwd DIR --follow"
+'''
+run = 'cargo run --quiet -p acpd -- launch --agent "${usage_agent}" "${usage_prompt}" ${usage_flags}'
