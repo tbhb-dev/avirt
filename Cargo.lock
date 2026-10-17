@@ -388,6 +388,7 @@ dependencies = [
  "chrono",
  "clap",
  "httparse",
+ "nix",
  "pingora-core",
  "serde_json",
  "tokio",

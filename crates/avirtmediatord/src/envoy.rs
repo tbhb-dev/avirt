@@ -3,10 +3,11 @@ use std::collections::HashMap;
 use std::fs::OpenOptions;
 use std::io::{self, BufRead, Read, Write};
 use std::os::unix::fs::OpenOptionsExt;
+use std::os::unix::process::CommandExt;
 use std::path::{Path, PathBuf};
 use std::process::{Child, Command, Stdio};
+use std::sync::Arc;
 use std::sync::atomic::{AtomicBool, Ordering};
-use std::sync::{Arc, Mutex};
 use std::thread::JoinHandle;
 use std::time::{Duration, Instant};
 
@@ -112,10 +113,12 @@ pub fn supervise() -> i32 {
 }
 
 pub struct Envoy {
-    pub child: Arc<Mutex<Child>>,
+    child: Child,
+    guardian_pid: i32,
+    stopped: bool,
     reader: Option<JoinHandle<()>>,
     config: PathBuf,
-    pub socket: PathBuf,
+    socket: PathBuf,
 }
 
 impl Envoy {
@@ -131,6 +134,7 @@ impl Envoy {
             .arg("--supervise-envoy")
             .arg(binary)
             .arg(&config)
+            .process_group(0)
             .stdin(Stdio::piped())
             .stdout(Stdio::piped())
             .stderr(Stdio::inherit())
@@ -151,10 +155,11 @@ impl Envoy {
                 events::send(event.to_string());
             }
         });
-        let envoy = Self { child: Arc::new(Mutex::new(child)), reader: Some(reader), config, socket };
+        let guardian_pid = i32::try_from(child.id()).expect("guardian pid fits i32");
+        let mut envoy = Self { child, guardian_pid, stopped: false, reader: Some(reader), config, socket };
         let deadline = Instant::now() + Duration::from_secs(3);
         loop {
-            if envoy.child.lock().expect("child lock").try_wait()?.is_some() {
+            if envoy.exited() {
                 return Err(io::Error::other("Envoy exited before its listener was ready"));
             }
             if std::os::unix::net::UnixStream::connect(&envoy.socket).is_ok() {
@@ -166,19 +171,39 @@ impl Envoy {
             std::thread::sleep(Duration::from_millis(20));
         }
     }
-}
 
-impl Drop for Envoy {
-    fn drop(&mut self) {
-        let mut child = self.child.lock().expect("child lock");
-        // The guardian observes EOF even if avirtmediatord itself is killed with SIGKILL.
-        drop(child.stdin.take());
-        let _ = child.wait();
+    pub fn forward_app(&self) -> ForwardApp {
+        ForwardApp(self.socket.clone())
+    }
+
+    pub fn exited(&mut self) -> bool {
+        !matches!(self.child.try_wait(), Ok(None))
+    }
+
+    pub fn stop(&mut self) {
+        if self.stopped {
+            return;
+        }
+        self.stopped = true;
+        drop(self.child.stdin.take());
+        // The group survives the guardian, so this also kills an orphaned Envoy.
+        match nix::sys::signal::killpg(nix::unistd::Pid::from_raw(self.guardian_pid), nix::sys::signal::Signal::SIGKILL)
+        {
+            Ok(()) | Err(nix::errno::Errno::ESRCH) => {}
+            Err(error) => eprintln!("cannot kill Envoy process group: {error}"),
+        }
+        let _ = self.child.wait();
         if let Some(reader) = self.reader.take() {
             let _ = reader.join();
         }
         let _ = std::fs::remove_file(&self.socket);
         let _ = std::fs::remove_file(&self.config);
+    }
+}
+
+impl Drop for Envoy {
+    fn drop(&mut self) {
+        self.stop();
     }
 }
 

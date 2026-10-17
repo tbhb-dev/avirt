@@ -329,25 +329,25 @@ impl ServerApp for ConnectApp {
     }
 }
 
+static ENVOY_EXITED: AtomicBool = AtomicBool::new(false);
+
 /// Shuts down on stdin EOF (a crashed or killed avirthostd takes its proxies with it) or SIGINT,
 /// and gracefully on SIGTERM.
-struct Shutdown(Option<Arc<Mutex<std::process::Child>>>);
+struct Shutdown {
+    envoy: Option<Arc<Mutex<envoy::Envoy>>>,
+    stdin_eof: Arc<tokio::sync::Notify>,
+}
 
 #[async_trait]
 impl ShutdownSignalWatch for Shutdown {
     async fn recv(&self) -> ShutdownSignal {
         use tokio::signal::unix::{SignalKind, signal};
-        let stdin_eof = async {
-            let mut sink = [0u8; 64];
-            let mut stdin = tokio::io::stdin();
-            while matches!(stdin.read(&mut sink).await, Ok(n) if n > 0) {}
-        };
         let mut sigint = signal(SignalKind::interrupt()).expect("sigint handler");
         let mut sigterm = signal(SignalKind::terminate()).expect("sigterm handler");
         let child_exit = async {
-            if let Some(child) = &self.0 {
+            if let Some(envoy) = &self.envoy {
                 loop {
-                    if !matches!(child.lock().expect("child lock").try_wait(), Ok(None)) {
+                    if envoy.lock().expect("Envoy lock").exited() {
                         break;
                     }
                     tokio::time::sleep(Duration::from_millis(100)).await;
@@ -357,11 +357,17 @@ impl ShutdownSignalWatch for Shutdown {
             }
         };
         let signal = tokio::select! {
-            () = child_exit => ShutdownSignal::FastShutdown,
-            () = stdin_eof => ShutdownSignal::FastShutdown,
+            () = child_exit => {
+                ENVOY_EXITED.store(true, Ordering::Release);
+                ShutdownSignal::FastShutdown
+            },
+            () = self.stdin_eof.notified() => ShutdownSignal::FastShutdown,
             _ = sigint.recv() => ShutdownSignal::FastShutdown,
             _ = sigterm.recv() => ShutdownSignal::GracefulTerminate,
         };
+        if let Some(envoy) = &self.envoy {
+            envoy.lock().expect("Envoy lock").stop();
+        }
         signal
     }
 }
@@ -426,7 +432,7 @@ fn main() {
                 std::process::exit(1);
             };
             match envoy::Envoy::start(&args.dir, &args.envoy_bin, module, args.actor.clone()) {
-                Ok(child) => Some(child),
+                Ok(child) => Some(Arc::new(Mutex::new(child))),
                 Err(error) => {
                     eprintln!("cannot start Envoy: {error}");
                     events::close();
@@ -435,11 +441,16 @@ fn main() {
             }
         }
     };
-    let conf = ServerConf { threads: 1, ..ServerConf::default() };
+    let conf = ServerConf {
+        threads: 1,
+        grace_period_seconds: Some(0),
+        graceful_shutdown_timeout_seconds: Some(1),
+        ..ServerConf::default()
+    };
     let mut server = Server::new_with_opt_and_conf(None, conf);
     let private = || Some(std::fs::Permissions::from_mode(0o600));
     if let Some(envoy) = &envoy {
-        let mut proxy = Service::new("proxy".into(), envoy::ForwardApp(envoy.socket.clone()));
+        let mut proxy = Service::new("proxy".into(), envoy.lock().expect("Envoy lock").forward_app());
         proxy.add_uds(&args.dir.join("proxy.sock").to_string_lossy(), private());
         server.add_service(proxy);
     } else {
@@ -452,8 +463,15 @@ fn main() {
     actor.add_uds(&args.dir.join("uplink.sock").to_string_lossy(), private());
     server.add_service(actor);
     server.bootstrap();
-    let child = envoy.as_ref().map(|e| Arc::clone(&e.child));
-    server.run(RunArgs { shutdown_signal: Box::new(Shutdown(child)) });
+    let stdin_eof = Arc::new(tokio::sync::Notify::new());
+    let notify = Arc::clone(&stdin_eof);
+    std::thread::spawn(move || {
+        use std::io::Read;
+        let mut sink = [0u8; 64];
+        while matches!(std::io::stdin().read(&mut sink), Ok(n) if n > 0) {}
+        notify.notify_one();
+    });
+    server.run(RunArgs { shutdown_signal: Box::new(Shutdown { envoy: envoy.clone(), stdin_eof }) });
     drop(envoy);
     // Connections still open when the server stopped are reported, with what moved so far.
     let open: Vec<_> = OPEN.lock().expect("open lock").values().cloned().collect();
@@ -462,4 +480,7 @@ fn main() {
     }
     // Every event is on avirthostd's socket before the process exits.
     events::close();
+    if ENVOY_EXITED.load(Ordering::Acquire) {
+        std::process::exit(1);
+    }
 }
