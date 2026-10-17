@@ -1,0 +1,10 @@
+[package]
+name = "avirtoteld"
+version = "0.1.0"
+edition.workspace = true
+rust-version.workspace = true
+publish.workspace = true
+description = "The OpenTelemetry Collector for the host."
+
+[lints]
+workspace = true

@@ -1,3 +1,11 @@
+---
+type: README
+title: avirt
+description: "`avirt` runs ACP agents in isolated containers on an Apple silicon Mac."
+tags: [avirt, readme]
+generated: { by: claude-code/claude-sonnet-5-5, at: 2026-10-17T19:16:42Z }
+---
+
 # avirt
 
 `avirt` runs ACP agents in isolated containers on an Apple silicon Mac. The supported agents are Claude, through [claude-agent-acp](https://github.com/agentclientprotocol/claude-agent-acp), and Codex, through [codex-acp](https://github.com/agentclientprotocol/codex-acp). The host daemon, `avirthostd`, launches one actor per request. An actor is a per-actor egress mediator (`avirtmediatord`) plus a workload container. Inside the workload, `avirtinitd` drives the agent over ACP and streams every JSON-RPC message to `avirthostd`, which writes it to `logs/<actor-id>.ndjson`. The workload has no network: the agent's only way out is the mediator's logged CONNECT proxy. Everything is Rust and uses the official [`agent-client-protocol`](https://github.com/agentclientprotocol/rust-sdk) crate.
@@ -11,6 +19,27 @@ Agents working in this repository should read [AGENTS.md](AGENTS.md). See [docs/
 - `crates/avirtmediatord/`: the `avirtmediatord` binary, the per-actor Pingora egress proxy.
 - `crates/avirtinitd/`: the `avirtinitd` binary, which runs in the workload (`AVIRT_AGENT=claude|codex`).
 - `crates/avirt-core/`: the shared library, covering the control API types (`api`), the log envelope, the h2c client and uplink, the `avirthostd` server and actor registry, the `avirtinitd` harness and the state root.
+- `crates/avirtadmin/`: the `avirtadmin` binary, the local admin CLI (not implemented).
+- `crates/avirtwebd/`: the `avirtwebd` binary, the backend for the avirt web UI (not implemented).
+- `crates/avirtproxyd/`: the `avirtproxyd` binary, the REST and gRPC proxy to the local avirthostd and to peers' avirtproxyd (not implemented).
+- `crates/avirtdnsd/`: the `avirtdnsd` binary, the DNS resolver for `<name>.<ns>.svc.host.avirt.internal` and `<name>.<ns>.workload.host.avirt.internal`, which answers with the local front-door Envoy and, for peered names, with their host's front-door Envoy (not implemented).
+- `crates/avirtmcpgwd/`: the `avirtmcpgwd` binary, the MCP gateway (not implemented).
+- `crates/avirtmodelgwd/`: the `avirtmodelgwd` binary, the model gateway, which injects model credentials (not implemented).
+- `crates/avirtbuilderd/`: the `avirtbuilderd` binary, the builder, which watches VCS and builds repo OCI artifacts for fast workload startup (not implemented).
+- `crates/avirtpolicyd/`: the `avirtpolicyd` binary, the policy service, which stores, compiles, proves and distributes Cedar policy snapshots (not implemented).
+- `crates/avirtregistryd/`: the `avirtregistryd` binary, the workspace image registry, which wraps an OCI registry and adds avirt's index and search API for workspace images (not implemented).
+- `crates/avirtsecretsd/`: the `avirtsecretsd` binary, the secrets broker, which fetches secrets from providers and serves them as the Envoy secret discovery service (not implemented).
+- `crates/avirtlogd/`: the `avirtlogd` binary, the log collector, which gathers workload stdout and stderr, transforms it and sends it to avirtoteld as OpenTelemetry Logs (not implemented).
+- `crates/avirtauditd/`: the `avirtauditd` binary, the audit logger, which delivers audit events as OCSF (not implemented).
+- `crates/avirtoteld/`: the `avirtoteld` binary, the OpenTelemetry Collector for the host (not implemented).
+- `crates/avirtenvoy/`: the `avirtenvoy` library, the Envoy dynamic module that evaluates Cedar policy and injects HTTP and gRPC credentials (not implemented).
+- `crates/avirtacp/`: the `avirtacp` binary, the workload process that runs an agent through the Agent Client Protocol (not implemented).
+- `crates/avirtagent/`: the `avirtagent` binary, the workload process that runs an agent through its native harness (not implemented).
+- `crates/avirtexec/`: the `avirtexec` binary, the workload process for generic execution (not implemented).
+- `crates/avirtnetd/`: the `avirtnetd` binary, the guest networking daemon: link endpoint, egress, ingress, stub DNS resolver and guest control API (not implemented).
+- `crates/avirtguestd/`: the `avirtguestd` binary, the workload services daemon: file server, snapshots and the guest MCP tool surface (not implemented).
+- `crates/avirtmcp/`: the `avirtmcp` binary, the stdio MCP relay to avirtmcpgwd, launched on demand by the agent (not implemented).
+- `crates/avirtguest/`: the `avirtguest` binary, the in-image CLI that reaches avirtproxyd through the mediator (not implemented).
 - `workloads/claude/` and `workloads/codex/`: the image build directories, each with a Containerfile and `image/` holding the pinned adapter. The images are `avirt-workload-claude:dev` and `avirt-workload-codex:dev`.
 
 ## Prerequisites

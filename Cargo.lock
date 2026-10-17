@@ -299,6 +299,46 @@ dependencies = [
 ]
 
 [[package]]
+name = "avirtacp"
+version = "0.1.0"
+
+[[package]]
+name = "avirtadmin"
+version = "0.1.0"
+
+[[package]]
+name = "avirtagent"
+version = "0.1.0"
+
+[[package]]
+name = "avirtauditd"
+version = "0.1.0"
+
+[[package]]
+name = "avirtbuilderd"
+version = "0.1.0"
+
+[[package]]
+name = "avirtdnsd"
+version = "0.1.0"
+
+[[package]]
+name = "avirtenvoy"
+version = "0.1.0"
+
+[[package]]
+name = "avirtexec"
+version = "0.1.0"
+
+[[package]]
+name = "avirtguest"
+version = "0.1.0"
+
+[[package]]
+name = "avirtguestd"
+version = "0.1.0"
+
+[[package]]
 name = "avirthostd"
 version = "0.1.0"
 dependencies = [
@@ -325,6 +365,18 @@ dependencies = [
 ]
 
 [[package]]
+name = "avirtlogd"
+version = "0.1.0"
+
+[[package]]
+name = "avirtmcp"
+version = "0.1.0"
+
+[[package]]
+name = "avirtmcpgwd"
+version = "0.1.0"
+
+[[package]]
 name = "avirtmediatord"
 version = "0.1.0"
 dependencies = [
@@ -337,6 +389,38 @@ dependencies = [
  "serde_json",
  "tokio",
 ]
+
+[[package]]
+name = "avirtmodelgwd"
+version = "0.1.0"
+
+[[package]]
+name = "avirtnetd"
+version = "0.1.0"
+
+[[package]]
+name = "avirtoteld"
+version = "0.1.0"
+
+[[package]]
+name = "avirtpolicyd"
+version = "0.1.0"
+
+[[package]]
+name = "avirtproxyd"
+version = "0.1.0"
+
+[[package]]
+name = "avirtregistryd"
+version = "0.1.0"
+
+[[package]]
+name = "avirtsecretsd"
+version = "0.1.0"
+
+[[package]]
+name = "avirtwebd"
+version = "0.1.0"
 
 [[package]]
 name = "base64"
