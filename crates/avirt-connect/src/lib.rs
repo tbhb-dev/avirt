@@ -6,7 +6,8 @@ use std::net::{IpAddr, Ipv4Addr, Ipv6Addr};
 /// Everything that is not a global unicast address: loopback, private, link-local, CGNAT,
 /// benchmarking, documentation, multicast, reserved and broadcast ranges for IPv4; and for IPv6
 /// loopback, unspecified, IPv4-compatible, unique-local, link-local, site-local, multicast,
-/// discard, documentation, Teredo, NAT64 and, through their embedded IPv4 address, IPv4-mapped
+/// discard, documentation, benchmarking, ORCHID, `ORCHIDv2`, segment-routing SIDs,
+/// IPv4-translated, Teredo, NAT64 and, through their embedded IPv4 address, IPv4-mapped
 /// and 6to4. A destination that lands in one of these is the host or its neighbours, not the
 /// internet.
 #[must_use]
@@ -43,6 +44,13 @@ fn v6_special(ip: Ipv6Addr) -> bool {
     if seg[..6] == [0; 6] {
         return true; // ::/96, which holds ::, ::1 and the IPv4-compatible addresses
     }
+    if (seg[..4] == [0; 4] && seg[4] == 0xffff && seg[5] == 0)
+        || (seg[0] == 0x2001 && ((seg[1] == 2 && seg[2] == 0) || (0x0010..=0x002f).contains(&seg[1])))
+        || (seg[0] == 0x3fff && seg[1] & 0xf000 == 0)
+        || seg[0] == 0x5f00
+    {
+        return true;
+    }
     if seg[0] == 0x0064 && seg[1] == 0xff9b && (seg[2..6] == [0; 4] || seg[2] == 1) {
         return true; // NAT64: 64:ff9b::/96 and 64:ff9b:1::/48
     }
@@ -66,17 +74,24 @@ fn v6_special(ip: Ipv6Addr) -> bool {
 
 /// Every address assigned to one of the host's interfaces, global ones included: a service
 /// listening on the wildcard address is reachable through any of them.
-#[must_use]
-pub fn host_addresses() -> HashSet<IpAddr> {
-    let Ok(interfaces) = nix::ifaddrs::getifaddrs() else { return HashSet::new() };
-    interfaces
+pub fn host_addresses() -> std::io::Result<HashSet<IpAddr>> {
+    let interfaces = nix::ifaddrs::getifaddrs()?;
+    Ok(interfaces
         .filter_map(|i| i.address)
         .filter_map(|a| {
             a.as_sockaddr_in()
                 .map(|v4| IpAddr::V4(v4.ip()))
                 .or_else(|| a.as_sockaddr_in6().map(|v6| IpAddr::V6(v6.ip())))
         })
-        .collect()
+        .collect())
+}
+
+/// Check every resolved address, refusing empty answers and unavailable host interfaces.
+#[must_use]
+#[allow(clippy::implicit_hasher)] // Matches the host_addresses result shared by both engines.
+pub fn destination_allowed(addrs: &[IpAddr], own: &std::io::Result<HashSet<IpAddr>>) -> bool {
+    let Ok(own) = own else { return false };
+    !addrs.is_empty() && addrs.iter().all(|ip| !is_private(*ip) && !is_host_address(*ip, own))
 }
 
 /// Whether the host itself owns `ip` (looking through an IPv4-mapped address).
@@ -100,6 +115,9 @@ impl Target {
     #[must_use]
     pub fn parse(authority: &str) -> Option<Self> {
         let (host, port) = authority.rsplit_once(':')?;
+        if !(1..=5).contains(&port.len()) || port.starts_with('0') || !port.bytes().all(|b| b.is_ascii_digit()) {
+            return None;
+        }
         let port: u16 = port.parse().ok().filter(|p| *p != 0)?;
         let host = if let Some(inner) = host.strip_prefix('[').and_then(|h| h.strip_suffix(']')) {
             inner.parse::<Ipv6Addr>().ok()?;
@@ -169,6 +187,12 @@ mod tests {
             "240.0.0.1",
             "255.255.255.255",
             "192.88.99.1",
+            "::ffff:0:808:808",
+            "2001:2::1",
+            "2001:10::1",
+            "2001:2f::1",
+            "3fff::1",
+            "5f00::1",
             "::1",
             "::",
             "::127.0.0.1",
@@ -198,6 +222,7 @@ mod tests {
             "198.20.0.1",
             "192.0.3.1",
             "223.255.255.255",
+            "2606:4700::1111",
             "2606:4700:4700::1111",
             "2a00:1450:4001::1",
             "::ffff:1.1.1.1",
@@ -217,7 +242,7 @@ mod tests {
         assert!(is_host_address(ip("2606:4700::5"), &host));
         assert!(!is_host_address(ip("1.1.1.1"), &host));
         // Whatever this machine has, its loopback is among it.
-        assert!(is_host_address(ip("127.0.0.1"), &host_addresses()));
+        assert!(is_host_address(ip("127.0.0.1"), &host_addresses().unwrap()));
     }
 
     #[test]
@@ -258,6 +283,10 @@ mod tests {
         assert_eq!(t("1.1.1.1:80"), Some(Target { host: "1.1.1.1".into(), port: 80 }));
         for bad in [
             "example.com",
+            "example.com:+443",
+            "example.com:0443",
+            "example.com:00",
+            "example.com:65536",
             "example.com:0",
             "example.com:70000",
             ":443",
@@ -271,6 +300,16 @@ mod tests {
         ] {
             assert_eq!(t(bad), None, "{bad}");
         }
+    }
+
+    #[test]
+    fn destination_check_fails_closed() {
+        let global = ip("93.184.216.34");
+        assert!(!destination_allowed(&[global], &Err(std::io::Error::other("x"))));
+        assert!(!destination_allowed(&[], &Ok(HashSet::new())));
+        assert!(destination_allowed(&[global], &Ok(HashSet::new())));
+        assert!(!destination_allowed(&[global], &Ok([global].into_iter().collect())));
+        assert!(Target::parse("example.com:443").is_some());
     }
 
     #[test]

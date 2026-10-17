@@ -40,7 +40,7 @@ To prepare an end-to-end run, build the mediator and host daemon with `cargo bui
 Connections are never reused, and there is no peer check, because the socket's mode is the access control.
 
 1. Read the request head (at most 8 KiB, 10 s timeout) and parse it with `httparse`. A connection that closes before sending a byte (a readiness probe) is ignored. Bytes after the blank line, such as an early TLS ClientHello, are forwarded upstream.
-2. Accept only `CONNECT host:port` with an explicit port of 1-65535 and a hostname or IP literal, lowercased, with any trailing dot stripped. An authority that looks like IPv4 must be a canonical dotted quad, so `2130706433`, `0177.0.0.1`, `0x7f000001` and `127.1` are malformed.
+2. Accept only `CONNECT host:port` with an explicit port of 1–65535 written as 1 to 5 ASCII digits, with no sign or leading zero and a hostname or IP literal, lowercased, with any trailing dot stripped. An authority that looks like IPv4 must be a canonical dotted quad, so `2130706433`, `0177.0.0.1`, `0x7f000001` and `127.1` are malformed.
 3. Resolve the name with `tokio::net::lookup_host` and apply the destination check below.
 4. Dial each address, 10 s overall. Reply `200 Connection Established`, flush, and copy in both directions with byte counts until either side closes or shutdown fires. There is no idle timeout, because model API streams are long-lived.
 
@@ -56,7 +56,7 @@ Every other destination is allowed and logged under rule `allow-all`.
 
 ## Destination check (`private-dest`)
 
-A resolved address is refused when it is in any non-global range: loopback, RFC 1918, CGNAT, link-local, benchmarking, documentation, multicast, reserved and broadcast, and for IPv6 also unique-local, site-local, Teredo, discard, NAT64 (`64:ff9b::/96`, `64:ff9b:1::/48`), 6to4 (through its embedded IPv4) and IPv4-mapped or IPv4-compatible addresses. Every address assigned to one of the host's own interfaces is also refused, global ones included, read with `getifaddrs` on each CONNECT.
+A resolved address is refused when it is in any non-global range: loopback, RFC 1918, CGNAT, link-local, benchmarking, documentation, multicast, reserved and broadcast, and for IPv6 also unique-local, site-local, Teredo, discard, NAT64 (`64:ff9b::/96`, `64:ff9b:1::/48`), 6to4 (through its embedded IPv4) and IPv4-mapped or IPv4-compatible addresses. IPv6 also refuses IPv4-translated `::ffff:0:0:0/96`, benchmarking `2001:2::/48`, ORCHID `2001:10::/28`, ORCHIDv2 `2001:20::/28`, documentation `3fff::/20` and segment-routing SIDs `5f00::/16`. Every address assigned to one of the host's own interfaces is also refused, global ones included, read with `getifaddrs` on each CONNECT. If host interfaces cannot be read, the connection is refused with 403, rule `private-dest` and error `"host addresses"`.
 
 ## Events
 
@@ -98,7 +98,7 @@ Every connection from the mediator Envoy to avirtmodelgwd, avirtmcpgwd or the fr
 
 The mediator Envoy serves the link as an h2 listener on `/run/avirt/link.sock` and terminates each agent `CONNECT` stream. libavirtenvoy runs these steps as Envoy filters:
 
-1. **Authority.** It parses the authority with the same rules as the implemented CONNECT app: an explicit port of 1-65535, a hostname or IP literal, lowercased, with any trailing dot stripped, and a canonical dotted quad for anything that looks like IPv4. A malformed authority gets 400 `bad-request`. avirtnetd's loopback proxy answers any method other than CONNECT with 501, `plain-http` for an absolute `http://` URI and `unsupported-method` otherwise. An IP-literal authority is an external endpoint whose resource has an `ip` attribute and no `host`, so no hostname rule and no `like` pattern can match it: it is permitted only by a policy that names that exact address in `resource.ip`.
+1. **Authority.** It parses the authority with the same rules as the implemented CONNECT app: an explicit port of 1–65535 written as 1 to 5 ASCII digits, with no sign or leading zero, a hostname or IP literal, lowercased, with any trailing dot stripped, and a canonical dotted quad for anything that looks like IPv4. A malformed authority gets 400 `bad-request`. avirtnetd's loopback proxy answers any method other than CONNECT with 501, `plain-http` for an absolute `http://` URI and `unsupported-method` otherwise. An IP-literal authority is an external endpoint whose resource has an `ip` attribute and no `host`, so no hostname rule and no `like` pattern can match it: it is permitted only by a policy that names that exact address in `resource.ip`.
 2. **Classification.** It classifies the destination as one of:
    - an avirt name (see [components](./components.md#avirt-names)), which it resolves to its canonical entity (see [name resolution](#name-resolution)); a name that resolves to no entity is denied before policy evaluation;
    - a model API host that avirtmodelgwd serves, such as `api.anthropic.com`, `chatgpt.com`, `api.openai.com` and `auth.openai.com`;

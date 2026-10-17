@@ -129,6 +129,7 @@ impl<EHF: EnvoyHttpFilter> HttpFilter<EHF> for Filter {
                     self.refuse(envoy, 502, "allow-all", Some("authority rewrite"));
                 }
             }
+            Some(Err("host addresses")) => self.refuse(envoy, 403, "private-dest", Some("host addresses")),
             Some(Err("private-dest")) => self.refuse(envoy, 403, "private-dest", None),
             _ => self.refuse(envoy, 502, "allow-all", Some("dns")),
         }
@@ -180,8 +181,8 @@ async fn resolve(target: &Target) -> Resolution {
             .map_err(|_| "dns")?
             .collect();
     let own = policy::host_addresses();
-    if addresses.iter().any(|a| policy::is_private(a.ip()) || policy::is_host_address(a.ip(), &own)) {
-        return Err("private-dest");
+    if !policy::destination_allowed(&addresses.iter().map(SocketAddr::ip).collect::<Vec<_>>(), &own) {
+        return Err(if own.is_err() { "host addresses" } else { "private-dest" });
     }
     addresses.first().copied().ok_or("dns")
 }

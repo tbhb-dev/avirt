@@ -35,7 +35,7 @@ use tokio::io::{AsyncReadExt, AsyncWriteExt};
 use tokio::net::{TcpStream, UnixStream};
 use tokio::sync::Semaphore;
 
-use policy::{Target, is_private};
+use policy::Target;
 
 const MAX_HEAD: usize = 8 * 1024;
 const HEAD_TIMEOUT: Duration = Duration::from_secs(10);
@@ -272,8 +272,8 @@ impl ServerApp for ConnectApp {
         // The host's own addresses count too, global ones included: a wildcard listener answers on
         // all of them.
         let own = policy::host_addresses();
-        if addrs.iter().any(|a| is_private(a.ip()) || policy::is_host_address(a.ip(), &own)) {
-            conn.emit("deny", "private-dest", None);
+        if !policy::destination_allowed(&addrs.iter().map(SocketAddr::ip).collect::<Vec<_>>(), &own) {
+            conn.emit("deny", "private-dest", own.as_ref().err().map(|_| "host addresses"));
             refuse(&mut stream, 403, "Forbidden", &format!("egress denied: {host}:{port}")).await;
             return None;
         }
