@@ -15,7 +15,7 @@ The mediator binary. It runs one Pingora `Server` with two Unix-socket services 
 | Module | Holds |
 | --- | --- |
 | `main.rs` | Flags (`--dir`, `--hostd-sock`, `--actor`, and the secret from `AVIRT_MEDIATOR_SECRET`), the `ConnectApp` CONNECT proxy, the `SpliceApp` uplink splice, the connection records, and the shutdown watch |
-| `policy.rs` | Re-exports of authority parsing and destination checks from `avirtenvoy::policy` |
+| `policy.rs` | Re-exports of authority parsing and destination checks from `avirt_connect` |
 | `envoy.rs` | Static CONNECT bootstrap, the guardian process, Envoy supervision, stream forwarding and conversion of module snapshots to connection events |
 | `events.rs` | The event thread that writes one NDJSON line per proxied connection to the `EGRESS` connection |
 
@@ -34,4 +34,4 @@ The mediator binary. It runs one Pingora `Server` with two Unix-socket services 
 cargo test -p avirtmediatord
 ```
 
-`crates/avirtenvoy/src/policy.rs` holds the tests for private destinations, host addresses, CONNECT authorities and absolute URIs. Add a case there for any new address range or authority form. `envoy.rs` tests the bootstrap structure and event conversion and validates the bootstrap when an Envoy binary and module are supplied. The guardian test uses a fake executable and launches no actor.
+`crates/avirt-connect/src/lib.rs` holds the tests for private destinations, host addresses, CONNECT authorities and absolute URIs. Add a case there for any new address range or authority form. `envoy.rs` tests the bootstrap structure and event conversion and validates the bootstrap when an Envoy binary and module are supplied. The guardian test uses a fake executable and launches no actor.

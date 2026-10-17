@@ -1,7 +1,7 @@
 ---
 type: README
 title: avirtenvoy
-description: "The Envoy dynamic module that evaluates Cedar policy and injects HTTP and gRPC credentials."
+description: "The Envoy dynamic module that checks CONNECT destinations and reports connection events to avirtmediatord."
 tags: [avirt, crate, avirtenvoy]
 implementation: partial
 generated: { by: claude-code/claude-sonnet-5-5, at: 2026-10-17T19:16:42Z }
@@ -11,7 +11,7 @@ generated: { by: claude-code/claude-sonnet-5-5, at: 2026-10-17T19:16:42Z }
 
 ## Status: implemented
 
-The crate provides the CONNECT authority parser and destination classification shared with Pingora, plus an optional Envoy HTTP dynamic module for the host mediator. Build the module with `cargo build --locked -p avirtenvoy --features dynamic-module`. The output is `target/debug/libavirtenvoy.dylib` on macOS and `target/debug/libavirtenvoy.so` on Linux. The default build exposes the shared policy library but has no Envoy entrypoint. Use a separate target directory, such as `--target-dir target/envoy-module`, for a module that must remain available while running ordinary workspace builds or tests.
+The crate provides the Envoy HTTP dynamic module for the host mediator. Shared destination policy lives in `avirt-connect`. Build with `cargo build --locked --manifest-path crates/avirtenvoy/Cargo.toml --target-dir target/envoy-module`. The output is `target/envoy-module/debug/libavirtenvoy.dylib` on macOS and `target/envoy-module/debug/libavirtenvoy.so` on Linux. The module is excluded from the root workspace.
 
 The module uses `envoy-proxy-dynamic-modules-rust-sdk` from [Envoy v1.40.0](https://github.com/envoyproxy/envoy/tree/v1.40.0/source/extensions/dynamic_modules/sdk/rust), pinned to commit `9e5580933739775e8bce696a57a2e1bc99368f23`. The SDK is a git dependency. Building it requires libclang; Xcode supplies it on macOS. `Cargo.lock` pins prettyplease 0.2.37, compatible with bindgen 0.73.2's syn 2 dependency.
 

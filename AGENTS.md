@@ -24,6 +24,7 @@ Every crate lives directly under `crates/`, and each directory is named after it
 | `avirt` | Binary `avirt` | Host | The operator CLI: `avirt launch` |
 | `avirtmediatord` | Binary | Host (one per actor) | The CONNECT proxy (Pingora by default, optional Envoy) and the uplink splice |
 | `avirtinitd` | Binary | Linux guest only (the workload) | The ACP client: spawns the adapter, taps JSON-RPC, drops to uid 1000 under seccomp |
+| `avirt-connect` | Library | Both | CONNECT authority parsing and destination checks, shared by both CONNECT engines |
 | `avirt-core` | Library | Both | Shared code: the `api` module, the `avirthostd` server, the `avirtinitd` harness, the uplink, the log envelope, the state root |
 | `avirtadmin` | Binary | Host | The local admin CLI (not implemented) |
 | `avirtwebd` | Binary | Host | The backend for the avirt web UI (not implemented) |

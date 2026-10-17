@@ -1,2 +1,1 @@
-//! Shared CONNECT parsing and destination checks.
-pub use avirtenvoy::policy::*;
+pub use avirt_connect::*;

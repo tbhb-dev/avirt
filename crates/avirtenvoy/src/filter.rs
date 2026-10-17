@@ -12,7 +12,7 @@ use sdk::abi::envoy_dynamic_module_type_on_http_filter_request_headers_status as
 use sdk::{EnvoyHttpFilter, EnvoyHttpFilterConfig, EnvoyHttpFilterScheduler, HttpFilter, HttpFilterConfig};
 use serde_json::{Value, json};
 
-use crate::policy::{self, Target};
+use avirt_connect::{self as policy, Target};
 
 // The SDK owns the FFI boundary; no handwritten unsafe code is needed here.
 sdk::declare_init_functions!(init, config);

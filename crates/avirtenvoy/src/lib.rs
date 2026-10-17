@@ -1,5 +1,2 @@
-//! CONNECT destination policy and the optional Envoy dynamic-module entrypoint.
-pub mod policy;
-
-#[cfg(all(feature = "dynamic-module", not(test)))]
+//! Envoy CONNECT destination filter.
 mod filter;

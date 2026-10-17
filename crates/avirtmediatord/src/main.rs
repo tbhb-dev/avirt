@@ -62,7 +62,7 @@ struct Args {
     /// Envoy v1.40.0 executable (used only with --proxy-engine envoy).
     #[arg(long, env = "AVIRT_ENVOY_BIN", default_value = "envoy")]
     envoy_bin: PathBuf,
-    /// Dynamic module built with `cargo build -p avirtenvoy --features dynamic-module`.
+    /// Dynamic module built with `cargo build --locked --manifest-path crates/avirtenvoy/Cargo.toml --target-dir target/envoy-module`.
     #[arg(long, env = "AVIRT_ENVOY_MODULE")]
     envoy_module: Option<PathBuf>,
 }
