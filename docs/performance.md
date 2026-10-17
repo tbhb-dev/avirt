@@ -4,7 +4,7 @@ title: Performance metrics
 description: The metrics avirt measures, grouped by area, with each metric's exact start and end points, unit, measuring component, collection method, applicable runtimes and whether it is an SLO candidate or a diagnostic.
 tags: [avirt, performance, metrics, observability]
 implementation: planned
-generated: { by: claude-code/claude-opus-5-5, at: 2026-10-17T14:23:31Z }
+generated: { by: claude-code/claude-opus-5-5, at: 2026-10-17T19:00:00Z }
 ---
 
 # Status: planned
@@ -65,7 +65,7 @@ flowchart LR
 | `link.mtls_handshake` | Transport connected → TLS 1.3 handshake complete with the peer ID authorized, per side | ms | avirtinitd, mediator, avirthostd | Histogram | Containerization, Docker | diag |
 | `svid.issue` | CSR sent → SVID received, end to end, plus avirthostd's signing time | ms | Mediator, avirtinitd, avirthostd | Histogram | Containerization, Docker | diag |
 | `svid.rotation` | `rotate` pushed → new connection carrying the new SVID in use and GOAWAY sent on the old one | ms | avirthostd, mediator | Span | Containerization, Docker | diag |
-| `link.reconnect` | Mediator loss detected by avirtinitd (freeze) → SIGCONT after the new generation's `confirm` | ms | avirtinitd | Histogram | Containerization, Docker | SLO |
+| `link.reconnect` | Mediator loss detected by avirtinitd (freeze) → the agent resumed after the new generation's `confirm` | ms | avirtinitd | Histogram | Containerization, Docker | SLO |
 | `link.frozen_total` | Total time the agent spent frozen during one actor | ms | avirtinitd | Counter | Containerization, Docker | diag |
 
 # Egress
@@ -73,15 +73,15 @@ flowchart LR
 | Metric | Definition | Unit | Where | How | Runtimes | Class |
 | --- | --- | --- | --- | --- | --- | --- |
 | `egress.connect_setup` | CONNECT head received by the mediator → `200` written | ms | Mediator | Histogram | All | SLO |
-| `egress.dns` | Name lookup started → addresses returned | ms | Mediator | Histogram | All | diag |
-| `egress.dial` | First upstream dial started → connected | ms | Mediator | Histogram | All | diag |
+| `egress.dns` | Name lookup started → addresses returned | ms | Mediator, or the front-door Envoy where it resolves | Histogram | All | diag |
+| `egress.dial` | First upstream dial started → connected | ms | Mediator, or the front-door Envoy where it dials | Histogram | All | diag |
 | `egress.tls_accept` | `200` written → downstream TLS handshake complete | ms | Mediator | Histogram | Containerization, Docker | diag |
 | `egress.leaf` | Leaf certificate cache miss → leaf ready, plus the cache hit ratio | µs, ratio | Mediator | Histogram, counter | Containerization, Docker | diag |
 | `egress.tls_added_latency` | Request completion time through termination minus through the opaque path, for the same request | ms | Bench harness | External benchmark | Containerization, Docker | diag |
 | `egress.tls_added_throughput` | Throughput through termination relative to the opaque path, for the same transfer | ratio | Bench harness | External benchmark | Containerization, Docker | diag |
 | `egress.policy_eval` | Rule evaluation started → decision, per connection and per request | µs | Mediator | Histogram | All | diag |
 | `egress.substitution` | Credential substitution and leak scan, per request, including body scanning | µs | Mediator | Histogram | Containerization, Docker | diag |
-| `egress.codex_refresh` | Intercepted refresh request received → synthesized response sent, plus avirthostd's `POST /actor/codex/refresh` time | ms | Mediator, avirthostd | Span | Containerization, Docker | diag |
+| `egress.codex_refresh` | Intercepted refresh request received → synthesized response sent, plus avirtmodelgwd's and avirtsecretsd's refresh time | ms | Mediator, avirtmodelgwd, avirtsecretsd | Span | Containerization, Docker | diag |
 | `egress.decisions` | Connections and requests by `decision` (`allow`, `deny`, `would-deny`) and by `rule` | count | Mediator | Counter, from the egress events | All | diag |
 | `egress.errors` | Failures by kind: `bad-request`, `private-dest`, `plain-http`, DNS, dial, timeout, `shutdown`, `credential-misplaced` | count | Mediator | Counter, from the egress events | All | diag |
 | `egress.bytes` | `bytes_up` and `bytes_down` per connection and per actor | bytes | Mediator | Counter, from the egress events | All | diag |

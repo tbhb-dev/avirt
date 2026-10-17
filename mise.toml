@@ -25,11 +25,12 @@ run = "cargo fmt"
 
 [tasks.check-docs]
 shell = "bash -c"
-description = "guard-markdown on every tracked Markdown file, then the docs structure check"
+description = "guard-markdown on every tracked Markdown file, then the OKF check on docs/ and on every other Markdown file"
 run = """
 command -v guard-markdown >/dev/null || { echo "guard-markdown not found; install it with: go install github.com/tbhb/repotools/cmd/guard-markdown@latest" >&2; exit 1; }
 git ls-files -z '*.md' | while IFS= read -r -d '' f; do [ -e "$f" ] && printf '%s\\0' "$f"; done | xargs -0 guard-markdown
 uv run --no-project --with pyyaml python scripts/okf-check.py docs
+uv run --no-project --with pyyaml python scripts/okf-check.py --repo .
 """
 
 [tasks.check]

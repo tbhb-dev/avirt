@@ -1,3 +1,11 @@
+---
+type: Agent Instructions
+title: "Agent instructions: avirthostd"
+description: "Guidance for AI coding agents working in the `avirthostd` crate."
+tags: [avirt, crate, avirthostd]
+generated: { by: claude-code/claude-sonnet-5-5, at: 2026-10-17T19:16:42Z }
+---
+
 # Agent instructions: avirthostd
 
 The `avirthostd` binary. Most of the server lives in `avirt-core` (`hostd`, `egress`, `state`), and this crate wires it to the two agent profiles.

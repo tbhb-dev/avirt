@@ -4,7 +4,7 @@ title: Build and platforms
 description: Build targets for the guest and host binaries, how the Swift Containerization shim is gated and linked, signing, the CI matrix, the toolchain, host privileges per runtime and guest artifact pins.
 tags: [avirt, build, ci, platforms, signing, swift]
 implementation: planned
-generated: { by: claude-code/claude-opus-5-5, at: 2026-10-17T14:23:31Z }
+generated: { by: claude-code/claude-opus-5-5, at: 2026-10-17T19:00:00Z }
 ---
 
 # Status: planned
@@ -15,6 +15,7 @@ generated: { by: claude-code/claude-opus-5-5, at: 2026-10-17T14:23:31Z }
 | --- | --- | --- |
 | `avirtinitd` | Linux guests (the workload) | `aarch64-unknown-linux-musl`, `x86_64-unknown-linux-musl` |
 | `avirtmediatord` | Linux guests (the mediator) | `aarch64-unknown-linux-musl`, `x86_64-unknown-linux-musl` |
+| `libavirtenvoy` | Envoy, as a dynamic module: the mediator Envoy in Linux guests and the front-door Envoy on the host | `aarch64-unknown-linux-gnu`, `x86_64-unknown-linux-gnu`, macOS arm64 |
 | `avirthostd` | The host | macOS arm64, Linux x86_64 and arm64, Windows x86_64 and arm64 |
 | `avirt` | The host | macOS arm64, Linux x86_64 and arm64, Windows x86_64 and arm64 |
 
@@ -29,6 +30,7 @@ The guest binaries do not depend on the host OS. `avirthostd` and the `avirt` CL
 | `crates/avirthostd` | The host daemon |
 | `crates/avirtmediatord` | The mediator |
 | `crates/avirtinitd` | The workload entrypoint |
+| `crates/avirtenvoy` | The Envoy dynamic module, a `cdylib` built as `libavirtenvoy`, that evaluates Cedar policy (embedding the `cedar-policy` crate) and injects HTTP and gRPC credentials |
 | `crates/avirt-runtime-containerization` | The Containerization runtime: a Swift package and a `build.rs` |
 
 `workloads/claude/` and `workloads/codex/` hold only the image build directories.

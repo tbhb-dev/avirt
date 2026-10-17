@@ -1,13 +1,19 @@
 """Check that a directory is a conformant OKF v0.2 bundle (SPEC.md section 11).
 
 Usage: uv run --no-project --with pyyaml python scripts/okf-check.py docs
+       uv run --no-project --with pyyaml python scripts/okf-check.py --repo .
 
 Checks: every non-reserved .md file has a parseable YAML frontmatter block with a non-empty
 `type`; `index.md` carries no frontmatter except `okf_version` at the bundle root, and its
 entries have the `* [Title](link) - description` form; concept id segments are valid; a
 `status` is draft, stable or deprecated; `generated` has `by`; relative links resolve.
+
+With `--repo ROOT`, every Markdown file under ROOT outside `docs/` and the build, dependency, log and
+hidden directories needs the same frontmatter (`type`, valid `status` and `generated`), and none of
+them needs a place in a docs index.
 """
 
+import os
 import re
 import sys
 from pathlib import Path
@@ -26,6 +32,7 @@ _Loader.yaml_implicit_resolvers = {
 
 SEGMENT = re.compile(r"[A-Za-z0-9_][A-Za-z0-9_.\-]*")
 INDEX_ENTRY = re.compile(r"^\* \[[^\]]+\]\([^)]+\)( - .+)?$")
+SKIP_DIRS = {"docs", "target", "node_modules", "logs"}
 LINK = re.compile(r"\]\((\./[^)#]+|[A-Za-z0-9_-]+\.md)\)")
 
 
@@ -41,6 +48,42 @@ def parse(text: str) -> tuple[dict | None, str]:
                 raise ValueError("frontmatter must be a YAML mapping")
             return fm, "\n".join(lines[i + 1 :])
     raise ValueError("unterminated YAML frontmatter block")
+
+
+def check_frontmatter(rel: Path, fm: dict) -> list[str]:
+    errors = []
+    if not fm.get("type"):
+        errors.append(f"{rel}: missing required frontmatter key: type")
+    if fm.get("status") not in (None, "draft", "stable", "deprecated"):
+        errors.append(f"{rel}: status must be draft, stable or deprecated")
+    generated = fm.get("generated")
+    if generated is not None and not (isinstance(generated, dict) and generated.get("by")):
+        errors.append(f"{rel}: generated.by is required within generated")
+    return errors
+
+
+def repo_markdown(root: Path) -> list[Path]:
+    found = []
+    for dirpath, dirnames, filenames in os.walk(root):
+        dirnames[:] = sorted(d for d in dirnames if d not in SKIP_DIRS and not d.startswith("."))
+        found.extend(Path(dirpath) / f for f in sorted(filenames) if f.endswith(".md"))
+    return found
+
+
+def check_repo(root: Path) -> list[str]:
+    errors = []
+    for md in repo_markdown(root):
+        rel = md.relative_to(root)
+        try:
+            fm, _ = parse(md.read_text(encoding="utf-8"))
+        except (ValueError, yaml.YAMLError) as e:
+            errors.append(f"{rel}: {e}")
+            continue
+        if fm is None:
+            errors.append(f"{rel}: no frontmatter")
+            continue
+        errors.extend(check_frontmatter(rel, fm))
+    return errors
 
 
 def check(root: Path) -> list[str]:
@@ -69,13 +112,7 @@ def check(root: Path) -> list[str]:
         if fm is None:
             errors.append(f"{rel}: no frontmatter")
             continue
-        if not fm.get("type"):
-            errors.append(f"{rel}: missing required frontmatter key: type")
-        if fm.get("status") not in (None, "draft", "stable", "deprecated"):
-            errors.append(f"{rel}: status must be draft, stable or deprecated")
-        generated = fm.get("generated")
-        if generated is not None and not (isinstance(generated, dict) and generated.get("by")):
-            errors.append(f"{rel}: generated.by is required within generated")
+        errors.extend(check_frontmatter(rel, fm))
         for target in LINK.findall(body):
             if not (md.parent / target).exists():
                 errors.append(f"{rel}: broken link {target}")
@@ -83,6 +120,14 @@ def check(root: Path) -> list[str]:
 
 
 def main() -> int:
+    if sys.argv[1:2] == ["--repo"]:
+        root = Path(sys.argv[2] if len(sys.argv) > 2 else ".")
+        errors = check_repo(root)
+        for e in errors:
+            print(e)
+        if not errors:
+            print(f"OK: {len(repo_markdown(root))} files outside docs/ carry OKF frontmatter")
+        return 1 if errors else 0
     root = Path(sys.argv[1] if len(sys.argv) > 1 else "docs")
     errors = check(root)
     for e in errors:

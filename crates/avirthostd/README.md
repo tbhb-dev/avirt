@@ -1,3 +1,12 @@
+---
+type: README
+title: avirthostd
+description: "The host daemon for avirt, built as the `avirthostd` binary."
+tags: [avirt, crate, avirthostd]
+implementation: implemented
+generated: { by: claude-code/claude-sonnet-5-5, at: 2026-10-17T19:16:42Z }
+---
+
 # avirthostd
 
 The host daemon for avirt, built as the `avirthostd` binary. Running it starts the server: the control API on `127.0.0.1:8787`, the per-actor mediators, the workload containers and the actor logs in `logs/`.

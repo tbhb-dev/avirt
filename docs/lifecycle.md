@@ -4,7 +4,7 @@ title: Lifecycle and state
 description: The order in which avirthostd launches and tears down an actor, avirthostd shutdown, the on-disk state root, the startup sweep after a crash, and path-length limits.
 tags: [avirt, lifecycle, state, cleanup]
 implementation: partial
-generated: { by: claude-code/claude-opus-5-5, at: 2026-10-17T14:23:31Z }
+generated: { by: claude-code/claude-opus-5-5, at: 2026-10-17T19:00:00Z }
 ---
 
 # Status: implemented
@@ -102,25 +102,42 @@ The Containerization runtime adds these to the state root:
 | `containers/<id>/` | Each VM's runtime directory, removed at teardown and by the startup sweep |
 | `cache/kernel/` | The extracted kata-containers 3.32.0 arm64 `vmlinux`, verified against its pinned sha256 |
 | `cache/initfs/` | The `vminit:0.47.0` init filesystem |
+| `cache/rootfs/` | Composed root filesystems, one per pair of workload image and workspace image (see [workspaces](./workspaces.md#applying-the-overlay)) |
 | `images/` | avirthostd's image store with the unpacked workload and mediator images |
+
+Every planned runtime adds `services/`, which holds the host components' listener sockets (`services/<name>.sock`, 0600) and avirthostd's issuer socket.
+
+## Durable state
+
+The state that must outlive the state root lives in avirthostd's durable state directory: `~/Library/Application Support/avirt/` on macOS and `$XDG_STATE_HOME/avirt/` on Linux, 0700.
+
+| Path | Holds |
+| --- | --- |
+| `install-id` | The installation id that names the trust domain (see [identity](./identity.md#trust-domain-and-ids)) |
+| `ca/` | The SPIFFE root key (0600) and the root certificates in the bundle |
+| `peers/` | Enrolled peer trust domains and their bundles |
+
+The startup sweep never touches the durable state directory.
 
 ## Launch order
 
-1. Prepare the actor: id, the bootstrap SVIDs (workload and mediator/1), the MITM CA, the actor directory, and the avirthostd channel listening.
-2. Run the workload (`runtime.run_workload`).
-3. Wait for the runtime to ready the link endpoint. On the Containerization runtime, wait for the guest vsock listener to answer. On Docker, the link volume already exists.
-4. `runtime.run_mediator`: create the actor's network and run the mediator with `gen=1`.
-5. The mediator opens the link stream with a 50 ms to 1 s backoff for 15 s, because early dials end in EOF.
-6. The actor is live once avirthostd accepts the uplink. With no uplink within 30 s of step 2, avirthostd tears it down.
+1. For a launch with a workspace, resolve the reference through avirtregistryd and authorize `launch_workspace` for the resolved image (see [workspaces](./workspaces.md#resolution)). When another workload is the caller, apply the constraints in [workload management](./components.md#workload-management) and record its lineage. Validate the workload's alias and namespace name against the DNS label syntax and length caps, rejecting rather than truncating (see [components](./components.md#avirt-names)), assign the actor's canonical UUIDv7 and its short ID, unique on the host, regenerating on a clash (see [components](./components.md#workload-ids)), and a generated `<adverb>-<adjective>-<noun>` name unique in the namespace among live workloads, authorize the workload's creation in its namespace, each label key it carries, each credential binding it attaches (`attach_binding`) and each port it publishes (`publish_port`), against the host's Cedar snapshot, and admit the actor against the host's resource budgets. A refused launch gets 403 or 503.
+2. Prepare the actor: id, the bootstrap SVIDs (workload and mediator/1), the MITM CA, the actor directory, the actor's configuration with its policy and binding references, the avirthostd channel and service channel listening, and the actor's registration with avirtsecretsd (namespace, generation, binding ids and injection points) and avirtpolicyd.
+3. Run the workload (`runtime.run_workload`).
+4. Wait for the runtime to ready the link endpoint. On the Containerization runtime, wait for the workload guest's relay to answer. On Docker, the link volume already exists.
+5. `runtime.run_mediator`: run the mediator with `gen=1` and its channels. It has no network.
+6. The link opens: avirtnetd dials with a 50 ms to 1 s backoff, because early dials fail, for up to the 30 s budget of step 7. On the Containerization runtime avirthostd splices its connection to the mediator's link end.
+7. The actor is live once avirthostd accepts the uplink. With no uplink within 30 s of step 3, avirthostd tears it down.
 
-`avirtinitd` creates `/run/avirt` itself.
+`avirtinitd` creates `/run/avirt` itself in each container. On the Containerization runtime, avirthostd writes the workload's stdout, stderr and console to `logs/<actor-id>.stdio.ndjson` from the moment the workload starts (see [components](./components.md#workload-logs)).
 
 ## Teardown
 
 1. The workload exits and the uplink drains.
 2. `avirthostd` calls `runtime.remove` on the mediator: SIGTERM, then event flush and GOAWAY, with a 5 s limit before kill.
 3. `avirthostd` waits for the events EOF and writes `container_exit`.
-4. It calls `runtime.release`, which deletes both VMs or containers, the actor network, and any link volume or per-actor directory.
+4. It removes the actor's generations from the fenced set at every host listener, and its registrations with avirtsecretsd and avirtpolicyd.
+5. It calls `runtime.release`, which deletes both VMs or containers, and any link volume, channel socket or per-actor directory.
 
 The mediator cannot tell a workload that is gone from one that is not ready, so avirthostd always stops it explicitly. If the mediator dies, avirthostd restarts it while restarts remain. Otherwise it stops the workload and records a `container_error`.
 
@@ -129,11 +146,11 @@ The mediator cannot tell a workload that is gone from one that is not ready, so 
 At startup, under the lock, avirthostd calls `runtime.sweep`:
 
 1. On the Containerization runtime, it stops any VM it still owns and removes every stale `containers/<id>/` directory in the state root.
-2. On Docker, it removes every container, network and volume labelled `avirt=1`.
+2. On Docker, it removes every container and volume labelled `avirt=1`.
 3. It removes `actors/*`, including stale socket files.
 
 The kernel, initfs and image caches in the state root are kept.
 
 ## Path length
 
-Constraint: host Unix socket paths must be under 104 bytes. The Containerization runtime uses no host socket files. On Docker, `$TMPDIR/avirt-<uid>/actors/<id8>/c.sock` comes to about 90 bytes under macOS's `/var/folders/…/T/`. `avirthostd` computes the longest per-actor host socket path for its runtime at startup, and refuses to start above 100 bytes with a message suggesting a shorter `TMPDIR`.
+Constraint: host Unix socket paths must be under 104 bytes. The Containerization runtime uses no host socket files. On Docker, `$TMPDIR/avirt-<uid>/actors/<id8>/c.sock` and `s.sock` come to about 90 bytes under macOS's `/var/folders/…/T/`. `avirthostd` computes the longest per-actor host socket path for its runtime at startup, and refuses to start above 100 bytes with a message suggesting a shorter `TMPDIR`.

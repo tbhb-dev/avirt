@@ -1,3 +1,11 @@
+---
+type: Agent Instructions
+title: "Agent instructions: avirt-core"
+description: "Guidance for AI coding agents working in the `avirt-core` crate."
+tags: [avirt, crate, avirt-core]
+generated: { by: claude-code/claude-sonnet-5-5, at: 2026-10-17T19:16:42Z }
+---
+
 # Agent instructions: avirt-core
 
 The shared library. The avirthostd server and the avirtinitd harness both live here, so a change can affect the host and the workload at once.

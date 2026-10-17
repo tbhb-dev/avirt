@@ -1,10 +1,10 @@
 ---
 type: Security Design
 title: Workload hardening
-description: How avirtinitd confines the agent inside the workload, covering its user, capabilities, environment, seccomp filters and Landlock rules, plus what runs as root.
+description: How avirtinitd confines the agent inside the workload, covering its user, capabilities, environment, seccomp filters and Landlock rules, the per-process profiles of the workload helpers, and what runs as root.
 tags: [avirt, workload, seccomp, landlock, capabilities, security]
 implementation: partial
-generated: { by: claude-code/claude-opus-5-5, at: 2026-10-17T14:23:31Z }
+generated: { by: claude-code/claude-opus-5-5, at: 2026-10-17T19:00:00Z }
 ---
 
 # Status: implemented
@@ -76,22 +76,42 @@ The kata-containers 3.32.0 arm64 guest kernel (`vmlinux-6.18.35-197-debug`) that
 | Both agents | `/usr` `/lib` `/bin` `/sbin` `/etc` `/opt/agent` `/proc` `/sys/fs/cgroup` `/dev/urandom` `/dev/random` `/run/avirt/ca.pem` `/run/avirt/ca-bundle.pem` | `/workspace` `/home/agent` `/tmp` `/dev/null` `/dev/shm` `/dev/zero` |
 | Codex | | `/home/agent/.codex` (under home) |
 
+## Process profiles
+
+avirtinitd launches every workload process with that process's own profile, applied between fork and exec. No process inherits avirtinitd's profile, and avirtinitd applies no Landlock ruleset to itself, because every child would inherit it.
+
+| Process | UID | Capabilities | Seccomp | Landlock read-write |
+| --- | --- | --- | --- | --- |
+| avirtinitd | 0 | Until it has bound the DNS stub's sockets: also `CAP_NET_BIND_SERVICE`. Until `started`: `CAP_SETUID`, `CAP_SETGID`, `CAP_SETPCAP` and `CAP_KILL`. After it: `CAP_SETUID`, `CAP_SETGID` and `CAP_SETPCAP`, to restart avirtguestd. | The deny list, with `AF_VSOCK` denied | None |
+| avirtnetd | `avirt-net` | None | The socket-domain allowlist and the deny list | `/run/avirt/streams`, `/run/avirt/agent` and its link socket |
+| Session runner (avirtacp, avirtagent or avirtexec) | `avirt-run` | None | The socket-domain allowlist and the deny list | None |
+| avirtguestd | `avirt-guest` | None | The socket-domain allowlist and the deny list | The declared workspace roots and its snapshot directory |
+| Agent, its tools, avirtmcp and avirtguest | 1000 | None, with `no_new_privs` | The socket-domain allowlist and the deny list | The Landlock table above |
+
+A build job runs under the build profile instead, which permits the namespaces and mounts BuildKit's OCI worker needs and runs the build runner as root inside the build VM (see [workspaces](./workspaces.md#build-jobs)). It is used only for build jobs, which have no `guest-cli` access and no MITM CA for build commands, and only on a runtime with a VM per workload.
+
+Every helper's Landlock ruleset also grants read-only access to the system paths it needs to run: `/usr`, `/lib`, `/bin`, `/etc` and `/dev/urandom`, plus `/proc` for avirtinitd's children. Every process runs with `no_new_privs`. Every helper UID is distinct from 0 and from 1000, so uid 1000 cannot signal, trace or read the memory of any helper, and no helper can read another's sockets. The agent and every tool it starts run in the agent cgroup, which avirtinitd freezes and kills as a unit (see [actor topology](./actor-topology.md#freeze-and-reconnect)). The helpers run outside it.
+
+The agent (uid 1000) and avirtguestd share the workspace group `avirt-ws`, and nothing else. avirtinitd makes each declared workspace root setgid to that group with default POSIX ACLs that grant the group read and write, so files the agent creates stay writable by avirtguestd. As their owner, the agent can still remove the group's access to its own files, and avirtguestd reports such a file as unreadable rather than overriding it: avirtguestd holds no `CAP_DAC_OVERRIDE` or `CAP_FOWNER`.
+
+avirtinitd mounts `/proc` with `hidepid=invisible` before it starts any child, so uid 1000 cannot see the helpers' processes, command lines or file descriptors.
+
 ## What runs as root
 
 Only avirtinitd. It needs root to:
 
-- bind the link endpoint,
-- write the system CA bundle,
-- `setpriv` the agent,
-- signal uid 1000 processes when it freezes them.
+- start the other workload processes under their own UIDs,
+- create the agent cgroup, and freeze and kill it,
+- write the system CA bundle and `/etc/resolv.conf`,
+- bind the DNS stub resolver's port 53 sockets on `127.0.0.53`, which it hands to avirtnetd.
 
-After `started`, it drops every capability except `CAP_KILL` and sets `no_new_privs`. Its own seccomp filter, including the `AF_VSOCK` denial, applies to it before the agent is forked. On every runtime the agent's filter denies `AF_VSOCK`, which keeps uid 1000 off any host vsock listener, whether transient or gated by mutual TLS.
+It holds no SVID and no key: the bootstrap SVID passes through it to avirtnetd on an inherited file descriptor. Its own seccomp filter, including the `AF_VSOCK` denial, applies to it before any child is forked. Every process it launches has `AF_VSOCK` denied, which keeps every workload process off any vsock listener, whether transient or gated by mutual TLS.
 
 ## Runtime outer layer
 
 The runtime adds its native restrictions underneath avirtinitd's. On Docker Desktop that is:
 
-- `--cap-drop ALL`, then `--cap-add SETUID,SETGID,SETPCAP,KILL`. `SETPCAP` is needed for `setpriv --bounding-set=-all`.
+- `--cap-drop ALL`, then `--cap-add SETUID,SETGID,SETPCAP,KILL,NET_BIND_SERVICE`. `SETPCAP` is needed for `setpriv --bounding-set=-all`, and `NET_BIND_SERVICE` for the DNS stub's port 53.
 - `--security-opt no-new-privileges`.
 - Docker's default seccomp profile, left in place. A custom profile would replace the default rather than add to it.
 

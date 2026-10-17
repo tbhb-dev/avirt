@@ -1,3 +1,12 @@
+---
+type: README
+title: avirt-core
+description: The shared library for avirt.
+tags: [avirt, crate, avirt-core]
+implementation: implemented
+generated: { by: claude-code/claude-sonnet-5-5, at: 2026-10-17T19:16:42Z }
+---
+
 # avirt-core
 
 The shared library for avirt. It holds the control API types, the `avirthostd` server, the per-actor mediator process handle, the `avirtinitd` harness, the workload uplink, the NDJSON log envelope and the `avirthostd` state root. `avirthostd`, the CLI and `avirtinitd` depend on it.

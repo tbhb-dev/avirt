@@ -1,3 +1,11 @@
+---
+type: Agent Instructions
+title: "Agent instructions: avirtmediatord"
+description: "Guidance for AI coding agents working in the `avirtmediatord` crate."
+tags: [avirt, crate, avirtmediatord]
+generated: { by: claude-code/claude-sonnet-5-5, at: 2026-10-17T19:16:42Z }
+---
+
 # Agent instructions: avirtmediatord
 
 The mediator binary. It runs one Pingora `Server` with two Unix-socket services in the actor's directory.

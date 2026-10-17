@@ -4,7 +4,7 @@ title: Compute runtimes
 description: The runtime interface avirthostd uses for its per-actor primitives, the Containerization runtime that hosts Apple VMs inside avirthostd, the Docker Desktop runtime, and the Apple container CLI runtime the current code uses.
 tags: [avirt, runtime, containerization, docker, apple-container]
 implementation: partial
-generated: { by: claude-code/claude-opus-5-5, at: 2026-10-17T14:23:31Z }
+generated: { by: claude-code/claude-opus-5-5, at: 2026-10-17T19:00:00Z }
 ---
 
 # Apple container CLI runtime
@@ -32,14 +32,14 @@ pub trait Runtime: Send + Sync {
     fn props(&self) -> &RuntimeProps;
     /// Run the workload; return once the mediator can be wired to its link endpoint.
     async fn run_workload(&self, spec: &WorkloadSpec) -> Result<Running>;
-    /// Create the actor network and run the mediator, connected to the
-    /// workload's link endpoint and to the avirthostd channel.
+    /// Run the mediator, connected to the workload's link endpoint and to its
+    /// avirthostd, service and ingress channels.
     async fn run_mediator(&self, spec: &MediatorSpec, workload: &Running) -> Result<Running>;
     /// SIGTERM, `grace`, SIGKILL, delete. Idempotent.
     async fn remove(&self, c: &Running, grace: Duration) -> Result<()>;
     /// True only when the runtime confirms the workload or mediator no longer exists.
     async fn gone(&self, c: &Running) -> Result<bool>;
-    /// Delete the actor's network and any link volume or per-actor directory.
+    /// Delete any link volume, channel socket or per-actor directory.
     async fn release(&self, actor: &ActorId) -> Result<()>;
     /// Remove every VM, container, network, volume and directory avirthostd could have left behind.
     async fn sweep(&self) -> Result<SweepReport>;
@@ -48,13 +48,12 @@ pub trait Runtime: Send + Sync {
 pub struct RuntimeProps {
     pub isolation: Isolation,          // VmPerWorkload | SharedKernel
     pub host_socket_paths: usize,      // per-actor host socket paths subject to the 104-byte limit
-    pub dns_allow: Vec<SocketAddr>,    // the mediator's nft resolver exception
-    pub deny_extra: Vec<IpNet>,        // runtime-specific additions to deny4 and deny6
 }
 ```
 
 - **`Running`** holds the runtime handle plus the workload's or mediator's stdout, stderr and exit status.
-- **Specs** are runtime-neutral: the image, the environment, the workspace mount, the labels (`avirt=1`, `avirt.actor`, `avirt.role`), and the extra capabilities the role needs.
+- **Specs** are runtime-neutral: the image, the environment, the workspace mount, the labels (`avirt=1`, `avirt.actor`, `avirt.role`), and the extra capabilities the role needs. Neither spec has a network: the workload and the mediator have no interface other than loopback on every runtime.
+- **Channels.** The runtime provides the link, the avirthostd channel, the service channel and the ingress channel, each presented inside the container as a Unix socket under `/run/avirt/` (see [actor topology](./actor-topology.md#runtime-channels)).
 - **Hardening.** `avirtinitd` applies all agent hardening on every runtime, and the runtime adds only its native outer layer.
 - **Freeze and resume** are performed by avirtinitd, the same way on every runtime.
 - **Isolation.** `isolation` is written into the `start` meta event.
@@ -80,17 +79,31 @@ Status: planned. This is the Apple runtime.
 ## Networking
 
 - **Workload VM:** no network.
-- **Mediator VM:** a `VmnetNetwork` NAT interface, which can reach the host, the host's LAN, peer VMs and the internet. The mediator's nftables rules (see [egress](./egress.md)) therefore apply in full: the NAT subnet and gateway fall under the private ranges, and peer VMs with them. DNS goes to public resolvers (`dns_allow = [1.1.1.1:53, 9.9.9.9:53]`) configured through Containerization's DNS configuration.
+- **Mediator VM:** no network. Its connections are the four channels below.
 
-## Link and avirthostd channel
+## Channels
 
-The link is vsock spliced by avirthostd. Each guest listens on a vsock port, and avirthostd dials both and splices the two connections at L4. TLS runs end to end between avirtinitd and the mediator, so avirthostd relays only ciphertext. The avirthostd channel is also vsock, dialed by avirthostd into the mediator VM. In both cases TLS roles are fixed regardless of who dials (see [actor topology](./actor-topology.md)).
+Each channel is a vsock connection between avirthostd and a guest, which Containerization's in-guest socket relay presents as a Unix socket under `/run/avirt/`.
+
+| Channel | vsock direction | Host side |
+| --- | --- | --- |
+| Link | The workload VM dials avirthostd's link listener on its own vsock device, and avirthostd dials into the current mediator VM | avirthostd splices the two connections at L4 |
+| avirthostd channel | The mediator VM dials avirthostd's listener on its own vsock device | avirthostd |
+| Service channel | The mediator VM dials avirthostd's listener on its own vsock device | The service relay |
+| Ingress channel | avirthostd dials into the mediator VM | The service relay |
+
+TLS runs end to end between the guests and the destinations, so avirthostd's splice and relay carry only ciphertext. TLS roles are fixed regardless of who dials (see [actor topology](./actor-topology.md)).
 
 Constraints:
 
-- Every host vsock listener avirthostd opens is reachable by any guest uid, including 1000. Each one runs the mutual TLS handshake before reading any application byte.
-- Containerization's default launch applies no OCI seccomp, so avirtinitd applies the workload's filters itself, including the `AF_VSOCK` denial.
+- The workload VM's vsock device has exactly one host listener, the link's. Every other host vsock listener is on a mediator VM's device.
+- Every host vsock listener is reachable by any process in its mediator VM. The avirthostd channel listener runs the mutual TLS handshake before reading any application byte, and the service relay reads only the TLS ClientHello before splicing to a destination that does.
+- Containerization's default launch applies no OCI seccomp, so avirtinitd applies the workload's filters itself, including the `AF_VSOCK` denial for every process it launches.
 - There are no host socket files, so `host_socket_paths` is 0.
+
+## Workload stdio
+
+The workload runs with `terminal = false`, and avirthostd supplies separate non-blocking writers for stdout and stderr, which feed `logs/<actor-id>.stdio.ndjson`. The VM console comes from `bootLog`. avirtlogd tails both (see [components](./components.md#workload-logs)).
 
 ## State
 
@@ -101,20 +114,27 @@ flowchart LR
     subgraph hostd["avirthostd (one process)"]
         core["avirt-core server"]
         shim["Swift shim dylib (Containerization 0.47.0)"]
-        splice["vsock splice"]
+        splice["vsock splice and service relay"]
         core --- shim
         core --- splice
     end
     subgraph wvm["workload VM (no network)"]
-        avirtinitd["avirtinitd: vsock listener, TLS server"]
+        net["avirtnetd: link endpoint, TLS client"]
     end
-    subgraph svm["mediator VM (VmnetNetwork NAT, nft)"]
-        med["avirtmediatord: vsock listeners, TLS client"]
+    subgraph svm["mediator VM (no network)"]
+        me["mediator Envoy: link and ingress listeners, TLS server"]
+        med["avirtmediatord"]
     end
-    splice <-->|"vsock (ciphertext)"| avirtinitd
-    splice <-->|"vsock (ciphertext)"| med
+    hs["host components"]
+    fd["front-door Envoy"]
+    splice <-->|"link over vsock (ciphertext)"| net
+    splice <-->|"link and ingress over vsock (ciphertext)"| me
     core <-->|"avirthostd channel over vsock, mTLS"| med
-    med --> net(("internet"))
+    core <-->|"avirthostd channel: uplink and events"| me
+    me -->|"service channel over vsock"| splice
+    splice -->|"by SNI (ciphertext)"| hs
+    splice -->|"by SNI (ciphertext)"| fd
+    fd -->|"external endpoints, peer hosts"| net2(("internet"))
 ```
 
 # Docker Desktop runtime
@@ -123,38 +143,46 @@ Status: planned.
 
 | Primitive | Docker Desktop 4.95.0 |
 | --- | --- |
-| Isolation | One shared linuxkit kernel (7.0.14) and one rootful daemon. A kernel escape is root over every actor's workload and mediator, including the CA keys and access tokens in mediator memory. |
-| Link | A per-actor named volume `avirt-<id8>-link` at `/run/avirt/link` in both containers. avirtinitd listens on `link.sock` there and the mediator dials. The hop stays inside the VM. A root 0600 socket gives uid 1000 `EACCES`. |
+| Isolation | One shared linuxkit kernel (7.0.14) and one rootful daemon. A kernel escape is root over every actor's workload and mediator, including the MITM CA keys and short-lived credentials in mediator memory. |
+| Link | A per-actor named volume `avirt-<id8>-link` at `/run/avirt/link` in both containers. The mediator Envoy listens on `link.sock` there and avirtnetd dials. The hop stays inside the VM. A 0600 socket gives uid 1000 `EACCES`. |
 | avirthostd channel | A single-file bind mount of the host `actors/<id>/c.sock` at `/run/avirt/hostd.sock`, connected from the container. It appears as `root:root 0660` and reconnects after a listener restart. Directory mounts and container-side listeners do not cross to the host. The mediator's dial retries, because a transient gRPC `Canceled` can occur on this mount. |
-| Host socket paths | `c.sock` (104-byte limit) |
-| Actor network | `docker network create --label avirt=1 avirt-<id8>`, a bridge network isolated from other networks. Embedded DNS at 127.0.0.11 forwards to `192.168.65.7`, so `dns_allow = [192.168.65.7:53]`. `host.docker.internal` (192.168.65.254) reaches services bound only to the Mac's 127.0.0.1. The `192.168.0.0/16` drop blocks it, as it does the LAN IP and router. `--internal` networks have no DNS and no internet. |
+| Service channel | A single-file bind mount of the host `actors/<id>/s.sock` at `/run/avirt/svc.sock`, served by the service relay, with the same properties as the avirthostd channel |
+| Ingress channel | Open, because container-side listeners do not cross to the host (see [components](./components.md#open-questions)) |
+| Host socket paths | `c.sock` and `s.sock` (104-byte limit) |
+| Mediator network | `--network none` (only `lo`) |
 | Workload network | `--network none` (only `lo`, no docker.sock, no `/run/host-services`) |
-| Workload outer layer | `--cap-drop ALL --cap-add SETUID,SETGID,SETPCAP,KILL --security-opt no-new-privileges`, with Docker's default seccomp profile left in place. The default profile blocks io_uring, bpf, userfaultfd, perf, mount, setns, unshare, `CLONE_NEWUSER`, keyctl and `AF_VSOCK`/`AF_PACKET`/`AF_ALG`. avirtinitd's filter adds ptrace, memfd_create, process_vm_* and `AF_NETLINK`. |
-| Mediator outer layer | `--cap-add CAP_NET_ADMIN`, dropped after nft |
+| Workload outer layer | `--cap-drop ALL --cap-add SETUID,SETGID,SETPCAP,KILL,NET_BIND_SERVICE --security-opt no-new-privileges`, with Docker's default seccomp profile left in place. The default profile blocks io_uring, bpf, userfaultfd, perf, mount, setns, unshare, `CLONE_NEWUSER`, keyctl and `AF_VSOCK`/`AF_PACKET`/`AF_ALG`. avirtinitd's filter adds ptrace, memfd_create, process_vm_* and `AF_NETLINK`. |
+| Mediator outer layer | `--cap-drop ALL --cap-add SETUID,SETGID --security-opt no-new-privileges`, with Docker's default seccomp profile left in place. avirtinitd in mediator mode needs only `SETUID` and `SETGID`, to start avirtmediatord and Envoy under their own UIDs. |
 | AF_VSOCK | No host surface, though the kernel has vsock. `avirtinitd` still denies it. |
 | Landlock | ABI v8, unprivileged with `no_new_privs` |
-| Lifecycle | `docker run`, `--init`, `rm -f`. Containers, networks and volumes are swept with `--filter label=avirt=1`. |
+| Logs | Docker's container log files, which avirtlogd reads (see [components](./components.md#workload-logs)) |
+| Lifecycle | `docker run`, `rm -f`. avirtinitd is PID 1 in both containers. Containers and volumes are swept with `--filter label=avirt=1`. |
 
 Docker Desktop actors must never use `--pid=host` or mount docker.sock. Each link volume is mounted only by its own actor's two containers.
 
 ```mermaid
 flowchart LR
     subgraph mac["macOS host"]
-        hostd["avirthostd"]
+        hostd["avirthostd and service relay"]
+        fd["front-door Envoy"]
         csock{{"actors/ID/c.sock"}}
+        ssock{{"actors/ID/s.sock"}}
         hostd --- csock
+        hostd --- ssock
+        hostd -->|"by SNI"| fd
     end
     subgraph vm["Docker Desktop VM (one shared kernel)"]
         subgraph wl["workload (--network none)"]
-            avirtinitd["avirtinitd"]
+            net["avirtnetd"]
         end
         vol[("volume avirt-ID-link")]
-        subgraph med["mediator (bridge avirt-ID, nft)"]
-            s["avirtmediatord"]
+        subgraph med["mediator (--network none)"]
+            s["avirtmediatord, mediator Envoy"]
         end
-        avirtinitd ---|"listens on link.sock"| vol
-        s ---|"dials link.sock"| vol
+        net ---|"dials link.sock"| vol
+        s ---|"listens on link.sock"| vol
     end
     s -.->|"file bind mount"| csock
-    s --> net(("internet"))
+    s -.->|"file bind mount"| ssock
+    fd --> inet(("internet"))
 ```

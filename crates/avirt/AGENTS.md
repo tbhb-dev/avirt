@@ -1,3 +1,11 @@
+---
+type: Agent Instructions
+title: "Agent instructions: avirt"
+description: "Guidance for AI coding agents working in the `avirt` crate."
+tags: [avirt, crate, cli]
+generated: { by: claude-code/claude-sonnet-5-5, at: 2026-10-17T19:16:42Z }
+---
+
 # Agent instructions: avirt
 
 The `avirt` binary, in `src/main.rs`.

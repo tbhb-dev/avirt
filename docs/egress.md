@@ -1,10 +1,10 @@
 ---
 type: Component Design
 title: Egress, TLS termination and policy
-description: How the agent's network traffic leaves the workload, the mediator's CONNECT proxy and destination checks, TLS termination in Pingora, the egress policy file, the event format and the mediator's network.
-tags: [avirt, egress, proxy, pingora, tls, policy]
+description: How the agent's network traffic leaves the workload, the mediator's CONNECT proxy and destination checks, the planned mediator Envoy pipeline, the front-door Envoy as policy enforcement point, workload DNS, TLS termination, Cedar egress policy with name resolution and failure behavior, the event format and the mediator's lack of a network.
+tags: [avirt, egress, proxy, pingora, envoy, tls, policy, cedar]
 implementation: partial
-generated: { by: claude-code/claude-opus-5-5, at: 2026-10-17T14:23:31Z }
+generated: { by: claude-code/claude-opus-5-5, at: 2026-10-17T19:00:00Z }
 ---
 
 # Status: implemented
@@ -54,35 +54,112 @@ Each proxied connection becomes one `dir: "egress"` line in `logs/<actor-id>.ndj
 
 To list the hosts a set of actors used: `jq -r 'select(.dir=="egress") | .msg | "\(.host):\(.port)"' logs/*.ndjson | sort | uniq -c`.
 
+
 # Status: planned
 
-## Mediator pipeline
+## Transport scope
 
-All of this runs inside one `avirtmediatord` process:
+The workload has no network interface other than loopback, and neither does the mediator. Supported workload egress is proxy-aware traffic: a client honours the proxy variables and opens `CONNECT host:port` to avirtnetd's loopback proxy. Name resolution inside the workload behaves as expected through avirtnetd's DNS stub resolver (see [workload DNS](#workload-dns)). Workload processes also use the named link streams in [actor topology](./actor-topology.md#link-stream) for the guest CLI, MCP and ingress. Transparent TCP and UDP are separate planned features, each needing its own security design and checks, and nothing in this document provides them.
 
-1. The **mux** accepts each h2 CONNECT stream from the link and splices it into the local CONNECT listener on `/run/mediator/connect.sock`.
-2. The **CONNECT app** parses the head, normalizes the authority, resolves it, applies `private-dest` against the host addresses passed in by avirthostd (`deny_addrs`), and evaluates the policy at L4. A rule with `tls: skip`, or a port other than 443, takes the opaque path described above.
-3. Otherwise it replies `200`, flushes, and accepts TLS with an `Acceptor` built per tunnel from `TlsSettings::with_callbacks(TunnelInfo{authority, conn_id})`, `set_cert_resolver(cache)` and ALPN `http/1.1`. `handshake_complete_callback` stores `TunnelInfo` in the `SslDigest` extension.
-4. The TLS stream goes to one shared `Arc<HttpProxy<Egress>>` built with `HttpProxy::new` and driven through `ServerApp::process_new`.
-5. `Egress: ProxyHttp`:
-   - `request_filter` reads `TunnelInfo` and requires `Host` to equal the CONNECT host (else 421). It evaluates the L7 rules, substitutes credentials (see [credentials](./credentials.md)), and runs the leak scan.
-   - `request_body_filter` scans the body for issued placeholders, carrying the last `max_placeholder_len - 1` bytes between chunks.
-   - `upstream_peer` returns `HttpPeer(resolved address, tls=true, sni=host)` with ALPN `H2H1`, verifying against bundled webpki roots. When the request carries `Upgrade`, it forces ALPN `H1`, because an h1 upgrade cannot be bridged onto h2.
-   - `logging` writes the `http` event.
+## Path
+
+```mermaid
+flowchart LR
+    agent["agent (uid 1000)"] -->|"HTTPS_PROXY"| net["avirtnetd loopback proxy"]
+    net -->|"h2 CONNECT stream on the link"| me["mediator Envoy + libavirtenvoy"]
+    me -->|"model API hosts"| mg["avirtmodelgwd"]
+    me -->|"MCP"| mcp["avirtmcpgwd"]
+    me -->|"avirt names, external endpoints"| fd["front-door Envoy (PEP)"]
+    mg --> fd
+    mcp --> fd
+    fd -->|"same-host workloads and virtual services"| me2["destination mediator Envoy"]
+    fd -->|"virtual service backend"| hl["authorized host-local service"]
+    fd --> ext(("external endpoints"))
+    fd --> pfd["peer front-door Envoy (PEP)"]
+```
+
+Every connection from the mediator Envoy to avirtmodelgwd, avirtmcpgwd or the front-door Envoy runs over the service relay (see [actor topology](./actor-topology.md#runtime-channels)) with mutual TLS and SPIFFE identities.
+
+## Mediator Envoy pipeline
+
+The mediator Envoy serves the link as an h2 listener on `/run/avirt/link.sock` and terminates each agent `CONNECT` stream. libavirtenvoy runs these steps as Envoy filters:
+
+1. **Authority.** It parses the authority with the same rules as the implemented CONNECT app: an explicit port of 1-65535, a hostname or IP literal, lowercased, with any trailing dot stripped, and a canonical dotted quad for anything that looks like IPv4. A malformed authority gets 400 `bad-request`. avirtnetd's loopback proxy answers any method other than CONNECT with 501, `plain-http` for an absolute `http://` URI and `unsupported-method` otherwise. An IP-literal authority is an external endpoint whose resource has an `ip` attribute and no `host`, so no hostname rule and no `like` pattern can match it: it is permitted only by a policy that names that exact address in `resource.ip`.
+2. **Classification.** It classifies the destination as one of:
+   - an avirt name (see [components](./components.md#avirt-names)), which it resolves to its canonical entity (see [name resolution](#name-resolution)); a name that resolves to no entity is denied before policy evaluation;
+   - a model API host that avirtmodelgwd serves, such as `api.anthropic.com`, `chatgpt.com`, `api.openai.com` and `auth.openai.com`;
+   - an external endpoint, for any other name or IP literal.
+
+   An authority that names an avirt host component, such as `avirtsecretsd.svc.<td>`, is refused with 403: the agent never reaches a host component through the loopback proxy. Host components are reached only by the mediator's own processes and by the named link streams (MCP to avirtmcpgwd, the guest CLI through the front-door Envoy).
+3. **`connect`.** It evaluates the `connect` action against the actor's policy snapshot. A deny in enforce mode gets 403 with the body `egress denied: <host>:<port>`.
+4. **`intercept` or `passthrough`.** For an external endpoint or model API host on port 443 it evaluates `intercept`. If it is permitted, Envoy replies `200` and terminates the agent's TLS with a leaf certificate from the actor's MITM CA, with ALPN `http/1.1`. Otherwise, and on any other port, it evaluates `passthrough`, and the connection takes the opaque path only if that is permitted; with neither permitted the connection is denied. Every avirt name takes the opaque path, authorized at the front-door Envoy.
+5. **Requests.** On a terminated connection, for each request:
+   - `Host` must equal the CONNECT host, else 421;
+   - it evaluates `request` with the method and path;
+   - it runs the Codex refresh intercept, an exact endpoint and schema match evaluated before the leak scan (see [credentials](./credentials.md#codex-refresh));
+   - it runs the leak scan (see [credentials](./credentials.md#placeholders));
+   - it injects any credential whose binding names the mediator as its injection point.
+6. **Upstream.** Model API requests go to avirtmodelgwd over a new mutual TLS connection with the original host as `:authority`. MCP reaches avirtmcpgwd on the link's MCP stream, not through CONNECT. A request to any other external endpoint is re-originated: Envoy opens an h2 CONNECT stream to the front-door Envoy with `:authority` set to the original `host:port`, and runs a new TLS session to the upstream inside it, verifying the upstream against bundled webpki roots, with ALPN `h2` and `http/1.1`. A request that carries `Upgrade` forces `http/1.1`, because an h1 upgrade cannot be bridged onto h2.
+7. **Opaque path.** An opaque connection is relayed byte for byte to the front-door Envoy, inside an h2 CONNECT stream that carries the original authority. That covers every avirt name, local or peered: the mediator Envoy never connects to another mediator Envoy or to a peer itself. For an external endpoint, Envoy's TLS inspector reads the agent's first bytes before forwarding any. They must be a ClientHello whose SNI equals the CONNECT host, so an allowed host on a shared CDN address cannot carry a request for another name. A connection that does not start with TLS is closed, unless a `passthrough` permit for that destination has `context.plaintext` true. No credential is ever injected on the opaque path.
+8. **Events.** It writes the `conn` and `http` events.
 
 Constraints:
 
-- Pingora's TLS backend is rustls (`pingora-rustls`, which uses `ring`), which builds on macOS and linux-arm64 without cmake, Go or a system OpenSSL.
-- The rustls backend never invokes `certificate_callback`, so leaf certificates are selected through `set_cert_resolver`.
+- The mediator Envoy resolves no external names, because it has no network and no resolver of its own. The front-door Envoy resolves them when it dials.
 - Downstream (agent-facing) TLS is HTTP/1.1 only. Upstream may be h2.
+
+## Front-door egress
+
+The front-door Envoy's egress listener accepts h2 CONNECT streams over mutual TLS from mediator Envoys and from host components. It is the policy enforcement point for every workload-to-workload connection on this host and between hosts, for virtual services, for host-local services and for external endpoints. For each stream, libavirtenvoy:
+
+1. authorizes the caller's SVID: a mediator Envoy of a live actor at its current generation, or a host component that the host snapshot lists. A call from avirtproxyd, avirtmodelgwd or avirtmcpgwd made on behalf of a caller carries that caller in `x-avirt-caller`, and the host snapshot is evaluated for both the service and the originating principal (see [components](./components.md#front-door-envoy));
+2. resolves an avirt authority to its canonical entity, denying one that resolves to none, and canonicalizes an external host;
+3. evaluates the host snapshot's `connect` for the caller and the destination entity;
+4. routes by destination:
+   - a local workload's published port, or a virtual service whose backend is one: a new mutual TLS connection as `/service/frontdoor` on the destination mediator's ingress channel, with the caller's identity in `x-avirt-caller` (see [actor topology](./actor-topology.md#ingress));
+   - a virtual service whose backend is an authorized host-local service: a dial to the backend address in the record, the one host address the destination check lets through, and only for that record;
+   - the `guest-cli` stream from a mediator Envoy: to avirtproxyd, with `x-avirt-caller` set to the `guest-cli` principal (see [identity](./identity.md#trust-domain-and-ids));
+   - a peered avirt name: the stream is forwarded to the peer's peer listener, at the front-door address in that peer's enrollment record as avirtdnsd returns it, authenticated as the enrolled peer's `/service/frontdoor`;
+   - an external endpoint: it resolves the name and applies the destination check below to every resolved address;
+5. dials, 10 s overall, only the addresses it checked, with no re-resolution in any later layer, and checks every retry's address again; then replies `200`, and relays bytes in both directions with no idle timeout, because model API streams are long-lived.
+
+| Status | Cause |
+| --- | --- |
+| 403 | `private-dest`, an avirt name that resolves to no entity, or a caller or destination the host snapshot denies in enforce mode |
+| 502 | DNS or dial failure |
+| 504 | Connect timeout |
+
+The destination check refuses an address in any non-global range listed under [destination check](#destination-check-private-dest), and any address assigned to one of the host's own interfaces, global ones included. The interface addresses are read with `getifaddrs` on each connection, so an address added while an actor runs is covered.
+
+The front-door Envoy never sees the plaintext of a re-originated connection: the TLS session inside the tunnel runs between the mediator Envoy or gateway and the upstream. Workload-to-workload bytes are opaque to it too. It records one `conn` event per connection, attributed to the caller's actor, with `src: "frontdoor"`.
+
+## Workload DNS
+
+Workload processes get normal DNS answers, for avirt names and for public names, because many tools resolve a name before they connect.
+
+1. avirtinitd binds UDP and TCP port 53 on `127.0.0.53` as root, hands the sockets to avirtnetd, and writes `/etc/resolv.conf` to point at `127.0.0.53`.
+2. avirtnetd's stub resolver accepts each query and sends it over the link on the DNS stream (see [actor topology](./actor-topology.md#link-stream)).
+3. libavirtenvoy in the mediator Envoy evaluates the `resolve` action for the name. A name the actor may not reach gets `NXDOMAIN`. `resolve` is always enforced, in audit mode too, so a denied name never leaves the mediator.
+4. It sends avirt names to avirtdnsd. It sends public names to the front-door Envoy's DNS operation, which is not a resolver tunnel: the front-door Envoy parses each query, evaluates the host snapshot's `resolve` for the caller and the name, resolves it itself, evaluates `resolve` again for every name in a CNAME chain, and returns a size-limited answer. A compromised mediator therefore cannot bypass the host's DNS policy.
+5. It records a `dns` event for every query.
+
+Public names get their real answers. Answers for avirt names follow avirtdnsd's model: they carry the front-door Envoy's address. A proxy-aware client still sends the name in its CONNECT, which is what the mediator Envoy routes by, and a CONNECT to a bare front-door address carries no name to route by and is refused. Direct DNS to any other address fails, because the workload has no network. DNS is an exfiltration channel, so every query is subject to policy and logged.
 
 ## Websockets
 
-After termination the downstream connection is h1, so a websocket upgrade arrives as an ordinary `GET` with `Upgrade: websocket`. It passes through `request_filter`, where the credential is substituted, the leak scan runs and the request is logged. On a `101`, Pingora switches both sides to upgraded-body mode and relays bytes. Frames are neither substituted nor scanned. The `http` event is written when the upgraded connection closes, with its byte counts. Codex's Responses API runs over WSS with its auth headers on the upgrade request.
+After termination the downstream connection is h1, so a websocket upgrade arrives as an ordinary `GET` with `Upgrade: websocket`. It passes through the request steps, where the leak scan runs and the request is logged. A model API upgrade goes to avirtmodelgwd, which injects the credential on the upgrade request. Codex's Responses API runs over WSS with its auth headers on the upgrade request. On a `101`, both sides switch to relaying bytes. Frames are neither substituted nor scanned. The `http` event is written when the upgraded connection closes, with its byte counts.
 
 ## MITM CA and leaf certificates
 
-`avirthostd` mints one MITM CA per actor (rcgen, ECDSA P-256, CN `avirt actor <id>`, 7-day validity, `KeyCertSign` only) so that it survives mediator restarts, and passes the cert and key to the mediator in `GET /actor`. The mediator caches up to 256 leaves per host: P-256, SAN set to the host, 24 h validity, chain of leaf plus CA. The CA key never enters the workload.
+`avirthostd` mints one MITM CA per actor (rcgen, ECDSA P-256, CN `avirt actor <uuid>`, 7-day validity, `KeyCertSign` only), so that it survives mediator restarts, and passes the cert and key to avirtmediatord in `GET /actor`. avirtmediatord hands them to libavirtenvoy over the local SDS socket. libavirtenvoy mints leaves on demand and caches up to 256 per host: P-256, SAN set to the host, 24 h validity, chain of leaf plus CA. The CA key never enters the workload.
+
+The CA is scoped to what the actor's policy can intercept. When it creates the actor, avirthostd asks avirtpolicyd's prover for the set of hosts the actor's snapshot can permit `intercept` for:
+
+- **A bounded set.** The CA carries X.509 name constraints whose permitted DNS subtrees are exactly those hosts and domains, so a leaf for any other name fails validation in the agent.
+- **An empty set.** avirthostd issues no MITM CA, `confirm` carries none, and every external connection must be permitted by `passthrough`.
+- **An unbounded set.** The CA carries no name constraints.
+
+A later snapshot that permits `intercept` for a host outside the CA's constraints cannot terminate that host's TLS: the connection takes the opaque path if `passthrough` is permitted for it, and is denied otherwise.
 
 ## CA delivery into the workload
 
@@ -101,82 +178,131 @@ It then sets `NODE_EXTRA_CA_CERTS=/run/avirt/ca.pem`, and sets `SSL_CERT_FILE`, 
 | npm | Honors `NODE_EXTRA_CA_CERTS` and `cafile`. No pinning. |
 | git | Honors `GIT_SSL_CAINFO`. No pinning. |
 
-A client that rejects the actor CA gets a `tls: skip` rule. That host is then audited at L4 only and gets no credential injection.
+A client that rejects the actor CA needs a policy that forbids `intercept` and permits `passthrough` for its hosts. Those hosts are then audited at L4 only and get no credential injection.
 
-## Per-request event
+## Events
 
-`dir: "egress"`, `event: "http"`, with these fields:
+Each connection becomes one `conn` event, each terminated request one `http` event, and each workload DNS query one `dns` event. libavirtenvoy in the mediator Envoy posts them to avirthostd on `POST /actor/events` (`src: "mediator"`), the front-door Envoy posts its own `conn` and `dns` events (`src: "frontdoor"`), and avirtmodelgwd and avirtmcpgwd post the credential outcome of every request they serve (`src: "gateway"`). Each producer queues its events in a bounded ring and never blocks a worker thread on delivery, and numbers them in its own `seq` domain so avirthostd can deduplicate them across reconnects. While an actor's ring is full, its Envoy refuses that actor's new connections, requests and DNS queries with 503 until the ring drains, so no event is dropped silently. The front-door Envoy keeps one ring per actor, so one actor's backlog never stalls another's. Every event carries `actor`, `gen` and `seq` (see [trust boundaries](./trust-boundaries.md#event-provenance)).
+
+The `http` event has these fields:
 
 - `conn_id`, `method`, `host`,
 - `path` (query string dropped) and `query: bool`,
 - `status`, `bytes_up`, `bytes_down`, `duration_ms`,
-- `decision` (`allow`, `deny` or `would-deny`), `rule`, `mode`,
-- `cred: [{name, location, action: "injected"|"rejected"}]`.
+- `decision` (`allow`, `deny` or `would-deny`), `rule` (the id of the Cedar policy that decided), `mode`, `policy_version`,
+- `cred: [{name, location, action: "injected"|"rejected"}]`, for credentials the mediator Envoy injects itself. The gateways' own events record theirs.
 
-Secret values, placeholder values, header values and bodies are never logged. The per-connection `conn` event stays.
+The `dns` event has `name`, `qtype`, `rcode`, `decision`, `rule` and `policy_version`.
 
-## Policy file
+Secret values, placeholder values, header values and bodies are never logged.
 
-`avirthostd` loads one YAML policy at startup (default `policy/default.yaml`, overridden by `AVIRT_POLICY`) and serves it to each mediator in `GET /actor`. A new policy applies to actors launched after avirthostd loads it.
+## Policy
 
-```yaml
-version: 1
-mode: audit                 # audit: log would-deny, allow. enforce: deny.
-rules:                      # first match wins; no match = default
-  - name: anthropic
-    host: api.anthropic.com
-    ports: [443]
-    http: [{methods: [POST, GET], path: "/v1/*"}, {path: "/api/*"}]
-  - name: oai-content
-    suffix: oaiusercontent.com
-    tls: skip               # opaque CONNECT, L4 rules only, no credentials
-  - name: npm
-    host: registry.npmjs.org
-default: allow              # enforce mode requires default: deny
-credentials:
-  - name: claude-oauth
-    source: env:CLAUDE_CODE_OAUTH_TOKEN      # resolved by avirthostd, never the mediator
-    workload: {env: CLAUDE_CODE_OAUTH_TOKEN, shape: "sk-ant-oat01-"}
-    inject: {header: authorization, value: "Bearer {}"}
-    bind: [{host: api.anthropic.com, port: 443, paths: ["/v1/*", "/api/*"]}]
+Egress policy is Cedar. avirtpolicyd stores the policies, validates them against the avirt Cedar schema, runs the Cedar policy prover over them, compiles them, and distributes versioned snapshots. libavirtenvoy evaluates them locally in each Envoy with the embedded `cedar-policy` crate, so no request waits on a policy call.
+
+| Element | Values |
+| --- | --- |
+| Principal | `Workload::"<ns>/<uuid>"`, keyed by the actor's canonical UUIDv7 and `in Namespace::"<ns>"`, with attributes `short_id`, `agent`, `gen`, `alias` and `generated_name`, and the workload's labels as tags. In the front-door Envoy's host snapshot, also `HostService::"<name>"` for avirt host components, and peer workloads `Workload::"<host>/<ns>/<uuid>"` in `Namespace::"<host>/<ns>"`. avirthostd's snapshot also has `Admin::"uid:<uid>"` for avirtadmin and the local and web UI user principals. |
+| Actions | `resolve` (per DNS query), `connect` (per CONNECT), `intercept` (whether to terminate TLS), `passthrough` (whether an external connection may take the opaque path), `request` (per HTTP request on a terminated connection), `ingress` (per inbound connection to a published port). Evaluated by avirthostd: `create_workload`, `list_workloads`, `inspect_workload`, `stop_workload`, `delete_workload` (see [workload management](./components.md#workload-management)), `attach_binding` (per credential binding a workload is launched with), `publish_port`, and `publish_service` (per virtual service record, with a host-local backend as context), and `launch_workspace`. Evaluated by avirtbuilderd: `build_workspace` and `watch_workspace`. Evaluated by avirtregistryd: `push_workspace`, `pull_workspace`, `import_workspace`, `export_workspace` and `delete_workspace` (see [workspaces](./workspaces.md#policy)). |
+| Resource | For an avirt name, its canonical entity: `Workload` or `Service` (a virtual service), in its `Namespace`, with the port as context. For an external endpoint, `Destination::"<host>:<port>"` with attributes `host` (canonicalized) or, for an IP literal, `ip`, plus `port` and `kind` (`external` or `model`). For `create_workload` and `list_workloads`, the `Namespace`. For the other workload management actions, the target `Workload`. For the workspace actions, `WorkspaceRepository::"<ns>/<name>"` (`build_workspace`, `watch_workspace`, `push_workspace`, `import_workspace`, `export_workspace`) or `WorkspaceImage::"<ns>/<name>@<digest>"` (`pull_workspace`, `delete_workspace`, `launch_workspace`), in its repository and its `Namespace`, with `producer`, `base`, `source`, `revision`, `trigger` and the manifest annotations as tags. |
+| Context | `port` for avirt destinations, `method` and `path` for `request`, `caller` for `ingress`, `qtype` for `resolve`, `plaintext` for `passthrough`, `via` (`guest-cli` for a workload caller) and the creator's lineage for workload management, and for the workspace actions the context in [workspaces](./workspaces.md#policy): `kind`, `source_types`, `source_hosts`, `github_owners`, `includes`, `trigger`, `ref` and `owner` for builds, `events` and `schedule` for watches, `producer` for push, `purpose` for pull, `registry` and `reference` for import and export, and `namespace`, `agent` and `workload_image` for launch |
+
+### Name resolution
+
+Before evaluating any policy, the enforcing Envoy (the front-door Envoy for workload-to-workload connections and virtual services, the mediator Envoy for its own decisions) parses an avirt destination name and resolves it to a canonical Cedar entity:
+
+- `7e759259.team-a.workload.host.avirt.internal`, `build-7e759259.team-a.workload.host.avirt.internal` and `quietly-brave-otter.team-a.workload.host.avirt.internal` all resolve to `Workload::"team-a/0192f3a4-5b6c-7d8e-9f01-23457e759259"`, the entity keyed by the actor's UUIDv7 whose short ID is `7e759259`, whose parent is `Namespace::"team-a"` on this host. The alias `build` and the generated name are attributes of the entity and play no part in its identity;
+- the `default` namespace's short form, `7e759259.workload.host.avirt.internal`, resolves to the same entity as its long form;
+- `db.team-a.svc.host.avirt.internal` and every alias of that service resolve to `Service::"team-a/db"`;
+- a peered name `7e759259.team-a.workload.<host>` resolves to `Workload::"<host>/team-a/0192f3a4-5b6c-7d8e-9f01-23457e759259"`, qualified by the peer host;
+- a name with an invalid label, or one longer than the caps in [components](./components.md#avirt-names), is malformed;
+- a name that resolves to no known entity is denied before policy evaluation.
+
+Rules about namespaces are written on entities, for example `principal in Namespace::"team-a"` and `resource in Namespace::"team-a"`, never as string patterns over avirt names. Cedar `like` matching is for external destinations only, and applies to the canonicalized host: lowercased, with no trailing dot, and with its characters validated, so the caller's spelling of the CONNECT authority, SNI or `Host` cannot change the outcome.
+
+```cedar
+@id("team-a-internal")
+permit (principal in Namespace::"team-a", action == Action::"connect", resource in Namespace::"team-a");
+
+@id("team-a-db-only-from-build")
+forbid (principal, action == Action::"connect", resource == Service::"team-a/db")
+unless { principal == Workload::"team-a/0192f3a4-5b6c-7d8e-9f01-23457e759259" };
+
+@id("team-a-ci-manages-team-a")
+permit (
+  principal in Namespace::"team-a",
+  action in [Action::"create_workload", Action::"list_workloads", Action::"inspect_workload", Action::"stop_workload", Action::"delete_workload"],
+  resource in Namespace::"team-a"
+)
+when { context.via == "guest-cli" && principal.hasTag("role") && principal.getTag("role") == "ci" };
+
+@id("github")
+permit (principal in Namespace::"team-a", action == Action::"connect", resource)
+when { resource has host && (resource.host == "github.com" || resource.host like "*.github.com") };
 ```
 
-Matching rules:
+### External destinations
 
-- `host` is an exact match on the normalized CONNECT host.
-- `suffix` matches the name itself or any subdomain (`h == s`, or `h` ends with `"." + s`).
-- An IP literal matches only an identical `host` entry.
-- The first matching rule wins, and its `name` becomes the event's `rule`.
+```cedar
+@id("anthropic")
+permit (principal, action == Action::"connect", resource)
+when { resource has host && resource.host == "api.anthropic.com" && resource.port == 443 };
 
-`private-dest` and credential bindings apply in both modes. In enforce mode, no match returns 403 with the body `egress denied: <host>:<port>` and a `decision: "deny"` event with `rule: null`. Codex downloads large artifacts from several `*.oaiusercontent.com` hosts at startup, so an enforce-mode allowlist has to include them.
+@id("anthropic-http")
+permit (principal, action == Action::"request", resource)
+when {
+  resource has host && resource.host == "api.anthropic.com" &&
+  ((["GET", "POST"].contains(context.method) && context.path like "/v1/*") ||
+   context.path like "/api/*")
+};
+
+@id("oai-content")
+permit (principal, action == Action::"connect", resource)
+when { resource has host && (resource.host == "oaiusercontent.com" || resource.host like "*.oaiusercontent.com") };
+
+@id("oai-content-opaque")
+forbid (principal, action == Action::"intercept", resource)
+when { resource has host && (resource.host == "oaiusercontent.com" || resource.host like "*.oaiusercontent.com") };
+
+@id("oai-content-passthrough")
+permit (principal, action == Action::"passthrough", resource)
+when { resource has host && (resource.host == "oaiusercontent.com" || resource.host like "*.oaiusercontent.com") && !context.plaintext };
+
+@id("npm")
+permit (principal, action in [Action::"connect", Action::"request"], resource)
+when { resource has host && resource.host == "registry.npmjs.org" };
+
+@id("intercept-443")
+permit (principal, action == Action::"intercept", resource)
+when { resource has port && resource.port == 443 };
+```
+
+The `@id` annotation becomes the event's `rule`. Codex downloads large artifacts from several `*.oaiusercontent.com` hosts at startup, so an enforce-mode policy has to permit them. Credential bindings are not policy: they are records in avirtsecretsd (see [credentials](./credentials.md)).
+
+### Snapshots
+
+A snapshot has a scope (one actor, or the host), and carries:
+
+- `version`, increasing within its scope;
+- `schema`, the avirt Cedar schema version;
+- `mode`, `audit` or `enforce`;
+- `issued` and `expires`;
+- the compiled policy set and its sha256;
+- the entity revision it was built against.
+
+avirthostd owns the entities: namespaces, workloads, virtual services and their labels. It sends avirtpolicyd each new entity revision, and avirtpolicyd builds an actor's snapshot from the host's policy set, the policy reference in the actor's configuration and the current entity revision, so every decision sees one consistent policy and entity state. Peer entities come only from the identity a peer front-door Envoy asserts, qualified by that peer's host. Before it distributes any snapshot, the Cedar policy prover checks the policy set statically: that it validates against the schema, and the properties the host policy declares, such as no permit that reaches a namespace from outside it unless a named policy allows it. The prover reasons precisely about entity-hierarchy membership. The prover also rejects any policy that applies `like` to anything other than a canonicalized external host. A policy set that fails produces no snapshot. avirtpolicyd streams every new version to the subscribed libavirtenvoy over the service relay, and the host snapshot to avirthostd, authenticated as `/service/avirtpolicyd`. libavirtenvoy and avirthostd validate a new snapshot completely before applying it: the schema version is supported, the hash matches, the version is higher than the current one, and it has not expired. It then swaps it in atomically. Every decision uses exactly one snapshot, and its event records that snapshot's `policy_version`. A snapshot that fails validation is rejected whole, and the current one stays in force.
+
+## Policy failure behavior
+
+- A mediator Envoy without a snapshot is not ready, so avirtmediatord sends no `confirm` and no agent starts.
+- When avirtpolicyd is unreachable, libavirtenvoy keeps its current snapshot until `expires`. An expired snapshot denies every new connection, request and DNS query, in both modes.
+- When a new snapshot applies, or the current one expires, each Envoy re-evaluates every open connection's `connect`, `intercept` and `passthrough` decisions and closes at once each connection the new state denies. A model API stream to avirtmodelgwd gets a grace of 15 minutes before it is closed.
+- A Cedar evaluation error is a deny, in both modes.
+- An avirt name that resolves to no entity is a deny, in both modes, before evaluation.
+- In audit mode, a decision with no permit, or with a forbid, is allowed and logged as `would-deny`. In enforce mode it is denied. `intercept` and `resolve` are exempt: their decisions apply as evaluated in both modes.
+- These checks apply in both modes: authority parsing (400), the destination check (403 `private-dest`), `Host` matching (421), the leak scan (403 `credential-misplaced`), credential bindings (a credential is injected only on its own binding), and the refresh intercept's exact match.
+- The front-door Envoy applies the same rules to the host snapshot.
 
 ## Mediator network
 
-The mediator runs on its own per-actor network with NAT egress: a `VmnetNetwork` NAT interface on the Containerization runtime, or a labelled bridge network on Docker Desktop (see [compute runtimes](./compute-runtimes.md)). Its image is `ubuntu:26.04` with `nftables`, `ca-certificates` and `avirtmediatord`, and it runs with `CAP_NET_ADMIN`.
-
-`avirtmediatord` starts as root and fetches `GET /actor`. It loads the ruleset below through `nft -f -` and reads it back with `nft -j list ruleset`, refusing to continue unless the drop sets are present. It then clears every capability set, sets `no_new_privs`, and stays uid 0, because Docker's file-mounted avirthostd socket maps in as root-owned.
-
-```text
-table inet avirt {
-  set deny4 { type ipv4_addr; flags interval; elements = { 0.0.0.0/8, 10.0.0.0/8, 100.64.0.0/10,
-    127.0.0.0/8, 169.254.0.0/16, 172.16.0.0/12, 192.168.0.0/16, 198.18.0.0/15, 224.0.0.0/3,
-    $GATEWAY, $HOST_V4... } }
-  set deny6 { type ipv6_addr; flags interval; elements = { ::/127, ::ffff:0:0/96, 64:ff9b::/96,
-    64:ff9b:1::/48, 2002::/16, fc00::/7, fe80::/10, ff00::/8, $HOST_V6... } }
-  chain out { type filter hook output priority 0; policy accept;
-    oif lo accept
-    meta l4proto { tcp, udp } th dport 53 ip daddr { $DNS_ALLOW } accept
-    ip daddr @deny4 drop
-    ip6 daddr @deny6 drop
-    meta l4proto udp drop }
-  chain in { type filter hook input priority 0; policy drop;
-    iif lo accept
-    ct state established,related accept }
-}
-```
-
-- `$DNS_ALLOW` and any extra deny entries come from the runtime: `1.1.1.1` and `9.9.9.9` on the Containerization runtime, and `192.168.65.7:53` on Docker Desktop.
-- `$HOST_V4` and `$HOST_V6` are avirthostd's `getifaddrs` at launch, global addresses included. The LAN router falls under the private ranges.
-- The NAT gateway is in `deny4` on both runtimes. On the Containerization runtime, the NAT subnet's peer VMs fall under `192.168.0.0/16`.
-- A host address added while an actor runs is not picked up.
-- The CONNECT app's `private-dest` check still runs against the same set.
+The mediator has no network interface other than loopback, on every runtime. It has no NAT, no bridge, no resolver and no firewall ruleset, and it runs without `CAP_NET_ADMIN`. Its only connections are the runtime-provided channels in [actor topology](./actor-topology.md#runtime-channels). The destination check runs at the front-door Envoy, where external names are resolved, and the front-door Envoy is the only host component that opens connections off the host.
