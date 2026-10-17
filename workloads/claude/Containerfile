@@ -3,7 +3,7 @@ FROM rust:1.97.1-bookworm AS build
 WORKDIR /src
 COPY Cargo.toml Cargo.lock ./
 COPY crates crates
-RUN cargo build --release --locked -p agentvmm-runner
+RUN cargo build --release --locked -p avirtinitd
 
 FROM ubuntu:26.04
 
@@ -21,9 +21,9 @@ COPY workloads/claude/image/package.json workloads/claude/image/package-lock.jso
 RUN npm ci --omit=dev
 ENV PATH=/opt/agent/node_modules/.bin:$PATH
 
-COPY --from=build /src/target/release/agentvmm-runner /usr/local/bin/agentvmm-runner
+COPY --from=build /src/target/release/avirtinitd /usr/local/bin/avirtinitd
 
-# The runner starts as root: it needs to own the uplink socket and the proxy relay. It runs
+# avirtinitd starts as root: it needs to own the uplink socket and the proxy relay. It runs
 # the adapter as `agent` (uid 1000; the base image's own uid 1000 user has to go) with every
 # capability dropped, so there is no USER line.
 RUN userdel --remove ubuntu \
@@ -32,5 +32,5 @@ RUN userdel --remove ubuntu \
  && chown agent:agent /workspace
 WORKDIR /workspace
 
-ENV AGENTVMM_AGENT=claude
-ENTRYPOINT ["/usr/local/bin/agentvmm-runner"]
+ENV AVIRT_AGENT=claude
+ENTRYPOINT ["/usr/local/bin/avirtinitd"]

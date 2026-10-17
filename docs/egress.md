@@ -1,8 +1,8 @@
 ---
 type: Component Design
 title: Egress, TLS termination and policy
-description: How the agent's network traffic leaves the workload, the supervisor's CONNECT proxy and destination checks, TLS termination in Pingora, the egress policy file, the event format and the supervisor's network.
-tags: [agentvmm, egress, proxy, pingora, tls, policy]
+description: How the agent's network traffic leaves the workload, the mediator's CONNECT proxy and destination checks, TLS termination in Pingora, the egress policy file, the event format and the mediator's network.
+tags: [avirt, egress, proxy, pingora, tls, policy]
 implementation: partial
 generated: { by: claude-code/claude-opus-5-5, at: 2026-10-17T14:23:31Z }
 ---
@@ -11,15 +11,15 @@ generated: { by: claude-code/claude-opus-5-5, at: 2026-10-17T14:23:31Z }
 
 ## Path
 
-The workload runs with `--network none`, so TCP, UDP, DNS and IPv6 all fail inside it and only loopback works. The agent's only way out is the runner's loopback relay, which forwards to the supervisor's CONNECT proxy on `proxy.sock` (see [actor topology](./actor-topology.md)). Every client must honour the proxy variables. Claude Code, Codex, Node `fetch` and `https` (with `NODE_USE_ENV_PROXY=1`), npm, git and curl all do. `git://` and `ssh://` do not work.
+The workload runs with `--network none`, so TCP, UDP, DNS and IPv6 all fail inside it and only loopback works. The agent's only way out is avirtinitd's loopback relay, which forwards to the mediator's CONNECT proxy on `proxy.sock` (see [actor topology](./actor-topology.md)). Every client must honour the proxy variables. Claude Code, Codex, Node `fetch` and `https` (with `NODE_USE_ENV_PROXY=1`), npm, git and curl all do. `git://` and `ssh://` do not work.
 
-## Supervisor process
+## Mediator process
 
 ```text
-agentvmm-supervisor --dir DIR --controller-sock PATH --actor ID
+avirtmediatord --dir DIR --hostd-sock PATH --actor ID
 ```
 
-It runs one Pingora 0.9.0 `Server` with two Unix-socket services at 0600: the CONNECT app on `proxy.sock` and the uplink splice on `uplink.sock`. Stdin EOF or SIGINT means fast shutdown and SIGTERM graceful shutdown. Either way it first flushes every open connection as an event with `error: "shutdown"`. Stdin EOF ties its lifetime to the controller's, so a SIGKILLed controller takes every supervisor down with it.
+It runs one Pingora 0.9.0 `Server` with two Unix-socket services at 0600: the CONNECT app on `proxy.sock` and the uplink splice on `uplink.sock`. Stdin EOF or SIGINT means fast shutdown and SIGTERM graceful shutdown. Either way it first flushes every open connection as an event with `error: "shutdown"`. Stdin EOF ties its lifetime to avirthostd's, so a SIGKILLed avirthostd takes every mediator down with it.
 
 ## CONNECT app
 
@@ -56,12 +56,12 @@ To list the hosts a set of actors used: `jq -r 'select(.dir=="egress") | .msg | 
 
 # Status: planned
 
-## Supervisor pipeline
+## Mediator pipeline
 
-All of this runs inside one `agentvmm-supervisor` process:
+All of this runs inside one `avirtmediatord` process:
 
-1. The **mux** accepts each h2 CONNECT stream from the link and splices it into the local CONNECT listener on `/run/supervisor/connect.sock`.
-2. The **CONNECT app** parses the head, normalizes the authority, resolves it, applies `private-dest` against the host addresses passed in by the controller (`deny_addrs`), and evaluates the policy at L4. A rule with `tls: skip`, or a port other than 443, takes the opaque path described above.
+1. The **mux** accepts each h2 CONNECT stream from the link and splices it into the local CONNECT listener on `/run/mediator/connect.sock`.
+2. The **CONNECT app** parses the head, normalizes the authority, resolves it, applies `private-dest` against the host addresses passed in by avirthostd (`deny_addrs`), and evaluates the policy at L4. A rule with `tls: skip`, or a port other than 443, takes the opaque path described above.
 3. Otherwise it replies `200`, flushes, and accepts TLS with an `Acceptor` built per tunnel from `TlsSettings::with_callbacks(TunnelInfo{authority, conn_id})`, `set_cert_resolver(cache)` and ALPN `http/1.1`. `handshake_complete_callback` stores `TunnelInfo` in the `SslDigest` extension.
 4. The TLS stream goes to one shared `Arc<HttpProxy<Egress>>` built with `HttpProxy::new` and driven through `ServerApp::process_new`.
 5. `Egress: ProxyHttp`:
@@ -82,17 +82,17 @@ After termination the downstream connection is h1, so a websocket upgrade arrive
 
 ## MITM CA and leaf certificates
 
-The controller mints one MITM CA per actor (rcgen, ECDSA P-256, CN `agentvmm actor <id>`, 7-day validity, `KeyCertSign` only) so that it survives supervisor restarts, and passes the cert and key to the supervisor in `GET /actor`. The supervisor caches up to 256 leaves per host: P-256, SAN set to the host, 24 h validity, chain of leaf plus CA. The CA key never enters the workload.
+`avirthostd` mints one MITM CA per actor (rcgen, ECDSA P-256, CN `avirt actor <id>`, 7-day validity, `KeyCertSign` only) so that it survives mediator restarts, and passes the cert and key to the mediator in `GET /actor`. The mediator caches up to 256 leaves per host: P-256, SAN set to the host, 24 h validity, chain of leaf plus CA. The CA key never enters the workload.
 
 ## CA delivery into the workload
 
-The CA cert arrives in `confirm`. Before the agent starts, the runner:
+The CA cert arrives in `confirm`. Before the agent starts, avirtinitd:
 
-1. writes `/run/agentvmm/ca.pem`,
+1. writes `/run/avirt/ca.pem`,
 2. appends it to `/etc/ssl/certs/ca-certificates.crt` (image-local, as root),
-3. writes `/run/agentvmm/ca-bundle.pem` (system bundle plus the actor CA).
+3. writes `/run/avirt/ca-bundle.pem` (system bundle plus the actor CA).
 
-It then sets `NODE_EXTRA_CA_CERTS=/run/agentvmm/ca.pem`, and sets `SSL_CERT_FILE`, `CURL_CA_BUNDLE`, `REQUESTS_CA_BUNDLE`, `GIT_SSL_CAINFO`, `npm_config_cafile` and `CODEX_CA_CERTIFICATE` all to `/run/agentvmm/ca-bundle.pem`.
+It then sets `NODE_EXTRA_CA_CERTS=/run/avirt/ca.pem`, and sets `SSL_CERT_FILE`, `CURL_CA_BUNDLE`, `REQUESTS_CA_BUNDLE`, `GIT_SSL_CAINFO`, `npm_config_cafile` and `CODEX_CA_CERTIFICATE` all to `/run/avirt/ca-bundle.pem`.
 
 | Client | Trust behavior |
 | --- | --- |
@@ -117,7 +117,7 @@ Secret values, placeholder values, header values and bodies are never logged. Th
 
 ## Policy file
 
-The controller loads one YAML policy at startup (default `policy/default.yaml`, overridden by `AGENTVMM_POLICY`) and serves it to each supervisor in `GET /actor`. A new policy applies to actors launched after the controller loads it.
+`avirthostd` loads one YAML policy at startup (default `policy/default.yaml`, overridden by `AVIRT_POLICY`) and serves it to each mediator in `GET /actor`. A new policy applies to actors launched after avirthostd loads it.
 
 ```yaml
 version: 1
@@ -135,7 +135,7 @@ rules:                      # first match wins; no match = default
 default: allow              # enforce mode requires default: deny
 credentials:
   - name: claude-oauth
-    source: env:CLAUDE_CODE_OAUTH_TOKEN      # resolved by the controller, never the supervisor
+    source: env:CLAUDE_CODE_OAUTH_TOKEN      # resolved by avirthostd, never the mediator
     workload: {env: CLAUDE_CODE_OAUTH_TOKEN, shape: "sk-ant-oat01-"}
     inject: {header: authorization, value: "Bearer {}"}
     bind: [{host: api.anthropic.com, port: 443, paths: ["/v1/*", "/api/*"]}]
@@ -150,14 +150,14 @@ Matching rules:
 
 `private-dest` and credential bindings apply in both modes. In enforce mode, no match returns 403 with the body `egress denied: <host>:<port>` and a `decision: "deny"` event with `rule: null`. Codex downloads large artifacts from several `*.oaiusercontent.com` hosts at startup, so an enforce-mode allowlist has to include them.
 
-## Supervisor network
+## Mediator network
 
-The supervisor runs on its own per-actor network with NAT egress: a `VmnetNetwork` NAT interface on the Containerization runtime, or a labelled bridge network on Docker Desktop (see [compute runtimes](./compute-runtimes.md)). Its image is `ubuntu:26.04` with `nftables`, `ca-certificates` and `agentvmm-supervisor`, and it runs with `CAP_NET_ADMIN`.
+The mediator runs on its own per-actor network with NAT egress: a `VmnetNetwork` NAT interface on the Containerization runtime, or a labelled bridge network on Docker Desktop (see [compute runtimes](./compute-runtimes.md)). Its image is `ubuntu:26.04` with `nftables`, `ca-certificates` and `avirtmediatord`, and it runs with `CAP_NET_ADMIN`.
 
-`agentvmm-supervisor` starts as root and fetches `GET /actor`. It loads the ruleset below through `nft -f -` and reads it back with `nft -j list ruleset`, refusing to continue unless the drop sets are present. It then clears every capability set, sets `no_new_privs`, and stays uid 0, because Docker's file-mounted controller socket maps in as root-owned.
+`avirtmediatord` starts as root and fetches `GET /actor`. It loads the ruleset below through `nft -f -` and reads it back with `nft -j list ruleset`, refusing to continue unless the drop sets are present. It then clears every capability set, sets `no_new_privs`, and stays uid 0, because Docker's file-mounted avirthostd socket maps in as root-owned.
 
 ```text
-table inet agentvmm {
+table inet avirt {
   set deny4 { type ipv4_addr; flags interval; elements = { 0.0.0.0/8, 10.0.0.0/8, 100.64.0.0/10,
     127.0.0.0/8, 169.254.0.0/16, 172.16.0.0/12, 192.168.0.0/16, 198.18.0.0/15, 224.0.0.0/3,
     $GATEWAY, $HOST_V4... } }
@@ -176,7 +176,7 @@ table inet agentvmm {
 ```
 
 - `$DNS_ALLOW` and any extra deny entries come from the runtime: `1.1.1.1` and `9.9.9.9` on the Containerization runtime, and `192.168.65.7:53` on Docker Desktop.
-- `$HOST_V4` and `$HOST_V6` are the controller's `getifaddrs` at launch, global addresses included. The LAN router falls under the private ranges.
+- `$HOST_V4` and `$HOST_V6` are avirthostd's `getifaddrs` at launch, global addresses included. The LAN router falls under the private ranges.
 - The NAT gateway is in `deny4` on both runtimes. On the Containerization runtime, the NAT subnet's peer VMs fall under `192.168.0.0/16`.
 - A host address added while an actor runs is not picked up.
 - The CONNECT app's `private-dest` check still runs against the same set.

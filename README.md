@@ -1,17 +1,17 @@
-# agentvmm-poc
+# avirt
 
-agentvmm-poc runs ACP agents in isolated containers on an Apple silicon Mac. The supported agents are Claude, through [claude-agent-acp](https://github.com/agentclientprotocol/claude-agent-acp), and Codex, through [codex-acp](https://github.com/agentclientprotocol/codex-acp). A host controller, `agentvmm-controller`, launches one actor per request. An actor is a per-actor egress supervisor (`agentvmm-supervisor`) plus a workload container. Inside the workload, `agentvmm-runner` drives the agent over ACP and streams every JSON-RPC message to the controller, which writes it to `logs/<actor-id>.ndjson`. The workload has no network: the agent's only way out is the supervisor's logged CONNECT proxy. Everything is Rust and uses the official [`agent-client-protocol`](https://github.com/agentclientprotocol/rust-sdk) crate.
+`avirt` runs ACP agents in isolated containers on an Apple silicon Mac. The supported agents are Claude, through [claude-agent-acp](https://github.com/agentclientprotocol/claude-agent-acp), and Codex, through [codex-acp](https://github.com/agentclientprotocol/codex-acp). The host daemon, `avirthostd`, launches one actor per request. An actor is a per-actor egress mediator (`avirtmediatord`) plus a workload container. Inside the workload, `avirtinitd` drives the agent over ACP and streams every JSON-RPC message to `avirthostd`, which writes it to `logs/<actor-id>.ndjson`. The workload has no network: the agent's only way out is the mediator's logged CONNECT proxy. Everything is Rust and uses the official [`agent-client-protocol`](https://github.com/agentclientprotocol/rust-sdk) crate.
 
 Agents working in this repository should read [AGENTS.md](AGENTS.md). See [docs/architecture.md](docs/architecture.md) for the architecture, both the implemented system and the planned design, and [docs/build-and-platforms.md](docs/build-and-platforms.md) for build targets and platforms.
 
 ## Layout
 
-- `crates/agentvmm-controller/`: the `agentvmm-controller` binary (running it starts the server), the per-agent launch profiles, and Codex's credential handling.
-- `crates/agentvmm-cli/`: the `agentvmm` operator CLI (`agentvmm launch`).
-- `crates/agentvmm-supervisor/`: the `agentvmm-supervisor` binary, the per-actor Pingora egress proxy.
-- `crates/agentvmm-runner/`: the `agentvmm-runner` binary, which runs in the workload (`AGENTVMM_AGENT=claude|codex`).
-- `crates/agentvmm-core/`: the shared library, covering the control API types (`api`), the log envelope, the h2c client and uplink, the controller's server and actor registry, the runner harness and the state root.
-- `workloads/claude/` and `workloads/codex/`: the image build directories, each with a Containerfile and `image/` holding the pinned adapter. The images are `agentvmm-workload-claude:dev` and `agentvmm-workload-codex:dev`.
+- `crates/avirthostd/`: the `avirthostd` binary (running it starts the server), the per-agent launch profiles, and Codex's credential handling.
+- `crates/avirt/`: the `avirt` operator CLI (`avirt launch`).
+- `crates/avirtmediatord/`: the `avirtmediatord` binary, the per-actor Pingora egress proxy.
+- `crates/avirtinitd/`: the `avirtinitd` binary, which runs in the workload (`AVIRT_AGENT=claude|codex`).
+- `crates/avirt-core/`: the shared library, covering the control API types (`api`), the log envelope, the h2c client and uplink, the `avirthostd` server and actor registry, the `avirtinitd` harness and the state root.
+- `workloads/claude/` and `workloads/codex/`: the image build directories, each with a Containerfile and `image/` holding the pinned adapter. The images are `avirt-workload-claude:dev` and `avirt-workload-codex:dev`.
 
 ## Prerequisites
 
@@ -25,13 +25,13 @@ Agents working in this repository should read [AGENTS.md](AGENTS.md). See [docs/
 ```bash
 mise install                                                      # the Rust toolchain
 mise run build-images                                             # both workload images
-mise run serve                                                    # terminal 1: agentvmm-controller
-mise run launch claude "Reply with the word pong" -- --follow     # terminal 2: agentvmm launch
+mise run serve                                                    # terminal 1: avirthostd
+mise run launch claude "Reply with the word pong" -- --follow     # terminal 2: avirt launch
 mise run launch codex "Reply with the word pong" -- --follow
 mise run check                                                    # fmt --check, clippy -D warnings, tests
 ```
 
-Extra flags go after `--`, for example `-- --cwd DIR --follow`. `--cwd` mounts that host directory read-write at `/workspace`. The CLI is described in [docs/cli.md](docs/cli.md), and the controller's environment variables and log format in [docs/controller-api.md](docs/controller-api.md).
+Extra flags go after `--`, for example `-- --cwd DIR --follow`. `--cwd` mounts that host directory read-write at `/workspace`. The CLI is described in [docs/cli.md](docs/cli.md), and the `avirthostd` environment variables and log format in [docs/hostd-api.md](docs/hostd-api.md).
 
 ## Caveats
 

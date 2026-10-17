@@ -1,4 +1,4 @@
-# agentvmm-poc host toolchain and tasks. Apple `container` (1.5.0 or later) is a prerequisite that mise cannot install.
+# avirt host toolchain and tasks. Apple `container` (1.5.0 or later) is a prerequisite that mise cannot install.
 # Credentials live in the uncommitted mise.local.toml, which mise loads on top of this file.
 
 [tools]
@@ -44,27 +44,27 @@ run = [
 [tasks.build-image]
 description = "Build one workload image (claude or codex); the repository root is the build context"
 usage = 'arg "<agent>" help="claude or codex"'
-run = "container build -f workloads/${usage_agent}/Containerfile -t agentvmm-workload-${usage_agent}:dev ."
+run = "container build -f workloads/${usage_agent}/Containerfile -t avirt-workload-${usage_agent}:dev ."
 
 [tasks.build-images]
 description = "Build both workload images"
 depends = ["build-image claude", "build-image codex"]
 
 [tasks.serve]
-description = "Run the controller (picks CLAUDE_CODE_OAUTH_TOKEN up from mise.local.toml)"
-depends = ["build-controller"]
-run = "./target/debug/agentvmm-controller"
+description = "Run avirthostd (picks CLAUDE_CODE_OAUTH_TOKEN up from mise.local.toml)"
+depends = ["build-hostd"]
+run = "./target/debug/avirthostd"
 
-[tasks.build-controller]
-description = "Build the controller and the supervisor it starts for each actor"
+[tasks.build-hostd]
+description = "Build avirthostd and the mediator it starts for each actor"
 hide = true
-run = "cargo build --quiet -p agentvmm-controller -p agentvmm-supervisor"
+run = "cargo build --quiet -p avirthostd -p avirtmediatord"
 
 [tasks.launch]
-description = "Start an actor on a running controller: mise run launch claude \"prompt\" -- --follow"
+description = "Start an actor on a running avirthostd: mise run launch claude \"prompt\" -- --follow"
 usage = '''
 arg "<agent>" help="claude or codex"
 arg "<prompt>"
 arg "[flags]" var=#true help="extra flags such as --cwd DIR --follow"
 '''
-run = 'cargo run --quiet -p agentvmm-cli -- launch --agent "${usage_agent}" "${usage_prompt}" ${usage_flags}'
+run = 'cargo run --quiet -p avirt -- launch --agent "${usage_agent}" "${usage_prompt}" ${usage_flags}'

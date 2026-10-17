@@ -1,5 +1,5 @@
 [workspace]
-members = ["crates/agentvmm-core", "crates/agentvmm-supervisor", "crates/agentvmm-controller", "crates/agentvmm-cli", "crates/agentvmm-runner"]
+members = ["crates/avirt-core", "crates/avirtmediatord", "crates/avirthostd", "crates/avirt", "crates/avirtinitd"]
 resolver = "3"
 
 [workspace.package]

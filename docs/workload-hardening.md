@@ -1,8 +1,8 @@
 ---
 type: Security Design
 title: Workload hardening
-description: How the runner confines the agent inside the workload, covering its user, capabilities, environment, seccomp filters and Landlock rules, plus what runs as root.
-tags: [agentvmm, workload, seccomp, landlock, capabilities, security]
+description: How avirtinitd confines the agent inside the workload, covering its user, capabilities, environment, seccomp filters and Landlock rules, plus what runs as root.
+tags: [avirt, workload, seccomp, landlock, capabilities, security]
 implementation: partial
 generated: { by: claude-code/claude-opus-5-5, at: 2026-10-17T14:23:31Z }
 ---
@@ -11,14 +11,14 @@ generated: { by: claude-code/claude-opus-5-5, at: 2026-10-17T14:23:31Z }
 
 ## Container
 
-The workload runs with `--network none` and `--init`. With `--init` the runtime's init is PID 1 and the runner is its direct child: init reaps orphaned processes and passes `container stop` to the runner as SIGTERM. The runner handles SIGTERM by recording a `terminated by SIGTERM` error, closing the uplink and exiting with code 2. The image (`ubuntu:26.04`) has its own uid 1000 user removed, so that uid 1000 is `agent`. There is no `USER` line, and the runner starts as root.
+The workload runs with `--network none` and `--init`. With `--init` the runtime's init is PID 1 and avirtinitd is its direct child: init reaps orphaned processes and passes `container stop` to avirtinitd as SIGTERM. `avirtinitd` handles SIGTERM by recording a `terminated by SIGTERM` error, closing the uplink and exiting with code 2. The image (`ubuntu:26.04`) has its own uid 1000 user removed, so that uid 1000 is `agent`. There is no `USER` line, and avirtinitd starts as root.
 
 ## Agent process
 
-After the controller accepts the uplink, the runner starts the adapter as `agent`:
+After avirthostd accepts the uplink, avirtinitd starts the adapter as `agent`:
 
 ```text
-env -u AGENTVMM_ACTOR_ID -u AGENTVMM_PROMPT -u AGENTVMM_CWD -u AGENTVMM_UPLINK_TOKEN -u AGENTVMM_AGENT
+env -u AVIRT_ACTOR_ID -u AVIRT_PROMPT -u AVIRT_CWD -u AVIRT_UPLINK_TOKEN -u AVIRT_AGENT
   setpriv --reuid=agent --regid=agent --init-groups --inh-caps=-all --bounding-set=-all --no-new-privs -- <adapter>
 ```
 
@@ -35,7 +35,7 @@ Node also lets `HTTP_PROXY` serve HTTPS requests, so a bypass test has to unset 
 
 ## Seccomp
 
-The workload shares the VM's network namespace with the runtime's vsock relays, and the runtime applies no seccomp. Any process in it could otherwise dial the host-side relay ports directly and bypass the socket files' 0600 mode. After the uplink is accepted and the proxy relay has started, and before the agent starts, the runner applies two filters (`seccompiler`, default allow) to itself with all threads, and the agent inherits them:
+The workload shares the VM's network namespace with the runtime's vsock relays, and the runtime applies no seccomp. Any process in it could otherwise dial the host-side relay ports directly and bypass the socket files' 0600 mode. After the uplink is accepted and the proxy relay has started, and before the agent starts, avirtinitd applies two filters (`seccompiler`, default allow) to itself with all threads, and the agent inherits them:
 
 - `socket()` with domain `AF_VSOCK`, `AF_NETLINK` or `AF_PACKET` returns `EAFNOSUPPORT`. `AF_UNIX`, `AF_INET` and `AF_INET6` stay, because the agent reaches the proxy relay over loopback.
 - `io_uring_setup`, `io_uring_enter` and `io_uring_register` return `EPERM`, because `IORING_OP_SOCKET` creates sockets without calling `socket()`.
@@ -69,16 +69,16 @@ It can use the proxy, see its own filesystem plus the mounted `/workspace` or `C
 
 ## Landlock
 
-The kata-containers 3.32.0 arm64 guest kernel (`vmlinux-6.18.35-197-debug`) that the Apple runtimes boot is built with `CONFIG_SECURITY_LANDLOCK=y` and `CONFIG_LSM` starting with `landlock`, which provides at least ABI v6. Docker Desktop's kernel provides ABI v8. The runner requests the ABI v3 filesystem rights plus the ABI v6 scopes (abstract Unix sockets and signals) as a hard requirement, so the agent does not start without Landlock.
+The kata-containers 3.32.0 arm64 guest kernel (`vmlinux-6.18.35-197-debug`) that the Apple runtimes boot is built with `CONFIG_SECURITY_LANDLOCK=y` and `CONFIG_LSM` starting with `landlock`, which provides at least ABI v6. Docker Desktop's kernel provides ABI v8. `avirtinitd` requests the ABI v3 filesystem rights plus the ABI v6 scopes (abstract Unix sockets and signals) as a hard requirement, so the agent does not start without Landlock.
 
 | | Read-only | Read-write |
 | --- | --- | --- |
-| Both agents | `/usr` `/lib` `/bin` `/sbin` `/etc` `/opt/agent` `/proc` `/sys/fs/cgroup` `/dev/urandom` `/dev/random` `/run/agentvmm/ca.pem` `/run/agentvmm/ca-bundle.pem` | `/workspace` `/home/agent` `/tmp` `/dev/null` `/dev/shm` `/dev/zero` |
+| Both agents | `/usr` `/lib` `/bin` `/sbin` `/etc` `/opt/agent` `/proc` `/sys/fs/cgroup` `/dev/urandom` `/dev/random` `/run/avirt/ca.pem` `/run/avirt/ca-bundle.pem` | `/workspace` `/home/agent` `/tmp` `/dev/null` `/dev/shm` `/dev/zero` |
 | Codex | | `/home/agent/.codex` (under home) |
 
 ## What runs as root
 
-Only the runner. It needs root to:
+Only avirtinitd. It needs root to:
 
 - bind the link endpoint,
 - write the system CA bundle,
@@ -89,7 +89,7 @@ After `started`, it drops every capability except `CAP_KILL` and sets `no_new_pr
 
 ## Runtime outer layer
 
-The runtime adds its native restrictions underneath the runner's. On Docker Desktop that is:
+The runtime adds its native restrictions underneath avirtinitd's. On Docker Desktop that is:
 
 - `--cap-drop ALL`, then `--cap-add SETUID,SETGID,SETPCAP,KILL`. `SETPCAP` is needed for `setpriv --bounding-set=-all`.
 - `--security-opt no-new-privileges`.
