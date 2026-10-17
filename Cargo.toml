@@ -1,5 +1,5 @@
 [workspace]
-members = ["crates/acp-tap", "crates/acp-supervisor", "acpd", "agents/claude", "agents/codex"]
+members = ["crates/agentvmm-core", "crates/agentvmm-supervisor", "crates/agentvmm-controller", "crates/agentvmm-cli", "crates/agentvmm-runner"]
 resolver = "3"
 
 [workspace.package]

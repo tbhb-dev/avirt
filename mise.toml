@@ -1,7 +1,8 @@
-# Host toolchain and tasks. Apple `container` (1.4.1) is a prerequisite that mise cannot install.
+# agentvmm-poc host toolchain and tasks. Apple `container` (1.5.0 or later) is a prerequisite that mise cannot install.
 # Credentials live in the uncommitted mise.local.toml, which mise loads on top of this file.
 
 [tools]
+uv = "latest"
 # The one source of truth for the Rust version: the crates' `rust-version` and the images'
 # builder stage (`rust:1.97.1-bookworm`) follow it.
 rust = { version = "1.97.1", profile = "minimal", components = "clippy,rustfmt" }
@@ -22,8 +23,18 @@ run = "cargo clippy --workspace --all-targets -- -D warnings"
 description = "Format the code"
 run = "cargo fmt"
 
+[tasks.check-docs]
+shell = "bash -c"
+description = "guard-markdown on every tracked Markdown file, then the docs structure check"
+run = """
+command -v guard-markdown >/dev/null || { echo "guard-markdown not found; install it with: go install github.com/tbhb/repotools/cmd/guard-markdown@latest" >&2; exit 1; }
+git ls-files -z '*.md' | while IFS= read -r -d '' f; do [ -e "$f" ] && printf '%s\\0' "$f"; done | xargs -0 guard-markdown
+uv run --no-project --with pyyaml python scripts/okf-check.py docs
+"""
+
 [tasks.check]
-description = "fmt --check, clippy -D warnings and the tests"
+description = "fmt --check, clippy -D warnings, the tests and check-docs"
+depends = ["check-docs"]
 run = [
   "cargo fmt --check",
   "cargo clippy --workspace --all-targets -- -D warnings",
@@ -31,29 +42,29 @@ run = [
 ]
 
 [tasks.build-image]
-description = "Build one agent image (claude or codex); the repository root is the build context"
+description = "Build one workload image (claude or codex); the repository root is the build context"
 usage = 'arg "<agent>" help="claude or codex"'
-run = "container build -f agents/${usage_agent}/Containerfile -t acp-${usage_agent}:dev ."
+run = "container build -f workloads/${usage_agent}/Containerfile -t agentvmm-workload-${usage_agent}:dev ."
 
 [tasks.build-images]
-description = "Build both agent images"
+description = "Build both workload images"
 depends = ["build-image claude", "build-image codex"]
 
 [tasks.serve]
-description = "Run the daemon (picks CLAUDE_CODE_OAUTH_TOKEN up from mise.local.toml)"
-depends = ["build-daemon"]
-run = "./target/debug/acpd serve"
+description = "Run the controller (picks CLAUDE_CODE_OAUTH_TOKEN up from mise.local.toml)"
+depends = ["build-controller"]
+run = "./target/debug/agentvmm-controller"
 
-[tasks.build-daemon]
-description = "Build the daemon and the per-session supervisor it starts"
+[tasks.build-controller]
+description = "Build the controller and the supervisor it starts for each actor"
 hide = true
-run = "cargo build --quiet -p acpd -p acp-supervisor"
+run = "cargo build --quiet -p agentvmm-controller -p agentvmm-supervisor"
 
 [tasks.launch]
-description = "Start a session on a running daemon: mise run launch claude \"prompt\" -- --follow"
+description = "Start an actor on a running controller: mise run launch claude \"prompt\" -- --follow"
 usage = '''
 arg "<agent>" help="claude or codex"
 arg "<prompt>"
 arg "[flags]" var=#true help="extra flags such as --cwd DIR --follow"
 '''
-run = 'cargo run --quiet -p acpd -- launch --agent "${usage_agent}" "${usage_prompt}" ${usage_flags}'
+run = 'cargo run --quiet -p agentvmm-cli -- launch --agent "${usage_agent}" "${usage_prompt}" ${usage_flags}'

@@ -3,60 +3,6 @@
 version = 4
 
 [[package]]
-name = "acp-supervisor"
-version = "0.1.0"
-dependencies = [
- "async-trait",
- "chrono",
- "clap",
- "httparse",
- "nix",
- "pingora-core",
- "serde_json",
- "tokio",
-]
-
-[[package]]
-name = "acp-tap"
-version = "0.1.0"
-dependencies = [
- "agent-client-protocol",
- "anyhow",
- "bytes",
- "chrono",
- "futures-util",
- "http-body-util",
- "hyper",
- "hyper-util",
- "libc",
- "rand 0.10.3",
- "rustix",
- "seccompiler",
- "serde",
- "serde_json",
- "tempfile",
- "tokio",
- "tokio-stream",
- "tokio-util",
-]
-
-[[package]]
-name = "acpd"
-version = "0.1.0"
-dependencies = [
- "acp-tap",
- "anyhow",
- "base64 0.23.1",
- "chrono",
- "clap",
- "libc",
- "rand 0.10.3",
- "serde_json",
- "tempfile",
- "tokio",
-]
-
-[[package]]
 name = "agent-client-protocol"
 version = "3.4.0"
 source = "registry+https://github.com/rust-lang/crates.io-index"
@@ -100,6 +46,81 @@ dependencies = [
  "serde_json",
  "serde_with",
  "strum 0.28.0",
+]
+
+[[package]]
+name = "agentvmm-cli"
+version = "0.1.0"
+dependencies = [
+ "agentvmm-core",
+ "anyhow",
+ "clap",
+ "serde_json",
+ "tokio",
+]
+
+[[package]]
+name = "agentvmm-controller"
+version = "0.1.0"
+dependencies = [
+ "agentvmm-core",
+ "anyhow",
+ "base64 0.23.1",
+ "chrono",
+ "clap",
+ "libc",
+ "rand 0.10.3",
+ "serde_json",
+ "tempfile",
+ "tokio",
+]
+
+[[package]]
+name = "agentvmm-core"
+version = "0.1.0"
+dependencies = [
+ "agent-client-protocol",
+ "anyhow",
+ "bytes",
+ "chrono",
+ "futures-util",
+ "http-body-util",
+ "hyper",
+ "hyper-util",
+ "libc",
+ "rand 0.10.3",
+ "rustix",
+ "seccompiler",
+ "serde",
+ "serde_json",
+ "tempfile",
+ "tokio",
+ "tokio-stream",
+ "tokio-util",
+]
+
+[[package]]
+name = "agentvmm-runner"
+version = "0.1.0"
+dependencies = [
+ "agent-client-protocol",
+ "agentvmm-core",
+ "serde_json",
+ "tokio",
+]
+
+[[package]]
+name = "agentvmm-supervisor"
+version = "0.1.0"
+dependencies = [
+ "async-trait",
+ "chrono",
+ "clap",
+ "httparse",
+ "nix",
+ "pingora-core",
+ "serde_json",
+ "tokio",
 ]
 
 [[package]]
@@ -495,32 +516,12 @@ source = "registry+https://github.com/rust-lang/crates.io-index"
 checksum = "1c133bc6a41be0d194c306b5506d15e6feeea7b1d6604bd3f8310dfb2ca96486"
 
 [[package]]
-name = "claude-entrypoint"
-version = "0.1.0"
-dependencies = [
- "acp-tap",
- "agent-client-protocol",
- "serde_json",
- "tokio",
-]
-
-[[package]]
 name = "cmake"
 version = "0.1.58"
 source = "registry+https://github.com/rust-lang/crates.io-index"
 checksum = "c0f78a02292a74a88ac736019ab962ece0bc380e3f977bf72e376c5d78ff0678"
 dependencies = [
  "cc",
-]
-
-[[package]]
-name = "codex-entrypoint"
-version = "0.1.0"
-dependencies = [
- "acp-tap",
- "agent-client-protocol",
- "serde_json",
- "tokio",
 ]
 
 [[package]]
