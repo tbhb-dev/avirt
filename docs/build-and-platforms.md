@@ -13,11 +13,13 @@ generated: { by: claude-code/claude-opus-5-5, at: 2026-10-17T19:00:00Z }
 
 | Binary | Runs on | Targets |
 | --- | --- | --- |
-| `avirtinitd` | Linux guests (the workload) | `aarch64-unknown-linux-musl`, `x86_64-unknown-linux-musl` |
+| `avirtinitd` | Linux guests (the workload container) | `aarch64-unknown-linux-musl`, `x86_64-unknown-linux-musl` |
+| `avirtnetd`, `avirtguestd`, `avirtacp`, `avirtagent`, `avirtexec`, `avirtmcp`, `avirtguest` | Linux guests (the workload container), from the avirt base image | `aarch64-unknown-linux-musl`, `x86_64-unknown-linux-musl` |
 | `avirtmediatord` | Linux guests (the mediator) | `aarch64-unknown-linux-musl`, `x86_64-unknown-linux-musl` |
-| `libavirtenvoy` | Envoy, as a dynamic module: the mediator Envoy in Linux guests and the front-door Envoy on the host | `aarch64-unknown-linux-gnu`, `x86_64-unknown-linux-gnu`, macOS arm64 |
+| `libavirtenvoy` | Envoy, as a dynamic module: avirtmedproxyd's Envoy in Linux guests and avirtedgeproxyd's Envoy on the host | `aarch64-unknown-linux-gnu`, `x86_64-unknown-linux-gnu`, macOS arm64 |
 | `avirthostd` | The host | macOS arm64, Linux x86_64 and arm64, Windows x86_64 and arm64 |
 | `avirt` | The host | macOS arm64, Linux x86_64 and arm64, Windows x86_64 and arm64 |
+| `avirtsecrets-1password` | The host, as avirtsecretsd's provider plugin (see [1Password](./secrets-1password.md#plugin)) | macOS arm64 built with cgo (`CGO_ENABLED=1`), and Linux x86_64 and arm64 for the all-in-one server image built without it |
 
 The guest binaries do not depend on the host OS. `avirthostd` and the `avirt` CLI are built per host, side by side.
 
@@ -29,11 +31,11 @@ The guest binaries do not depend on the host OS. `avirthostd` and the `avirt` CL
 | `crates/avirt` | The `avirt` operator CLI |
 | `crates/avirthostd` | The host daemon |
 | `crates/avirtmediatord` | The mediator |
-| `crates/avirtinitd` | The workload entrypoint |
+| `crates/avirtinitd` | The workload container entrypoint |
 | `crates/avirtenvoy` | The Envoy dynamic module, a `cdylib` built as `libavirtenvoy`, that evaluates Cedar policy (embedding the `cedar-policy` crate) and injects HTTP and gRPC credentials |
 | `crates/avirt-runtime-containerization` | The Containerization runtime: a Swift package and a `build.rs` |
 
-`workloads/claude/` and `workloads/codex/` hold only the image build directories.
+`workloads/` holds only the image build directories (see [workload images](#workload-images)).
 
 Runtime backends implement the `Runtime` trait from `avirt-core`. They are selected at build time by target `cfg` and by the cargo features `runtime-containerization` and `runtime-docker`, and at run time by `AVIRT_RUNTIME` among those compiled in.
 
@@ -59,6 +61,21 @@ flowchart LR
     swift --> cz
 ```
 
+## Workload images
+
+Every workload image is derived from the avirt base image (see [workload lifecycle](./workload-lifecycle.md#base-images)).
+
+| Image | Directory | `FROM` | Adds |
+| --- | --- | --- | --- |
+| avirt base, `avirt-workload-base` | `workloads/base/` | `ubuntu:26.04` | `ca-certificates`, the `agent` user, the helper users and the `avirt-ws` group, `/workspace`, and every workload guest binary in the targets table |
+| Claude harness base, `avirt-workload-claude` | `workloads/claude/` | The avirt base | Node, claude-agent-acp and `harness.toml`, under `/opt/agent` |
+| Codex harness base, `avirt-workload-codex` | `workloads/codex/` | The avirt base | Node, codex-acp and `harness.toml`, under `/opt/agent` |
+| avirt builder | `workloads/builder/` | The avirt base | `git`, avirt's layer tool and BuildKit |
+
+`mise run build-images` builds the avirt base first and then every image derived from it. The image build fails a derived image whose layer chain does not begin with the avirt base's `diff_ids`, and a harness base with any entry or whiteout outside `/opt/agent`. No workload image holds harness configuration, which avirthostd supplies at launch as the configuration layer.
+
+The implemented images do not have this split: each Containerfile builds from `ubuntu:26.04` and compiles avirtinitd itself (see [Claude](./acp-claude.md#adapter) and [Codex](./acp-codex.md#adapter)).
+
 ## Linking
 
 The shim dylib is loaded through an `@executable_path` rpath, so it ships next to the avirthostd binary. The Swift runtime comes from the OS.
@@ -71,6 +88,7 @@ Apple publishes no prebuilt Containerization artifact, so the library is built f
 
 - **Development.** macOS avirthostd builds are ad-hoc signed with the `com.apple.security.virtualization` entitlement. `cargo run` and `cargo test` go through a signing runner configured in `.cargo/config.toml`, so test and run binaries carry the entitlement.
 - **Distribution.** `avirthostd` is Developer ID signed and notarized.
+- **Secrets broker.** `avirtsecretsd` and `avirtsecrets-1password` are Developer ID signed and notarized, each with a stable signing identifier, so their designated requirements hold across releases (see [macOS Keychain](./secrets-keychain.md#code-signing-and-entitlements)).
 
 ## CI matrix
 

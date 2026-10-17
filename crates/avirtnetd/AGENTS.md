@@ -8,6 +8,6 @@ generated: { by: claude-code/claude-sonnet-5-5, at: 2026-10-17T19:16:42Z }
 
 # Agent instructions: avirtnetd
 
-The guest networking daemon: link endpoint, egress, ingress, stub DNS resolver and guest control API. It runs in the workload container and has no implementation yet.
+The guest networking daemon: the client end of the workload's HTTP/2 connection to its mediator, the forward proxy, the reverse proxy, the stub DNS resolver and the guest control API. It runs in the workload container and has no implementation yet.
 
 See [docs/components.md](../../docs/components.md) for the component design and the root [AGENTS.md](../../AGENTS.md) for repository conventions.

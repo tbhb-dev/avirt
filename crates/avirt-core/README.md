@@ -9,7 +9,7 @@ generated: { by: claude-code/claude-sonnet-5-5, at: 2026-10-17T19:16:42Z }
 
 # avirt-core
 
-The shared library for avirt. It holds the control API types, the `avirthostd` server, the per-actor mediator process handle, the `avirtinitd` harness, the workload uplink, the NDJSON log envelope and the `avirthostd` state root. `avirthostd`, the CLI and `avirtinitd` depend on it.
+The shared library for avirt. It holds the control API types, the `avirthostd` server, the per-workload mediator process handle, the `avirtinitd` harness, the client for the workload's HTTP/2 connection to its mediator, the NDJSON log envelope and the `avirthostd` runtime directory. `avirthostd`, the CLI and `avirtinitd` depend on it.
 
 ```bash
 cargo test -p avirt-core
