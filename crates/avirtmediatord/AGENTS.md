@@ -34,4 +34,4 @@ The mediator binary. It runs one Pingora `Server` with two Unix-socket services 
 cargo test -p avirtmediatord
 ```
 
-`crates/avirt-connect/src/lib.rs` holds the tests for private destinations, host addresses, CONNECT authorities and absolute URIs. Add a case there for any new address range or authority form. `envoy.rs` tests the bootstrap structure and event conversion and validates the bootstrap when an Envoy binary and module are supplied. The guardian test uses a fake executable and launches no actor.
+`crates/avirt-connect/src/lib.rs` holds the tests for private destinations, host addresses, CONNECT authorities and absolute URIs. Add a case there for any new address range or authority form. `envoy.rs` tests the bootstrap structure and event conversion and validates the bootstrap when an Envoy binary and module are supplied. The supervision integration tests use `/bin/sh` and `/usr/bin/perl` as a fake Envoy, with a fake avirthostd. They cover guardian cleanup, Envoy exit, process groups, open-stream shutdown flushing and Pingora SIGTERM with stdin held open, and launch no actor.

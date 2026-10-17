@@ -34,7 +34,7 @@ An **actor** is the lifecycle unit: one mediator plus one workload. Workload and
 | avirtinitd | One minimal supervisor with three role modes: PID 1 and launcher in the workload, and supervisor in the mediator container and in the all-in-one server image | workload, mediator, all-in-one | Partial |
 | avirtmediatord | The mediator's per-actor control agent: link coordination, Envoy configuration, readiness, lifecycle and identity rotation | mediator | Partial |
 | Envoy Proxy | The mediator Envoy: the mediator's data plane for all of the workload's ingress and egress | mediator | Planned |
-| libavirtenvoy | An Envoy dynamic module that evaluates Cedar policy (embedding the `cedar-policy` crate) and injects HTTP and gRPC credentials | mediator, host | Planned |
+| libavirtenvoy | The Envoy dynamic module: CONNECT destination checks and connection events; Cedar policy and credential injection are planned | mediator, host | Partial |
 | avirtacp | Runs an agent workload through the Agent Client Protocol | workload | Partial |
 | avirtagent | Runs an agent workload through its native harness | workload | Planned |
 | avirtexec | Generic execution | workload | Planned |
@@ -47,7 +47,7 @@ Partial means the component's function exists in the current code but not yet as
 
 # Status: implemented
 
-The current code has four binaries and the shared `avirt-core` library, and they carry the implemented parts of the inventory as follows.
+The current code has four functional binaries, the shared `avirt-core` and `avirt-connect` libraries, and the optional `avirtenvoy` dynamic module, and they carry the implemented parts of the inventory as follows.
 
 | Binary | Container | Carries |
 | --- | --- | --- |
@@ -56,7 +56,7 @@ The current code has four binaries and the shared `avirt-core` library, and they
 | `avirtmediatord` | host, one process per actor | The mediator as a host process: one Pingora server with the CONNECT proxy on `proxy.sock` and the uplink splice to avirthostd on `uplink.sock`. |
 | `avirtinitd` | workload, as root | The workload's root process and image entrypoint. Together with the harness in `avirt-core`, it contains the ACP client that avirtacp carries in the planned design (it spawns the adapter as uid 1000 under seccomp and taps every JSON-RPC line), and the loopback egress relay to `proxy.sock` that avirtnetd carries in the planned design. |
 
-`avirtinitd` is not PID 1 in the current code. The workload runs with `--init`, so the runtime's init is PID 1 and avirtinitd is its direct child (see [workload hardening](./workload-hardening.md)). There is no mediator container: the mediator is the host process above. Landlock is not applied by the current code. None of the Envoys, libavirtenvoy or the other host daemons exist.
+`avirtinitd` is not PID 1 in the current code. The workload runs with `--init`, so the runtime's init is PID 1 and avirtinitd is its direct child (see [workload hardening](./workload-hardening.md)). There is no mediator container: the mediator is the host process above. Landlock is not applied by the current code. The optional host mediator Envoy loads libavirtenvoy for CONNECT destination checks. The front-door Envoy and the other host daemons are not implemented.
 
 # Status: planned
 
@@ -200,7 +200,7 @@ flowchart LR
 
 ## Host mediator
 
-Status: implemented. avirtmediatord runs on the host with Pingora as its default CONNECT engine. Its experimental Envoy mode starts a supervised Envoy child with a static bootstrap and avirtenvoy's destination filter. Both modes use the existing proxy and uplink sockets and event envelope; see [egress](./egress.md#experimental-host-envoy-mode). avirtenvoy shares the implemented authority and address checks with Pingora; its Cedar, TLS and credential functions are planned.
+Status: implemented. avirtmediatord runs on the host with Pingora as its default CONNECT engine. Its experimental Envoy mode starts a supervised Envoy child with a static bootstrap and avirtenvoy's destination filter. Both modes use the existing proxy and uplink sockets and event envelope; see [egress](./egress.md#experimental-host-envoy-mode). `avirt-connect` provides the authority and destination checks shared by Pingora and the excluded `avirtenvoy` module. Cedar, TLS and credential functions are planned.
 
 ## Mediator container
 

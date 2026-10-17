@@ -57,7 +57,7 @@ Lifecycle checks:
 
 ## Status: implemented
 
-An opt-in [host Envoy mode](./egress.md#experimental-host-envoy-mode) provides a static CONNECT bootstrap, an avirtenvoy destination filter, child supervision and conversion of module events to the existing egress envelope. Pingora remains the default. This slice uses the relayed `proxy.sock` and `uplink.sock` transport and has no phase 3 dependency. Shared address-policy unit tests and structural bootstrap tests cover the implementation; a bootstrap validation test runs only when an Envoy binary is supplied. It advances the destination-check and data-plane portions of phase 4 without satisfying a runtime parity gate.
+An opt-in [host Envoy mode](./egress.md#experimental-host-envoy-mode) provides a static CONNECT bootstrap, an avirtenvoy destination filter, child supervision and conversion of module events to the existing egress envelope. Pingora remains the default. This slice uses the relayed `proxy.sock` and `uplink.sock` transport and has no phase 3 dependency. Coverage includes the `avirt-connect` policy unit tests, the `avirtenvoy` stream-state unit tests, mediator bootstrap structure and event-conversion unit tests, supervision integration tests with a fake Envoy, and a bootstrap validation test that runs only when both an Envoy binary and module are supplied. It advances the destination-check and data-plane portions of phase 4 without satisfying a runtime parity gate.
 
 ## Status: planned
 

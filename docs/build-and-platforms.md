@@ -9,6 +9,10 @@ generated: { by: claude-code/claude-opus-5-5, at: 2026-10-17T19:00:00Z }
 
 # Status: implemented
 
+## Workspace layout
+
+The root workspace includes `avirt-connect`, the CONNECT authority parser and destination checks shared by Pingora and Envoy. `avirtenvoy` is an excluded standalone workspace with its own `Cargo.lock`; root workspace builds do not include the Envoy SDK, bindgen or libclang. `mise run check` checks the root workspace; `mise run check-envoy` checks the excluded module with the SDK git source and libclang available. The module builds into `target/envoy-module/debug/libavirtenvoy.dylib` on macOS and `target/envoy-module/debug/libavirtenvoy.so` on Linux.
+
 ## Experimental host mediator module
 
 The host mediator can select Envoy v1.40.0 while retaining the relayed proxy and uplink sockets. Build and run instructions are in [egress](./egress.md#experimental-host-envoy-mode). The official Rust SDK is pinned to the same release commit; `cargo build --locked --manifest-path crates/avirtenvoy/Cargo.toml --target-dir target/envoy-module` builds the cdylib with libclang available. On macOS the cdylib links Envoy callback symbols with `-undefined dynamic_lookup` and is passed by absolute `.dylib` filename in the bootstrap.
@@ -35,12 +39,13 @@ The guest binaries do not depend on the host OS. `avirthostd` and the `avirt` CL
 
 | Crate | Contents |
 | --- | --- |
+| `crates/avirt-connect` | CONNECT authority parsing and destination checks shared by both CONNECT engines |
 | `crates/avirt-core` | The shared library, including the `Runtime` trait (see [compute runtimes](./compute-runtimes.md)) and the `api` module shared by `avirthostd` and the CLI |
 | `crates/avirt` | The `avirt` operator CLI |
 | `crates/avirthostd` | The host daemon |
 | `crates/avirtmediatord` | The mediator |
 | `crates/avirtinitd` | The workload entrypoint |
-| `crates/avirtenvoy` | The Envoy dynamic module, a `cdylib` built as `libavirtenvoy`, that evaluates Cedar policy (embedding the `cedar-policy` crate) and injects HTTP and gRPC credentials |
+| `crates/avirtenvoy` | The excluded Envoy dynamic module, a `cdylib` built as `libavirtenvoy`, for CONNECT destination checks and connection events; Cedar policy and credential injection are planned |
 | `crates/avirt-runtime-containerization` | The Containerization runtime: a Swift package and a `build.rs` |
 
 `workloads/claude/` and `workloads/codex/` hold only the image build directories.

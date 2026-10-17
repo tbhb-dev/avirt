@@ -48,6 +48,8 @@ Every crate lives directly under `crates/`, and each directory is named after it
 | `avirtmcp` | Binary | Workload guest | The stdio MCP relay to avirtmcpgwd, launched on demand by the agent (not implemented) |
 | `avirtguest` | Binary | Workload guest | The in-image CLI that reaches avirtproxyd through the mediator (not implemented) |
 
+`avirt-connect` is part of the root workspace. `avirtenvoy` is an excluded standalone workspace with its own lockfile; build it with `cargo build --locked --manifest-path crates/avirtenvoy/Cargo.toml --target-dir target/envoy-module`. Root builds do not include the Envoy SDK or libclang build dependencies.
+
 `workloads/claude/` and `workloads/codex/` hold only the workload image build directories.
 
 ## Commands
@@ -60,7 +62,7 @@ mise run serve                                                    # avirthostd
 mise run launch claude "Reply with the word pong" -- --follow     # avirt launch, in a second terminal
 ```
 
-`mise run check` is the gate for every change. The images rebuild `avirtinitd` from the workspace, so an `avirtinitd` or `avirt-core` change needs `mise run build-images` before an end-to-end run sees it.
+`mise run check` is the gate for every change. Changes to the excluded `avirtenvoy` module also require `mise run check-envoy`, which needs the cached SDK git source and libclang. The images rebuild `avirtinitd` from the workspace, so an `avirtinitd` or `avirt-core` change needs `mise run build-images` before an end-to-end run sees it.
 
 ## Conventions
 
