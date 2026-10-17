@@ -198,6 +198,10 @@ flowchart LR
 | avirtmcpgwd | Its per-actor tool scope | MCP upstream credentials, obtained from avirtsecretsd |
 | avirthostd | The host snapshot, for control-plane actions: `create_workload`, `list_workloads`, `inspect_workload`, `stop_workload`, `delete_workload`, label keys, `attach_binding`, `publish_port` and `publish_service` | None |
 
+## Host mediator
+
+Status: implemented. avirtmediatord runs on the host with Pingora as its default CONNECT engine. Its experimental Envoy mode starts a supervised Envoy child with a static bootstrap and avirtenvoy's destination filter. Both modes use the existing proxy and uplink sockets and event envelope; see [egress](./egress.md#experimental-host-envoy-mode). avirtenvoy shares the implemented authority and address checks with Pingora; its Cedar, TLS and credential functions are planned.
+
 ## Mediator container
 
 Each actor has one mediator container, a sidecar to its workload. The mediator has no network interface other than loopback. Its only connections are the four runtime-provided channels described in [actor topology](./actor-topology.md#runtime-channels): the link, the avirthostd channel, the service channel and the ingress channel.

@@ -55,6 +55,12 @@ Lifecycle checks:
 
 # Envoy transition
 
+## Status: implemented
+
+An opt-in [host Envoy mode](./egress.md#experimental-host-envoy-mode) provides a static CONNECT bootstrap, an avirtenvoy destination filter, child supervision and conversion of module events to the existing egress envelope. Pingora remains the default. This slice uses the relayed `proxy.sock` and `uplink.sock` transport and has no phase 3 dependency. Shared address-policy unit tests and structural bootstrap tests cover the implementation; a bootstrap validation test runs only when an Envoy binary is supplied. It advances the destination-check and data-plane portions of phase 4 without satisfying a runtime parity gate.
+
+## Status: planned
+
 Phase 4 moves the mediator's data plane to Envoy with libavirtenvoy and removes Pingora from avirtmediatord. Each later phase builds its part of the egress, policy and credential design on Envoy. These parity gates must pass, on every runtime the phase touches, before the phase is done:
 
 | Gate | Phase | Pass condition |

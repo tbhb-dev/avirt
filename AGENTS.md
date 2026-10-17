@@ -22,7 +22,7 @@ Every crate lives directly under `crates/`, and each directory is named after it
 | --- | --- | --- | --- |
 | `avirthostd` | Binary | Host | The host daemon: control API, actor launch and teardown, logs, Codex `auth.json` write-back |
 | `avirt` | Binary `avirt` | Host | The operator CLI: `avirt launch` |
-| `avirtmediatord` | Binary | Host (one per actor) | The Pingora CONNECT proxy and the uplink splice |
+| `avirtmediatord` | Binary | Host (one per actor) | The CONNECT proxy (Pingora by default, optional Envoy) and the uplink splice |
 | `avirtinitd` | Binary | Linux guest only (the workload) | The ACP client: spawns the adapter, taps JSON-RPC, drops to uid 1000 under seccomp |
 | `avirt-core` | Library | Both | Shared code: the `api` module, the `avirthostd` server, the `avirtinitd` harness, the uplink, the log envelope, the state root |
 | `avirtadmin` | Binary | Host | The local admin CLI (not implemented) |
@@ -38,7 +38,7 @@ Every crate lives directly under `crates/`, and each directory is named after it
 | `avirtlogd` | Binary | Host | The log collector, which gathers workload stdout and stderr, transforms it and sends it to avirtoteld as OpenTelemetry Logs (not implemented) |
 | `avirtauditd` | Binary | Host | The audit logger, which delivers audit events as OCSF (not implemented) |
 | `avirtoteld` | Binary | Host | The OpenTelemetry Collector for the host (not implemented) |
-| `avirtenvoy` | Library (cdylib) | Mediator, host | The Envoy dynamic module that evaluates Cedar policy and injects HTTP and gRPC credentials (not implemented) |
+| `avirtenvoy` | Library (cdylib) | Mediator, host | The Envoy dynamic module with CONNECT destination checks and events; Cedar policy and credential injection are planned |
 | `avirtacp` | Binary | Workload guest | The workload process that runs an agent through the Agent Client Protocol (not implemented) |
 | `avirtagent` | Binary | Workload guest | The workload process that runs an agent through its native harness (not implemented) |
 | `avirtexec` | Binary | Workload guest | The workload process for generic execution (not implemented) |

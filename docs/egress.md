@@ -21,7 +21,21 @@ avirtmediatord --dir DIR --hostd-sock PATH --actor ID
 
 It runs one Pingora 0.9.0 `Server` with two Unix-socket services at 0600: the CONNECT app on `proxy.sock` and the uplink splice on `uplink.sock`. Stdin EOF or SIGINT means fast shutdown and SIGTERM graceful shutdown. Either way it first flushes every open connection as an event with `error: "shutdown"`. Stdin EOF ties its lifetime to avirthostd's, so a SIGKILLed avirthostd takes every mediator down with it.
 
-## CONNECT app
+## Experimental host Envoy mode
+
+Pingora is the default engine. `avirtmediatord --proxy-engine envoy --envoy-bin /absolute/path/to/envoy --envoy-module /absolute/path/to/libavirtenvoy.dylib` selects the experimental Envoy v1.40.0 engine. The equivalent environment variables are `AVIRT_PROXY_ENGINE=envoy`, `AVIRT_ENVOY_BIN` and `AVIRT_ENVOY_MODULE`; avirthostd forwards only these additional configuration variables to its mediator child. The remaining mediator arguments and the secret source are unchanged.
+
+The mediator writes a static `envoy.json` at 0600 in the actor directory and starts Envoy through a guardian child. Envoy listens on `envoy.sock` at 0600. The existing `proxy.sock` accept loop relays bytes to that listener; Envoy handles HTTP/1.1 and cleartext HTTP/2 CONNECT, the avirtenvoy HTTP filter checks destinations, and a dynamic forward proxy cluster opens raw TCP tunnels. The module and filter are mandatory local bootstrap resources; a load failure prevents listener readiness. The `uplink.sock` splice, ACTOR and EGRESS preambles, secrets and workload relay are unchanged.
+
+The guardian receives no mediator secret and watches a pipe held by avirtmediatord. EOF kills and reaps Envoy, including when avirtmediatord is killed. Envoy exit shuts down avirtmediatord. Normal mediator shutdown closes the guardian pipe and drains the module event reader before closing EGRESS. Open streams are reported with `error: "shutdown"` using their latest module snapshot. These are process-level behaviors; generation restart, fencing and workload freeze are planned.
+
+The module checks all resolved addresses with the shared Pingora destination policy and reads current host interfaces on every resolution. It replaces the upstream authority with the first checked numeric address, so the forward proxy cannot resolve the original name again. No fallback to later addresses is implemented. Module snapshots retain the original host and are converted to the existing `conn` event shape with the actor stamped by avirtmediatord.
+
+Runtime parity is unverified. Envoy may reject a malformed HTTP head before the module runs, in which case there is no module connection event. Envoy's upstream failure statuses and plain-method classification differ from Pingora's status table below. Exact event counts, byte counts, early tunnel data, long streams, HTTP/2 and shutdown behavior require live validation. This mode remains opt-in; the phase 4 parity gates are pending.
+
+To prepare an end-to-end run, build the mediator and host daemon with `cargo build --locked -p avirtmediatord -p avirthostd`, build the module with `cargo build --locked --target-dir target/envoy-module -p avirtenvoy --features dynamic-module`, and supply an Envoy v1.40.0 binary with the HTTP dynamic-module and dynamic forward proxy extensions. On macOS use the absolute `target/envoy-module/debug/libavirtenvoy.dylib` path. The separate target directory keeps default workspace builds from replacing the loadable module with the policy-only library. Set `AVIRT_ENVOY_BIN` and `AVIRT_ENVOY_MODULE`, then run `cargo test -p avirtmediatord envoy_validates_bootstrap_when_available -- --nocapture` to validate that the supplied binary loads the generated bootstrap and module. Start avirthostd with those variables and `AVIRT_PROXY_ENGINE=envoy`, then use the normal launch command. Run the regression suite and both agents' positive checks before claiming parity.
+
+## Pingora CONNECT app
 
 Connections are never reused, and there is no peer check, because the socket's mode is the access control.
 

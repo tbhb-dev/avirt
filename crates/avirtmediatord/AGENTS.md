@@ -8,14 +8,15 @@ generated: { by: claude-code/claude-sonnet-5-5, at: 2026-10-17T19:16:42Z }
 
 # Agent instructions: avirtmediatord
 
-The mediator binary. It runs one Pingora `Server` with two Unix-socket services in the actor's directory.
+The mediator binary. It runs one Pingora `Server` with two Unix-socket services in the actor's directory. Pingora is the default CONNECT engine; `--proxy-engine envoy` relays proxy streams to a supervised Envoy child while keeping the uplink splice. See [egress](../../docs/egress.md#experimental-host-envoy-mode) for Envoy mode's unverified parity and event limitations.
 
 ## Layout
 
 | Module | Holds |
 | --- | --- |
 | `main.rs` | Flags (`--dir`, `--hostd-sock`, `--actor`, and the secret from `AVIRT_MEDIATOR_SECRET`), the `ConnectApp` CONNECT proxy, the `SpliceApp` uplink splice, the connection records, and the shutdown watch |
-| `policy.rs` | Parsing CONNECT authorities and absolute URIs, `is_private` and the host-address check |
+| `policy.rs` | Re-exports of authority parsing and destination checks from `avirtenvoy::policy` |
+| `envoy.rs` | Static CONNECT bootstrap, the guardian process, Envoy supervision, stream forwarding and conversion of module snapshots to connection events |
 | `events.rs` | The event thread that writes one NDJSON line per proxied connection to the `EGRESS` connection |
 
 ## Invariants
@@ -33,4 +34,4 @@ The mediator binary. It runs one Pingora `Server` with two Unix-socket services 
 cargo test -p avirtmediatord
 ```
 
-`policy.rs` holds the tests for private destinations, host addresses, CONNECT authorities and absolute URIs. Add a case there for any new address range or authority form.
+`crates/avirtenvoy/src/policy.rs` holds the tests for private destinations, host addresses, CONNECT authorities and absolute URIs. Add a case there for any new address range or authority form. `envoy.rs` tests the bootstrap structure and event conversion and validates the bootstrap when an Envoy binary and module are supplied. The guardian test uses a fake executable and launches no actor.

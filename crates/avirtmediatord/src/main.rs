@@ -1,3 +1,5 @@
+#![recursion_limit = "256"]
+
 //! Per-actor mediator, spawned by avirthostd. It owns the two Unix sockets that are mounted
 //! into one container and is the container's only way out:
 //!
@@ -9,6 +11,7 @@
 //!
 //! One NDJSON event per proxied connection goes to avirthostd over a second avirthostd connection.
 
+mod envoy;
 mod events;
 mod policy;
 
@@ -53,6 +56,21 @@ struct Args {
     /// environment so that it is not on the command line, and the container never sees it.
     #[arg(long, env = "AVIRT_MEDIATOR_SECRET", hide_env_values = true)]
     secret: String,
+    /// CONNECT engine; Pingora remains the default.
+    #[arg(long, value_enum, env = "AVIRT_PROXY_ENGINE", default_value = "pingora")]
+    proxy_engine: ProxyEngine,
+    /// Envoy v1.40.0 executable (used only with --proxy-engine envoy).
+    #[arg(long, env = "AVIRT_ENVOY_BIN", default_value = "envoy")]
+    envoy_bin: PathBuf,
+    /// Dynamic module built with `cargo build -p avirtenvoy --features dynamic-module`.
+    #[arg(long, env = "AVIRT_ENVOY_MODULE")]
+    envoy_module: Option<PathBuf>,
+}
+
+#[derive(Clone, Copy, clap::ValueEnum)]
+enum ProxyEngine {
+    Pingora,
+    Envoy,
 }
 
 /// One tunnel. The byte counters are shared with the copy loop so a shutdown flush can report
@@ -313,7 +331,7 @@ impl ServerApp for ConnectApp {
 
 /// Shuts down on stdin EOF (a crashed or killed avirthostd takes its proxies with it) or SIGINT,
 /// and gracefully on SIGTERM.
-struct Shutdown;
+struct Shutdown(Option<Arc<Mutex<std::process::Child>>>);
 
 #[async_trait]
 impl ShutdownSignalWatch for Shutdown {
@@ -326,7 +344,20 @@ impl ShutdownSignalWatch for Shutdown {
         };
         let mut sigint = signal(SignalKind::interrupt()).expect("sigint handler");
         let mut sigterm = signal(SignalKind::terminate()).expect("sigterm handler");
+        let child_exit = async {
+            if let Some(child) = &self.0 {
+                loop {
+                    if !matches!(child.lock().expect("child lock").try_wait(), Ok(None)) {
+                        break;
+                    }
+                    tokio::time::sleep(Duration::from_millis(100)).await;
+                }
+            } else {
+                std::future::pending::<()>().await;
+            }
+        };
         let signal = tokio::select! {
+            () = child_exit => ShutdownSignal::FastShutdown,
             () = stdin_eof => ShutdownSignal::FastShutdown,
             _ = sigint.recv() => ShutdownSignal::FastShutdown,
             _ = sigterm.recv() => ShutdownSignal::GracefulTerminate,
@@ -378,24 +409,52 @@ impl ServerApp for SpliceApp {
 }
 
 fn main() {
+    if std::env::args_os().nth(1).as_deref() == Some(std::ffi::OsStr::new("--supervise-envoy")) {
+        std::process::exit(envoy::supervise());
+    }
     let args = Args::parse();
     ACTOR.lock().expect("actor lock").clone_from(&args.actor);
     if let Err(err) = events::connect(&args.hostd_sock, &args.actor, &args.secret) {
         eprintln!("cannot reach avirthostd at {}: {err}", args.hostd_sock.display());
         std::process::exit(1);
     }
+    let envoy = match args.proxy_engine {
+        ProxyEngine::Pingora => None,
+        ProxyEngine::Envoy => {
+            let Some(module) = &args.envoy_module else {
+                eprintln!("--envoy-module is required with --proxy-engine envoy");
+                std::process::exit(1);
+            };
+            match envoy::Envoy::start(&args.dir, &args.envoy_bin, module, args.actor.clone()) {
+                Ok(child) => Some(child),
+                Err(error) => {
+                    eprintln!("cannot start Envoy: {error}");
+                    events::close();
+                    std::process::exit(1);
+                }
+            }
+        }
+    };
     let conf = ServerConf { threads: 1, ..ServerConf::default() };
     let mut server = Server::new_with_opt_and_conf(None, conf);
     let private = || Some(std::fs::Permissions::from_mode(0o600));
-    let mut proxy = Service::new("proxy".into(), ConnectApp);
-    proxy.add_uds(&args.dir.join("proxy.sock").to_string_lossy(), private());
+    if let Some(envoy) = &envoy {
+        let mut proxy = Service::new("proxy".into(), envoy::ForwardApp(envoy.socket.clone()));
+        proxy.add_uds(&args.dir.join("proxy.sock").to_string_lossy(), private());
+        server.add_service(proxy);
+    } else {
+        let mut proxy = Service::new("proxy".into(), ConnectApp);
+        proxy.add_uds(&args.dir.join("proxy.sock").to_string_lossy(), private());
+        server.add_service(proxy);
+    }
     let mut actor =
         Service::new("actor".into(), SpliceApp { hostd_sock: args.hostd_sock, actor: args.actor, secret: args.secret });
     actor.add_uds(&args.dir.join("uplink.sock").to_string_lossy(), private());
-    server.add_service(proxy);
     server.add_service(actor);
     server.bootstrap();
-    server.run(RunArgs { shutdown_signal: Box::new(Shutdown) });
+    let child = envoy.as_ref().map(|e| Arc::clone(&e.child));
+    server.run(RunArgs { shutdown_signal: Box::new(Shutdown(child)) });
+    drop(envoy);
     // Connections still open when the server stopped are reported, with what moved so far.
     let open: Vec<_> = OPEN.lock().expect("open lock").values().cloned().collect();
     for conn in open {

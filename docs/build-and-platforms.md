@@ -3,9 +3,19 @@ type: Build Reference
 title: Build and platforms
 description: Build targets for the guest and host binaries, how the Swift Containerization shim is gated and linked, signing, the CI matrix, the toolchain, host privileges per runtime and guest artifact pins.
 tags: [avirt, build, ci, platforms, signing, swift]
-implementation: planned
+implementation: partial
 generated: { by: claude-code/claude-opus-5-5, at: 2026-10-17T19:00:00Z }
 ---
+
+# Status: implemented
+
+## Experimental host mediator module
+
+The host mediator can select Envoy v1.40.0 while retaining the relayed proxy and uplink sockets. Build and run instructions are in [egress](./egress.md#experimental-host-envoy-mode). The official Rust SDK is pinned to the same release commit; `cargo build --locked -p avirtenvoy --features dynamic-module` builds the cdylib with libclang available. On macOS the cdylib links Envoy callback symbols with `-undefined dynamic_lookup` and is passed by absolute `.dylib` filename in the bootstrap.
+
+The v1.40.0 [POSIX module loader](https://github.com/envoyproxy/envoy/blob/v1.40.0/source/extensions/dynamic_modules/posix/dynamic_modules.cc) uses `dlopen`; upstream [module build tests](https://github.com/envoyproxy/envoy/blob/v1.40.0/test/extensions/dynamic_modules/test_data/rust/test_data.bzl) account for macOS dylibs. A native macOS build must include the HTTP dynamic-module extension and export the SDK callback symbols. Native module compilation is supported by this crate; loading against a supplied darwin Envoy binary requires the bootstrap validation test and is unverified here.
+
+Upstream v1.40.0 [release assets](https://github.com/envoyproxy/envoy/releases/tag/v1.40.0) provide Linux arm64 and x86_64 binaries, with no darwin binary. A matching native macOS arm64 Envoy must be built from the pinned source with the [upstream build prerequisites](https://github.com/envoyproxy/envoy/blob/v1.40.0/bazel/README.md#quick-start-bazel-build-for-developers) available: full Xcode, Bazelisk, coreutils, wget, libtool, Go, clang-format, autoconf and aspell. The upstream build command is `bazel build -c opt envoy`. Envoy is not installed or downloaded by avirt. A Homebrew, mise, aqua or func-e binary is usable only if its version and compiled extensions satisfy the bootstrap validation test. Linux Envoy in a container additionally needs a transport bridge for the host Unix streams and host-interface destination checks; that bridge is not implemented.
 
 # Status: planned
 
