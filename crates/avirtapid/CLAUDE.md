@@ -1,8 +1,8 @@
 ---
 type: Agent Instructions
 title: Claude Code instructions
-description: "The Claude Code entry point for the `avirtproxyd` crate, which defers to its AGENTS.md."
-tags: [avirt, crate, avirtproxyd]
+description: "The Claude Code entry point for the `avirtapid` crate, which defers to its AGENTS.md."
+tags: [avirt, crate, avirtapid]
 generated: { by: claude-code/claude-sonnet-5-5, at: 2026-10-17T19:16:42Z }
 ---
 

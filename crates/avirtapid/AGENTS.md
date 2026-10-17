@@ -1,0 +1,13 @@
+---
+type: Agent Instructions
+title: "Agent instructions: avirtapid"
+description: "Guidance for AI coding agents working in the `avirtapid` crate."
+tags: [avirt, crate, avirtapid]
+generated: { by: claude-code/claude-sonnet-5-5, at: 2026-10-17T19:16:42Z }
+---
+
+# Agent instructions: avirtapid
+
+The API server: the gRPC and REST API in front of the local avirthostd and peers' API servers, reached through the edge proxy. It runs on the host and has no implementation yet.
+
+See [docs/components.md](../../docs/components.md) for the component design and the root [AGENTS.md](../../AGENTS.md) for repository conventions.

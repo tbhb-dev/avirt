@@ -311,6 +311,10 @@ name = "avirtagent"
 version = "0.1.0"
 
 [[package]]
+name = "avirtapid"
+version = "0.1.0"
+
+[[package]]
 name = "avirtauditd"
 version = "0.1.0"
 
@@ -320,6 +324,10 @@ version = "0.1.0"
 
 [[package]]
 name = "avirtdnsd"
+version = "0.1.0"
+
+[[package]]
+name = "avirtedgeproxyd"
 version = "0.1.0"
 
 [[package]]
@@ -391,6 +399,10 @@ dependencies = [
 ]
 
 [[package]]
+name = "avirtmedproxyd"
+version = "0.1.0"
+
+[[package]]
 name = "avirtmodelgwd"
 version = "0.1.0"
 
@@ -404,10 +416,6 @@ version = "0.1.0"
 
 [[package]]
 name = "avirtpolicyd"
-version = "0.1.0"
-
-[[package]]
-name = "avirtproxyd"
 version = "0.1.0"
 
 [[package]]

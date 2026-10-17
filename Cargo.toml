@@ -1,5 +1,5 @@
 [workspace]
-members = ["crates/avirt", "crates/avirt-core", "crates/avirtacp", "crates/avirtadmin", "crates/avirtagent", "crates/avirtauditd", "crates/avirtbuilderd", "crates/avirtdnsd", "crates/avirtenvoy", "crates/avirtexec", "crates/avirtguest", "crates/avirtguestd", "crates/avirthostd", "crates/avirtinitd", "crates/avirtlogd", "crates/avirtmcp", "crates/avirtmcpgwd", "crates/avirtmediatord", "crates/avirtmodelgwd", "crates/avirtnetd", "crates/avirtoteld", "crates/avirtpolicyd", "crates/avirtproxyd", "crates/avirtregistryd", "crates/avirtsecretsd", "crates/avirtwebd"]
+members = ["crates/avirt", "crates/avirt-core", "crates/avirtacp", "crates/avirtadmin", "crates/avirtagent", "crates/avirtapid", "crates/avirtauditd", "crates/avirtbuilderd", "crates/avirtdnsd", "crates/avirtedgeproxyd", "crates/avirtenvoy", "crates/avirtexec", "crates/avirtguest", "crates/avirtguestd", "crates/avirthostd", "crates/avirtinitd", "crates/avirtlogd", "crates/avirtmcp", "crates/avirtmcpgwd", "crates/avirtmediatord", "crates/avirtmedproxyd", "crates/avirtmodelgwd", "crates/avirtnetd", "crates/avirtoteld", "crates/avirtpolicyd", "crates/avirtregistryd", "crates/avirtsecretsd", "crates/avirtwebd"]
 resolver = "3"
 
 [workspace.package]

@@ -1,4 +1,4 @@
-//! The in-image CLI that reaches avirtproxyd through the mediator.
+//! The in-image CLI that reaches avirtapid through the mediator.
 
 fn main() -> std::process::ExitCode {
     eprintln!("avirtguest: not implemented");

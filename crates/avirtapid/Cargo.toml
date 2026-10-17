@@ -1,0 +1,10 @@
+[package]
+name = "avirtapid"
+version = "0.1.0"
+edition.workspace = true
+rust-version.workspace = true
+publish.workspace = true
+description = "The API server: the gRPC and REST API in front of the local avirthostd and peers' API servers, reached through the edge proxy."
+
+[lints]
+workspace = true
