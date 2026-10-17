@@ -1,1 +1,5 @@
-//! The Envoy dynamic module that evaluates Cedar policy and injects HTTP and gRPC credentials.
+//! CONNECT destination policy and the optional Envoy dynamic-module entrypoint.
+pub mod policy;
+
+#[cfg(all(feature = "dynamic-module", not(test)))]
+mod filter;

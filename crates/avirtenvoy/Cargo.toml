@@ -7,7 +7,17 @@ publish.workspace = true
 description = "The Envoy dynamic module that evaluates Cedar policy and injects HTTP and gRPC credentials."
 
 [lib]
-crate-type = ["cdylib"]
+crate-type = ["cdylib", "rlib"]
 
 [lints]
 workspace = true
+
+[features]
+dynamic-module = ["dep:envoy-proxy-dynamic-modules-rust-sdk", "dep:tokio"]
+
+[dependencies]
+envoy-proxy-dynamic-modules-rust-sdk = { git = "https://github.com/envoyproxy/envoy", rev = "9e5580933739775e8bce696a57a2e1bc99368f23", optional = true }
+nix = { version = "0.31.3", features = ["net"] }
+serde_json = "1.0.154"
+chrono = { version = "0.4.45", default-features = false, features = ["clock"] }
+tokio = { version = "1.53.3", features = ["rt-multi-thread", "net", "time"], optional = true }
