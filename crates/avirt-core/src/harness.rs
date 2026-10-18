@@ -233,7 +233,7 @@ async fn start_relay() -> std::io::Result<std::net::SocketAddr> {
 ///   agent reaches the proxy relay over loopback.
 /// - `io_uring_setup`, `io_uring_enter` and `io_uring_register` fail with `EPERM`, because
 ///   `IORING_OP_SOCKET` creates sockets without calling `socket()`. Node falls back to its
-///   thread pool when io_uring is unavailable.
+///   thread pool when `io_uring` is unavailable.
 #[cfg(target_os = "linux")]
 fn restrict_sockets() -> Result<(), String> {
     use seccompiler::{
@@ -244,6 +244,10 @@ fn restrict_sockets() -> Result<(), String> {
     const AF_NETLINK: u64 = 16;
     const AF_PACKET: u64 = 17;
     const AF_VSOCK: u64 = 40;
+    // On x86_64 the x32 ABI reaches the same syscalls under numbers with this bit set, which a
+    // filter keyed on the plain numbers would not see. It doesn't exist on the aarch64 images.
+    #[cfg(target_arch = "x86_64")]
+    const X32: i64 = 0x4000_0000;
     let err = |e: &dyn std::fmt::Display| e.to_string();
     let arch = TargetArch::try_from(std::env::consts::ARCH).map_err(|e| err(&e))?;
 
@@ -255,10 +259,6 @@ fn restrict_sockets() -> Result<(), String> {
                 .map_err(|e| err(&e))
         })
         .collect::<Result<Vec<_>, _>>()?;
-    // On x86_64 the x32 ABI reaches the same syscalls under numbers with this bit set, which a
-    // filter keyed on the plain numbers would not see. It doesn't exist on the aarch64 images.
-    #[cfg(target_arch = "x86_64")]
-    const X32: i64 = 0x4000_0000;
     #[cfg(target_arch = "x86_64")]
     let (x32_rules, x32_io_uring) =
         (domain_rules.clone(), vec![libc::SYS_io_uring_setup, libc::SYS_io_uring_enter, libc::SYS_io_uring_register]);
