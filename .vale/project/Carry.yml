@@ -1,0 +1,15 @@
+---
+# Every use of this word needs the maintainer's personal approval. The only way past the rule
+# is an inline `<!-- vale project.Carry = NO -->` exception the maintainer approved.
+# agent-merge-pr's loosening detection sends any such exception to the owner.
+extends: existence
+message: >-
+  '%s' needs the maintainer's personal approval. Say what moves where (sends, holds, forwards, contains,
+  delivers).
+level: error
+ignorecase: true
+tokens:
+  - carry
+  - carries
+  - carried
+  - carrying
