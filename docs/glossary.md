@@ -57,15 +57,11 @@ An append-only NDJSON file of audit events that one component alone writes, in i
 
 ## avirt
 
-The project, always written in lowercase, and its operator CLI, the `avirt` binary. See [operator CLI](./operator-cli.md).
+The project, always written in lowercase, and its operator CLI, the `avirt` binary. See [operator CLI](./operator-cli.md#status-implemented).
 
 ## avirt base image
 
 The image from which every planned sandbox image derives. It includes the OS userland and the `agent` user, along with the per-process UIDs, the `avirt-ws` group, and every avirt guest binary. Status: planned. See [layer stack](./workload-lifecycle.md#layer-stack).
-
-## Internal name
-
-A DNS name under `host.avirt.internal`, or ending in an active peer's host name, that specifies a workload or a service, which only avirtdnsd answers and which resolves to avirtedgeproxyd on the host that serves it. Status: planned. See [internal names](./dns.md#internal-names).
 
 ## avirtacp
 
@@ -73,7 +69,7 @@ The main workload process that drives an ACP adapter, taps every JSON-RPC line a
 
 ## avirtadmin
 
-The local admin CLI, which talks to avirthostd only over its admin socket. It authenticates with peer credentials and uses the `Admin` principal. Status: planned. See [admin CLI](./admin-cli.md).
+The local admin CLI, which talks to avirthostd only over its admin socket. It authenticates with peer credentials and uses the `Admin` principal. Status: planned. See [admin CLI](./admin-cli.md#connection-and-authentication).
 
 ## avirtagent
 
@@ -93,7 +89,7 @@ The host service that schedules workspace builds and runs prebuild configuration
 
 ## avirtdnsd
 
-The host service that answers internal names with the address of avirtedgeproxyd on the host that serves them. Status: planned. See [DNS](./dns.md).
+The host service that answers internal names with the address of avirtedgeproxyd on the host that serves them. Status: planned. See [DNS](./dns.md#the-avirtdnsd-zone).
 
 ## avirtedgeproxyd
 
@@ -105,7 +101,7 @@ The main workload process for generic execution, which also runs as the build ru
 
 ## avirtguest
 
-The guest CLI, run on demand as uid 1000 inside the sandbox container, which reaches avirtapid under the `guest-cli` principal. Status: planned. See [guest CLI](./guest-cli.md).
+The guest CLI, run on demand as uid 1000 inside the sandbox container, which reaches avirtapid under the `guest-cli` principal. Status: planned. See [guest CLI](./guest-cli.md#path).
 
 ## avirtguestd
 
@@ -113,7 +109,7 @@ The daemon that serves the file server and the MCP tool surface for workspace ro
 
 ## avirthostd
 
-The host daemon and the core of the control plane. It provides the control API and manages workload launch, teardown, and logs. The planned design also assigns it the SPIFFE issuer, SNI routing, and the content-addressed cache. See [avirthostd API](./hostd-api.md) and [host services](./components.md#host-services).
+The host daemon and the core of the control plane. It provides the control API and manages workload launch, teardown, and logs. The planned design also assigns it the SPIFFE issuer, SNI routing, and the content-addressed cache. See [avirthostd API](./hostd-api.md#control-api) and [host services](./components.md#host-services).
 
 ## avirtinitd
 
@@ -149,7 +145,7 @@ The host's OpenTelemetry Collector: a Rust front end that stamps identity attrib
 
 ## avirtpolicyd
 
-The host service that stores, validates, proves, compiles, and distributes policy snapshots. Status: planned. See [egress policies](./egress-policies.md).
+The host service that stores, validates, proves, compiles, and distributes policy snapshots. Status: planned. See [egress policies](./egress-policies.md#policy-snapshots).
 
 ## avirtregistryd
 
@@ -157,7 +153,7 @@ The host service that stores workspace images in a supervised zot and maintains 
 
 ## avirtsecretsd
 
-The secrets broker is the only component that reads a secret provider or refreshes or writes back a credential. It issues placeholders and leases. Status: planned. See [secrets](./secrets.md).
+The secrets broker is the only component that reads a secret provider or refreshes or writes back a credential. It issues placeholders and leases. Status: planned. See [secrets](./secrets.md#overview).
 
 ## avirtwebd
 
@@ -195,6 +191,10 @@ The security context of a build job's build runner, which runs as root in the bu
 
 The UUIDv7 that avirthostd assigns to a workload at creation and never reuses, which SPIFFE IDs, Cedar entities, and log records contain. Authorization always uses it, never a short ID, alias, or generated name. Status: planned. See [workload IDs](./components.md#workload-ids).
 
+## Capsule
+
+A length-delimited message inside an HTTP stream. CONNECT-UDP uses `DATAGRAM` capsules with an RFC 9298 Context ID and a size checked before allocation. Status: planned. See [HTTP/2 streams](./networking.md#http2-streams).
+
 ## Cedar
 
 The policy language, evaluated with the `cedar-policy` crate, that governs egress, ingress, DNS, TLS interception, workload management, workspaces, and secrets in avirt. Status: planned. See [egress policies](./egress-policies.md#schema).
@@ -203,9 +203,13 @@ The policy language, evaluated with the `cedar-policy` crate, that governs egres
 
 The Common Expression Language, which workspace configs and prebuild configurations use for filters and tag templates. Status: planned. See [expressions](./workspaces.md#expressions).
 
+## Composed root filesystem
+
+A cached root filesystem, or on Docker Desktop a composed image, made of a harness base and one workspace image's layers, from which each sandbox container gets its own writable copy. Status: planned. See [assembly per runtime](./workload-lifecycle.md#assembly-per-runtime).
+
 ## Compute runtime
 
-The backend that creates and removes a workload's container and mediator and provides their Unix sockets to the host. The implementations are the Containerization runtime, the Docker Desktop runtime, or the Apple container CLI runtime. See [runtime interface](./compute-runtimes.md#runtime-interface).
+The backend that creates and removes the sandbox container and mediator for a workload and provides their Unix sockets to the host. The implementations are the Containerization runtime, the Docker Desktop runtime, or the Apple container CLI runtime. See [runtime interface](./compute-runtimes.md#runtime-interface).
 
 ## Configuration layer
 
@@ -223,6 +227,10 @@ The HTTP method that opens a tunnel to `host:port`. The implemented mediator acc
 
 The implemented mediator's Pingora CONNECT proxy on `proxy.sock`, which parses the authority, applies the private-address block and dials upstream. See [CONNECT app](./egress.md#pingora-connect-app).
 
+## CONNECT-UDP
+
+An HTTP tunnel for relaying UDP datagrams to one immutable destination per stream, with DATAGRAM capsules over HTTP/2. Status: planned. See [HTTP/2 streams](./networking.md#http2-streams).
+
 ## Connection token
 
 The random 128-bit token avirthostd gives only avirtinitd as `AVIRT_CONNECTION_TOKEN`, which the implemented `POST /workloads/<id>/stream` request must include in `x-avirt-token`. Mutual TLS replaces it in the planned design. See [connection token](./identity.md#connection-token).
@@ -235,6 +243,10 @@ The Apple compute runtime of the planned design, which hosts each sandbox contai
 
 avirthostd's store of runtime artifacts, keyed by digest: kernels, initfs images, the unpacked avirt base, harness base and mediator images, configuration layers, and the workspace images it pulls. Status: planned. See [operational ownership](./components.md#operational-ownership).
 
+## Context ID
+
+The RFC 9298 identifier in a CONNECT-UDP DATAGRAM capsule. Status: planned. See [networking](./networking.md#http2-streams).
+
 ## Control plane
 
 avirthostd plus the host services that configure and decide. These services include avirtpolicyd and avirtsecretsd. avirtedgeproxyd and avirtmediatord form the data plane and forward traffic. See [components](./components.md#overview).
@@ -243,21 +255,41 @@ avirthostd plus the host services that configure and decide. These services incl
 
 The one component that may inject a binding's real credential: avirtmodelgwd, avirtmcpgwd, or avirtmediatord. The binding field and Cedar attribute are both `injector`. Status: planned. See [credential injectors](./egress-credentials.md#credential-injectors).
 
+## `credential-misplaced`
+
+avirtmediatord's rejection, with 403 `credential-misplaced` in both policy modes, of any issued placeholder found anywhere in a request except its bound header. Status: planned. See [placeholders](./egress-credentials.md#placeholders).
+
 ## Data plane
 
 avirtedgeproxyd and avirtmediatord, which transport and inspect traffic, as distinct from the control plane, which configures them. Status: planned. See [components](./components.md#overview).
+
+## Datagram
+
+One UDP message, kept intact within an HTTP/2 DATAGRAM capsule. The receiver checks its capsule length before allocation. Status: planned. See [HTTP/2 streams](./networking.md#http2-streams).
 
 ## Delegation chain
 
 The chain of creators that created a workload. Its record uses `avirt.internal/creator` and `avirt.internal/root`, with a depth that host configuration caps. Peers receive it in `x-avirt-delegation`. Status: planned. See [workload management](./components.md#workload-management).
 
+## DNS stub resolver
+
+The avirtnetd code that sends each query to the mediator on its own POST `/dns` stream. Status: planned. See [networking](./networking.md#guest-networking).
+
 ## Docker Desktop runtime
 
 The compute runtime that runs each sandbox container and each mediator as a container on Docker Desktop's single shared Linux kernel. Status: planned. See [Docker Desktop runtime](./compute-runtimes.md#docker-desktop-runtime).
 
+## ECH
+
+Encrypted ClientHello. Named flows using TLS or QUIC reject its extension, and synthetic answers omit `ech`. Status: planned. See [policy and endpoint checks](./networking.md#policy-and-endpoint-checks).
+
+## `edgeproxy.sock`
+
+avirtedgeproxyd's user-owned Unix socket `edgeproxy.sock` in the runtime directory, with mode 0600. avirt and local clients access avirtapid through it. Status: planned. See [listeners](./trust-boundaries.md#listeners).
+
 ## Egress event
 
-An event about one connection (`conn`), one intercepted request (`http`) or one DNS query (`dns`), written into the workload log with `dir: "egress"`. The implemented system writes only `conn` events. See [events](./egress.md#events) and [planned events](./egress.md#events).
+An event about one connection (`conn`), one intercepted request (`http`) or one DNS query (`dns`), written into the workload log with `dir: "egress"`. The implemented system writes only `conn` events. See [events](./egress.md#events) and [planned events](./networking.md#limits-events-and-verification).
 
 ## Enforcement point
 
@@ -265,7 +297,7 @@ A component that evaluates policy and enforces the decision on traffic or a call
 
 ## Enrollment
 
-The act by which an operator adds a peer to this host from the peer's enrollment file, after comparing its fingerprint out of band. This makes the host trust the peer's trust bundle and internal names under a peer's host name. Status: planned. See [enrollment](./peering.md#enrollment).
+The act by which an operator adds a peer to this host from the peer's enrollment file, after comparing its fingerprint out of band. This makes the host trust the peer's trust bundle and internal names under that peer's host name. Status: planned. See [enrollment](./peering.md#enrollment).
 
 ## Enrollment file
 
@@ -278,10 +310,6 @@ A numbered set of the Cedar entities avirthostd owns, such as namespaces, worklo
 ## Envelope
 
 One line of the workload log, `{ts, dir, msg}`, where `dir` is `client->agent`, `agent->client`, `meta` or `egress`. See [envelope](./hostd-api.md#envelope).
-
-## `src`
-
-The `src` label on every planned event, such as `hostd`, `edgeproxy`, `gateway`, `mediator`, `secrets`, or `workload`. avirthostd stamps it from the authenticated connection the event arrived on. It states how far the recipient can trust the event. Status: planned. See [the event's `src` field](./trust-boundaries.md#src).
 
 ## Federation
 
@@ -323,6 +351,18 @@ The harness config file `/opt/agent/harness.toml` in a harness base image. It sp
 
 The machine that runs avirthostd and its host services. References to the literal DNS label `host`, a peer's host name `<host>`, the `Host` request header, or the host name of an external endpoint always distinguish these meanings. See [architecture](./architecture.md#overview).
 
+## Host CA
+
+The per-workload certificate authority that signs SSH host certificates. Its certificates identify hosts in that workload's set of hosts permitted for SSH interception. Status: planned. See [networking](./networking.md#ssh-and-git).
+
+## Host certificate
+
+An OpenSSH certificate that identifies a host. avirtmediatord presents one from the workload's host CA only for hosts permitted for SSH interception. Status: planned. See [networking](./networking.md#ssh-and-git).
+
+## Host key
+
+The SSH key that identifies a server. An SSH binding pins the upstream host key. Status: planned. See [networking](./networking.md#authentication-and-commands).
+
 ## Host policy set
 
 The policy set that applies to every decision on the host, beside the policy sets identified by name that apply only to the workloads that reference them. Status: planned. See [building snapshots](./egress-policies.md#building).
@@ -331,17 +371,29 @@ The policy set that applies to every decision on the host, beside the policy set
 
 An avirt daemon that runs on the host outside every workload, such as avirthostd, avirtsecretsd or avirtedgeproxyd, each with the SPIFFE ID `spiffe://<td>/service/<name>` and the Cedar entity `HostService::"<name>"`. Status: planned. See [host services](./components.md#host-services).
 
+## httparse
+
+The HTTP/1 request-head parser used before hyper normalizes a request. The parser checks ambiguity in each request head. Status: planned. See [HTTP and TLS](./networking.md#http-and-tls).
+
+## ICMP
+
+Internet Control Message Protocol. avirt supports echo through an extended CONNECT stream with `:protocol` `icmp`, with one target per stream. Status: planned. See [ICMP echo](./networking.md#icmp-echo).
+
 ## Ingress listener
 
 avirtmediatord's listener on `/run/avirt/ingress.sock`, on which avirtedgeproxyd, through avirthostd's SNI routing, reaches that workload's published ports. Status: planned. See [runtime-provided sockets](./workload-topology.md#runtime-provided-sockets).
 
+## Internal name
+
+A DNS name under `host.avirt.internal`, or ending in an active peer's host name, that specifies a workload or a service, which only avirtdnsd answers and which resolves to avirtedgeproxyd on the host that serves it. Status: planned. See [internal names](./dns.md#internal-names).
+
+## Invariant
+
+A condition that must remain true for every candidate policy set. The prover checks it before avirtpolicyd builds a policy snapshot. An invariant can limit the requests a set permits. It can also require permission or denial for specified requests. Status: planned. See [invariants](./egress-policies.md#invariants).
+
 ## Issuing CA
 
 The in-memory intermediate SPIFFE CA, valid for 7 days and signed by the root, that signs every SVID. Status: planned. See [issuer](./identity.md#issuer).
-
-## `Workloads/KeepAlive`
-
-The `Workloads/KeepAlive` call that a creator's host makes every 60 s to a peer for each workload created there, without which the peer stops that workload after 5 minutes. Status: planned. See [workload management across hosts](./peering.md#workload-management-across-hosts).
 
 ## Label
 
@@ -349,7 +401,7 @@ A free-form key and value on a workload or a service, used for selection and vis
 
 ## Landlock
 
-The Linux security module that confines a process's filesystem access, TCP ports, abstract Unix sockets and signals, which avirtinitd applies per security context. Status: planned. See [Landlock and seccomp](./landlock.md).
+The Linux security module that confines a process's filesystem access, TCP ports, abstract Unix sockets and signals, which avirtinitd applies per security context. Status: planned. See [Landlock and seccomp](./landlock.md#status-planned).
 
 ## Launch handshake
 
@@ -358,10 +410,6 @@ The sequence on the workload's HTTP/2 connection to its mediator, from the mutua
 ## Lease
 
 A time-bounded grant of one secret value from avirtsecretsd to one caller, for one workload, binding and generation, in the sense of a Vault lease, that expires no later than the secret's cache lifetime. Status: planned. See [scoping](./secrets.md#scoping).
-
-## `edgeproxy.sock`
-
-avirtedgeproxyd's user-owned Unix socket `edgeproxy.sock` in the runtime directory, with mode 0600. avirt and local clients access avirtapid through it. Status: planned. See [listeners](./trust-boundaries.md#listeners).
 
 ## Managed configuration paths
 
@@ -386,6 +434,14 @@ A workload log envelope with `dir: "meta"`, such as `start`, `auto_approve`, `ex
 ## MITM CA
 
 The per-workload CA whose leaf certificates let avirtmediatord perform TLS interception of the agent's connections. It's name-constrained to the hosts the workload's policy can intercept, its key never enters the sandbox container, and it's separate from the SPIFFE CA. Status: planned. See [MITM CA and leaf certificates](./egress.md#mitm-ca-and-leaf-certificates).
+
+## MPTCP
+
+Multipath TCP. avirtinitd turns it off with `net.mptcp.enabled=0`, and seccomp denies `IPPROTO_MPTCP`. Status: planned. See [guest networking](./networking.md#guest-networking).
+
+## MTU
+
+The largest IP packet a network interface sends without fragmentation, called its maximum transmission unit. Status: planned. avirt must choose and test its fragmentation strategy and TUN MTU. See [guest networking](./networking.md#guest-networking).
 
 ## Mutual TLS
 
@@ -421,19 +477,11 @@ The telemetry standard, with its OTLP protocol, in which avirt emits logs, metri
 
 ## Peer
 
-Another avirt host, with its own trust domain, that this host has enrolled. A peering is active once both hosts have enrolled each other. Status: planned. See [peering](./peering.md).
+Another avirt host, with its own trust domain, that this host has enrolled. A peering is active once both hosts have enrolled each other. Status: planned. See [peering](./peering.md#enrollment).
 
 ## Placeholder
 
 A string that avirtsecretsd issues per workload and binding, a client-acceptable prefix then `avirtph` then 32 random characters, which the sandbox container contains in place of a real credential and which grants nothing by itself. Status: planned. See [placeholders](./egress-credentials.md#placeholders).
-
-## `credential-misplaced`
-
-avirtmediatord's rejection, with 403 `credential-misplaced` in both policy modes, of any issued placeholder found anywhere in a request except its bound header. Status: planned. See [placeholders](./egress-credentials.md#placeholders).
-
-## Invariant
-
-A condition that must remain true for every candidate policy set. The prover checks it before avirtpolicyd builds a policy snapshot. An invariant can limit the requests a set permits. It can also require permission or denial for specified requests. Status: planned. See [invariants](./egress-policies.md#invariants).
 
 ## Policy mode
 
@@ -483,9 +531,33 @@ A source of secret values that avirtsecretsd reads, such as `env`, `file`, `code
 
 A provider that runs as a separate executable, which avirtsecretsd starts and supervises and talks to over gRPC on a socket pair. Status: planned. See [provider plugin interface](./secrets.md#provider-plugin-interface).
 
+## QUIC
+
+A transport protocol over UDP. avirt relays permitted datagrams after bounded Initial inspection and an SNI check. QUIC interception is outside the planned design. Status: planned. See [QUIC](./networking.md#quic).
+
+## quinn
+
+The Rust QUIC library used with avirt's bounded Initial parser for passthrough inspection. Status: planned. See [QUIC](./networking.md#quic).
+
+## Routing socket
+
+The host interface used by the watcher that maintains the address set for the edge's `private-dest` check. Status: planned. See [networking](./networking.md#address-checks).
+
+## RST
+
+The TCP reset flag. avirtnetd responds with RST to TCP packets that enter its TUN after bypassing nftables REDIRECT. Status: planned. See [guest networking](./networking.md#guest-networking).
+
+## RTP
+
+Real-time Transport Protocol. An RTP datagram whose first byte is `0x80` follows ordinary UDP policy rather than QUIC Initial parsing. Status: planned. See [QUIC](./networking.md#quic).
+
 ## Runtime directory
 
 `$TMPDIR/avirt-<uid>/`, avirthostd's per-run directory for workload directories, sockets, scratch homes and caches, which the startup cleanup empties, in the sense of systemd's `RuntimeDirectory=`. See [runtime directory](./lifecycle.md#runtime-directory).
+
+## russh
+
+The Rust SSH library used for mediator interception, including the per-workload host CA and upstream authentication. Status: planned. See [SSH and git](./networking.md#ssh-and-git).
 
 ## Sandbox container
 
@@ -497,7 +569,11 @@ Any image a sandbox container boots from: in the implemented system `avirt-workl
 
 ## Sandbox VM
 
-The VM that runs the sandbox container on a runtime with VM isolation. The mediator has its own VM. See [compute runtimes](./compute-runtimes.md).
+The VM that runs the sandbox container on a runtime with VM isolation. The mediator has its own VM. See [compute runtimes](./compute-runtimes.md#runtime-interface).
+
+## Seatbelt
+
+The macOS sandbox facility that restricts a process according to a profile. avirt uses a profile to restrict host daemons' socket access. Status: planned. See [restrictions on host connections](./networking.md#restrictions-on-host-connections).
 
 ## Seccomp
 
@@ -515,6 +591,10 @@ A named record in avirtsecretsd, `<scope>/<name>`, that says which provider hold
 
 The UID, capabilities, seccomp filter and Landlock ruleset with which avirtinitd's launcher starts one workload process, applied between fork and exec, in the sense of a Kubernetes `securityContext`. Status: planned. See [security contexts](./workload-hardening.md#security-contexts).
 
+## Sender-constrained
+
+A credential that requires proof from its sender, rather than possession of the credential alone. Bindings prefer this form where the recipient supports it. Status: planned. See [networking](./networking.md#limits-events-and-verification).
+
 ## Service
 
 A named service that avirtedgeproxyd publishes from avirthostd's service record, whose backend is a workload's published port or an authorized host-local service, with the Cedar entity `Service`. It's not a host service. Status: planned. See [avirtedgeproxyd](./components.md#avirtedgeproxyd).
@@ -522,6 +602,10 @@ A named service that avirtedgeproxyd publishes from avirthostd's service record,
 ## Session control API
 
 The interface through which operators attach to, prompt, cancel, and end a running ACP session. avirtacp serves it, and callers access it through avirtapid, avirthostd, and the mediator. Status: planned. See [session control API](./acp.md#session-control-api).
+
+## SFTP
+
+SSH File Transfer Protocol. A repository-bound credential binding never permits this subsystem. Status: planned. See [SSH and git](./networking.md#ssh-and-git).
 
 ## Short ID
 
@@ -543,13 +627,33 @@ The workload identity standard whose IDs, `spiffe://<td>/…`, and X.509-SVIDs a
 
 The SPIFFE API through which workloads normally fetch SVIDs, which avirt never exposes to a mediator or a sandbox container. Status: planned. See [design invariants](./architecture.md#design-invariants).
 
+## `src`
+
+The `src` label on every planned event, such as `hostd`, `edgeproxy`, `gateway`, `mediator`, `secrets`, or `workload`. avirthostd stamps it from the authenticated connection the event arrived on. It states how far the recipient can trust the event. Status: planned. See [the event's `src` field](./trust-boundaries.md#src).
+
+## SSE
+
+Server-Sent Events, an HTTP response stream. avirt forwards it without buffering or a duration limit, subject to idle timeout. Status: planned. See [HTTP and TLS](./networking.md#http-and-tls).
+
+## SSH interception
+
+avirtmediatord acting as the SSH server for the guest and the SSH client for the upstream. It checks commands against policy and injects credentials through a binding. Status: planned. See [networking](./networking.md#ssh-and-git).
+
 ## State directory
 
 avirthostd's directory for state that persists beyond the runtime directory. Startup cleanup leaves it intact. It stores the installation ID, the SPIFFE root, and the enrollment records, in the sense of systemd's `StateDirectory=`. Status: planned. See [durable state](./lifecycle.md#durable-state).
 
+## SVCB
+
+A DNS service binding record. The synthesizer handles its AliasMode, TargetName, port, address hints, and parameter consistency. Status: planned. See [synthetic answers](./dns.md#synthetic-answers).
+
 ## SVID
 
 A SPIFFE Verifiable Identity Document. avirt uses X.509-SVIDs with one URI SAN and a 1-hour lifetime, issued only by avirthostd. Status: planned. See [issuer](./identity.md#issuer).
+
+## Synthetic address
+
+An IP address assigned to a name in the mediator's synthetic address table for that workload. The mediator never reassigns it to another name during that workload's lifetime. Status: planned. See [names and DNS](./networking.md#names-and-dns).
 
 ## Tap
 
@@ -563,6 +667,14 @@ avirtmediatord accepting the agent's TLS connection with a leaf certificate from
 
 avirtmediatord relaying a connection to avirtedgeproxyd byte for byte without decrypting TLS. It neither inspects requests nor injects credentials. Every internal name takes this path, as does an external connection when `passthrough` permits it. Status: planned. See [how avirtmediatord handles egress](./egress.md#how-avirtmediatord-handles-egress).
 
+## Trailers-only
+
+A gRPC response whose initial HEADERS also end the stream. Denials by policy use HTTP 200 and `grpc-status: 7`. Status: planned. See [networking](./networking.md#streaming).
+
+## Transparent TCP listener
+
+An avirtnetd listener that receives TCP redirected by nftables and obtains the original destination with SO_ORIGINAL_DST or IP6T_SO_ORIGINAL_DST. Status: planned. See [networking](./networking.md#guest-networking).
+
 ## Trust bundle
 
 The set of root certificates that verifies SVIDs of one trust domain. avirthostd pushes it to every SVID holder, and peers fetch each other's from the bundle endpoint. Status: planned. See [federation](./identity.md#federation).
@@ -570,6 +682,18 @@ The set of root certificates that verifies SVIDs of one trust domain. avirthostd
 ## Trust domain
 
 The SPIFFE naming and trust scope of one avirt installation, `<install-id>.avirt`, fixed for the life of the installation. Status: planned. See [trust domain and IDs](./identity.md#trust-domain-and-ids).
+
+## TUN
+
+A virtual network device that exchanges IP packets with a process. avirtnetd holds the guest TUN descriptor and handles UDP and ICMP packets. nftables REDIRECT sends TCP to its transparent TCP listeners. Status: planned. See [guest networking](./networking.md#guest-networking).
+
+## UDP association
+
+The authenticated relationship between a UDP stream from the caller and a published port, with caller, workload generation, expiry, revocation, and reply limits. Status: planned. See [networking](./networking.md#ingress-and-peers).
+
+## ULA
+
+Unique Local Address, an IPv6 address from the private local range. Synthetic IPv6 answers use a ULA `/64`. The exact range remains open. Status: planned. See [synthetic answers](./dns.md#synthetic-answers).
 
 ## UUIDv7
 
@@ -607,6 +731,10 @@ The host-written NDJSON file `logs/<workload-id>.stdio.ndjson` of a sandbox cont
 
 The SVID `spiffe://<td>/ns/<ns>/workload/<uuid>`, stored only by avirtnetd, which authenticates the sandbox container on its HTTP/2 connection to its mediator. Status: planned. See [trust domain and IDs](./identity.md#trust-domain-and-ids).
 
+## `Workloads/KeepAlive`
+
+The `Workloads/KeepAlive` call that a creator's host makes every 60 s to a peer for each workload created there, without which the peer stops that workload after 5 minutes. Status: planned. See [workload management across hosts](./peering.md#workload-management-across-hosts).
+
 ## Workspace
 
 The content a sandbox container starts with beyond its harness base. It includes a source tree, dependencies, caches, and individual files. This term is unrelated to the `/workspace` directory itself and to a Cargo workspace. Status: planned. See [workspaces](./workspaces.md#status-planned).
@@ -638,175 +766,3 @@ The header that contains the originating principal's identity on a stream avirte
 ## zot
 
 The OCI registry that avirtregistryd runs as a supervised child process, reachable only by avirtregistryd over mutual TLS on loopback. Status: planned. See [avirtregistryd](./workspace-registry.md#avirtregistryd).
-
-## Capsule
-
-A length-delimited message inside an HTTP stream. CONNECT-UDP uses DATAGRAM capsules with an RFC 9298 Context ID and a size checked before allocation. See [HTTP/2 streams](./networking.md#http2-streams).
-
-## CONNECT-UDP
-
-An HTTP tunnel for relaying UDP datagrams to one immutable destination per stream, with DATAGRAM capsules over HTTP/2. Status: planned. See [HTTP/2 streams](./networking.md#http2-streams).
-
-## Synthetic address
-
-An IP address assigned to a name in the mediator's persistent per-workload DNS table. The mediator never reassigns it to another name during that workload's lifetime. Status: planned. See [names and DNS](./networking.md#names-and-dns).
-
-## TUN
-
-A virtual network device that exchanges IP packets with a process. avirtnetd holds the guest TUN descriptor and handles UDP and ICMP packets. nftables REDIRECT sends TCP to its transparent listeners. Status: planned. See [guest networking](./networking.md#guest-networking).
-
-## Datagram
-
-One UDP message, kept intact within an HTTP/2 DATAGRAM capsule. The receiver checks its capsule length before allocation. See [HTTP/2 streams](./networking.md#http2-streams).
-
-## ICMP
-
-Internet Control Message Protocol. avirt supports echo through an extended CONNECT stream with `:protocol` `icmp`, with one target per stream. See [ICMP echo](./networking.md#echo-with-icmp).
-
-## MTU
-
-The largest IP packet a network interface sends without fragmentation, called its maximum transmission unit. Fragment handling and the TUN MTU require the bounded choice in [guest networking](./networking.md#guest-networking).
-
-## MPTCP
-
-Multipath TCP. avirtinitd turns it off with `net.mptcp.enabled=0`, and seccomp denies `IPPROTO_MPTCP`. See [guest networking](./networking.md#guest-networking).
-
-## RST
-
-The TCP reset flag. avirtnetd responds with RST to TCP packets that enter its TUN after bypassing nftables REDIRECT. See [guest networking](./networking.md#guest-networking).
-
-## ULA
-
-Unique Local Address, an IPv6 address from the private local range. Synthetic IPv6 answers use a ULA `/64`. The exact range remains open. See [synthetic answers](./dns.md#synthetic-answers).
-
-## SVCB
-
-A DNS service binding record. The synthesizer handles its AliasMode, TargetName, port, address hints, and parameter consistency. See [synthetic answers](./dns.md#synthetic-answers).
-
-## SSE
-
-Server-Sent Events, an HTTP response stream. avirt forwards it without buffering or a duration limit, subject to idle timeout. See [HTTP and TLS](./networking.md#http-and-tls).
-
-## SFTP
-
-SSH File Transfer Protocol. A repository-bound credential binding never permits this subsystem. See [SSH and git](./networking.md#ssh-and-git).
-
-## RTP
-
-Real-time Transport Protocol. An RTP datagram whose first byte is `0x80` follows ordinary UDP policy rather than QUIC Initial parsing. See [QUIC](./networking.md#quic).
-
-## ECH
-
-Encrypted ClientHello. Named TLS and QUIC flows reject its extension, and synthetic DNS answers omit `ech`. See [policy and endpoint checks](./networking.md#policy-and-endpoint-checks).
-
-## QUIC
-
-A transport protocol over UDP. avirt relays permitted datagrams after bounded Initial inspection and an SNI check. QUIC interception is outside the planned design. See [QUIC](./networking.md#quic).
-
-## httparse
-
-The HTTP/1 request-head parser used before hyper normalizes a request. The parser checks ambiguity in each request head. See [HTTP and TLS](./networking.md#http-and-tls).
-
-## quinn
-
-The Rust QUIC library used with avirt's bounded Initial parser for passthrough inspection. See [QUIC](./networking.md#quic).
-
-## russh
-
-The Rust SSH library used for mediator interception, including the per-workload host CA and upstream authentication. See [SSH and git](./networking.md#ssh-and-git).
-
-## Flow name
-
-The name assigned to a flow from the mediator's synthetic address table or an explicit CONNECT authority. SNI and Host on other flows are observations only. See [networking](./networking.md).
-
-## Synthetic DNS
-
-DNS answers that use a per-workload synthetic address from the mediator's persistent table instead of the real upstream address. See [networking](./networking.md).
-
-## Synthetic DNS table
-
-The bounded table in avirtmediatord that maps synthetic addresses to names. It persists across restarts and never reassigns an address during a workload's lifetime. See [networking](./networking.md).
-
-## Transparent TCP listener
-
-An avirtnetd listener that receives TCP redirected by nftables and obtains the original destination with SO_ORIGINAL_DST or IP6T_SO_ORIGINAL_DST. See [networking](./networking.md).
-
-## Original destination
-
-The destination address and port before nftables redirects the TCP connection to avirtnetd. See [networking](./networking.md).
-
-## Cleartext HTTP
-
-HTTP without TLS. avirtmediatord parses and forwards requests under policy without injecting credentials. See [networking](./networking.md).
-
-## SSH interception
-
-avirtmediatord acting as the SSH server for the guest and the SSH client for the upstream. It checks commands against policy and injects credentials through a binding. See [networking](./networking.md).
-
-## QUIC initial
-
-A QUIC packet that includes handshake data. avirt inspects bounded reassembled CRYPTO data before permitting passthrough. See [networking](./networking.md).
-
-## Context ID
-
-The RFC 9298 identifier in a CONNECT-UDP DATAGRAM capsule. See [networking](./networking.md).
-
-## DNS handler
-
-The avirtnetd code that sends each query to the mediator on its own POST `/dns` stream. See [networking](./networking.md).
-
-## UDP association
-
-The authenticated relationship between an inbound UDP stream and a published port, with caller, workload generation, expiry, revocation, and reply limits. See [networking](./networking.md).
-
-## Host key
-
-The SSH key that identifies a server. An SSH binding pins the upstream host key. See [networking](./networking.md).
-
-## Host certificate
-
-An SSH certificate that identifies a host. avirtmediatord presents one from the per-workload SSH host CA only for a host in the SSH intercept set. See [networking](./networking.md).
-
-## Host CA
-
-The SSH certificate authority for one workload. Its certificates identify hosts in that workload's SSH intercept set. See [networking](./networking.md).
-
-## Binary metadata
-
-gRPC metadata containing binary values. Credential injection needs an explicit encoding contract for those values. See [networking](./networking.md).
-
-## Control frame
-
-A websocket frame for protocol control rather than client data. The placeholder matcher scans these separately from fragmented data. See [networking](./networking.md).
-
-## Continuation frame
-
-A websocket frame that continues a fragmented message. The bounded placeholder matcher checks across fragment boundaries. See [networking](./networking.md).
-
-## Address hint
-
-An address parameter in a DNS HTTPS or SVCB record. The synthesizer replaces it with a synthetic address. See [networking](./networking.md).
-
-## Version negotiation
-
-QUIC negotiation of a protocol version. Initial inspection requires explicit handling and conformance tests for it. See [networking](./networking.md).
-
-## Routing socket
-
-The host interface used by the watcher that maintains the address set for the edge's `private-dest` check. See [networking](./networking.md).
-
-## Trailers-only
-
-A gRPC response whose initial HEADERS also end the stream. Authorization refusals use HTTP 200 and `grpc-status: 7`. See [networking](./networking.md).
-
-## Flow-control capacity
-
-The bytes that HTTP/2 permits a sender to send. A UDP sender without enough capacity drops a datagram before writing its first byte. See [networking](./networking.md).
-
-## Sender-constrained
-
-A credential that requires proof from its sender, rather than possession of the credential alone. Bindings prefer this form where the recipient supports it. See [networking](./networking.md).
-
-## Listener inventory
-
-The list of every listener, runtime control channel, transport and accepted identity in the trust-boundary specification. See [networking](./networking.md).
