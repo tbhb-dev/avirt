@@ -50,7 +50,7 @@ The agent can spend CPU and use the proxy. Its visible files include its own fil
 
 ## Socket-domain allowlist
 
-`socket()` allows only `AF_UNIX`, `AF_INET` and `AF_INET6`, and `socketpair()` only `AF_UNIX`. Every other domain returns `EAFNOSUPPORT`. Constraint: a seccomp filter on the domain argument can't restrict `AF_INET` to loopback, because it can't dereference `connect()`'s sockaddr. The sandbox VM has no network device. Its TUN and nftables REDIRECT send flows through avirtnetd, so ordinary TCP, UDP and unprivileged ICMP echo work under policy. `AF_NETLINK`, `AF_PACKET` and `AF_VSOCK` stay denied. Seccomp denies `IPPROTO_MPTCP`, and avirtinitd sets `net.mptcp.enabled=0`. `ping_group_range` permits the agent's unprivileged `SOCK_DGRAM` echo sockets.
+`socket()` allows only `AF_UNIX`, `AF_INET` and `AF_INET6`, and `socketpair()` only `AF_UNIX`. Every other domain returns `EAFNOSUPPORT`. Constraint: a seccomp filter on the domain argument can't restrict `AF_INET` to loopback, because it can't dereference `connect()`'s sockaddr. The sandbox VM has no network device. Its TUN and nftables REDIRECT send flows through avirtnetd, so ordinary TCP, UDP and unprivileged ICMP echo work under policy. `AF_NETLINK`, `AF_PACKET` and `AF_VSOCK` stay denied. Seccomp denies `IPPROTO_MPTCP`, and avirtinitd sets `net.mptcp.enabled=0`. `ping_group_range` permits the agent's unprivileged `SOCK_DGRAM` echo sockets. If `os.networkInterfaces()` fails for a client, `NETLINK_ROUTE` (protocol 0) is the one netlink protocol to allow.
 
 ## Denylist
 
