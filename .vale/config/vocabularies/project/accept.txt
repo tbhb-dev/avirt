@@ -78,6 +78,7 @@
 [Rr]code
 [Rr]eachability
 [Rr]ebase
+[Rr]epos
 [Rr]esyncs
 [Rr]etryable
 [Rr]ollout

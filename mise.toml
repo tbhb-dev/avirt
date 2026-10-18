@@ -155,6 +155,24 @@ extends = "devtools:lint-commit-msg"
 [tasks.lint-squash-msg]
 extends = "devtools:lint-squash-msg"
 
+# devtools:lint-source-files excludes .claude, .agents and .codex wholesale,
+# since devtools deploys its primitives there. The repository-local skills
+# are authored in .agents/skills/agent-*, and the rules deployed into
+# .claude/rules should still meet the prose bar, so this task selects them
+# by name. Remove it once devtools offers a supported way to include paths.
+[tasks.lint-skills]
+shell = "bash -c"
+description = "Lint the repository-local skills' sources and .claude/rules, which devtools' file selection skips"
+run = """
+shopt -s nullglob
+docs=(.agents/skills/agent-*/SKILL.md .claude/rules/*.md)
+scripts=(.agents/skills/agent-*/scripts/*.sh)
+vale --output=ai-tells-agent.tmpl "${docs[@]}"
+guard-markdown "${docs[@]}"
+shellcheck -o check-extra-masked-returns "${scripts[@]}"
+shfmt -d "${scripts[@]}"
+"""
+
 [tasks.lint]
 extends = "devtools:lint"
 run = [
@@ -174,6 +192,7 @@ run = [
   "mise run devtools:lint-workflows",
   "mise run devtools:lint-shell",
   "mise run devtools:lint-shell-fmt",
+  "mise run lint-skills",
   "mise run devtools:lint-curl",
   "mise run lint-rust",
 ]

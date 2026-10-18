@@ -246,6 +246,7 @@ NLGRP
 nocapture
 NONBLOCK
 nonblocking
+nullglob
 noproxy
 nossl
 npm
@@ -355,6 +356,8 @@ setresgid
 setresuid
 setuid
 SHA
+shellcheck
+shopt
 shfmt
 SIDs
 SIEM
