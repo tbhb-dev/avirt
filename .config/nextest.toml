@@ -1,0 +1,23 @@
+# Test runner profiles. Retries stay at zero and a flaky pass is a failure, so
+# a flake fails the run. Doc tests are not nextest's; `mise run test` runs them.
+nextest-version = "0.9.148"
+
+[profile.default]
+retries = 0
+flaky-result = "fail"
+fail-fast = false
+failure-output = "immediate-final"
+status-level = "slow"
+# The slowest test takes a few seconds. A test that runs 10 s is flagged slow
+# and is terminated at 30 s.
+slow-timeout = { period = "10s", terminate-after = 3, grace-period = "5s" }
+# A test that exits and leaves a child holding stdout or stderr fails.
+leak-timeout = { period = "200ms", result = "fail" }
+
+[profile.ci]
+inherits = "default"
+status-level = "fail"
+final-status-level = "slow"
+
+[profile.ci.junit]
+path = "junit.xml"

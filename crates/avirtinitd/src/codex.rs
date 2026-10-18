@@ -1,4 +1,6 @@
-use std::io::Write;
+//! The Codex workload: an ACP v1 client for `codex-acp`.
+
+use std::io::{Write as _, stdout};
 use std::process::ExitCode;
 
 use agent_client_protocol::schema::ProtocolVersion;
@@ -8,22 +10,29 @@ use agent_client_protocol::schema::v1::{
     SelectedPermissionOutcome, SessionNotification, SessionUpdate,
 };
 use agent_client_protocol::{Agent, Client, ConnectionTo, Error, Responder};
-use avirt_core::connection::MediatorConnection;
+use avirt_core::connection::LogStream;
 use avirt_core::harness::{self, Spec, Workload, pick_option};
 use serde_json::json;
 
+/// The name the adapter reports in its events.
 const NAME: &str = "codex-container";
 
-pub async fn run() -> ExitCode {
+/// Runs the Codex adapter through the shared harness.
+pub(crate) async fn run() -> ExitCode {
     // The adapter inherits CODEX_HOME, which points at the workload's mounted credentials.
     harness::run(Spec { agent: "codex", agent_command: "codex-acp", agent_env: &[] }, converse).await
 }
 
-fn approve(connection: &MediatorConnection, options: &[PermissionOption]) -> RequestPermissionResponse {
-    let kind = |o: &PermissionOption| match o.kind {
-        PermissionOptionKind::AllowOnce => "allow_once",
-        PermissionOptionKind::AllowAlways => "allow_always",
-        _ => "other",
+/// Answers a permission request with the first allow option, or cancels if there is none.
+fn approve(connection: &LogStream, options: &[PermissionOption]) -> RequestPermissionResponse {
+    let kind = |option: &PermissionOption| {
+        if matches!(option.kind, PermissionOptionKind::AllowOnce) {
+            "allow_once"
+        } else if matches!(option.kind, PermissionOptionKind::AllowAlways) {
+            "allow_always"
+        } else {
+            "other"
+        }
     };
     let Some(choice) = pick_option(options, kind) else {
         return RequestPermissionResponse::new(RequestPermissionOutcome::Cancelled);
@@ -36,21 +45,25 @@ fn approve(connection: &MediatorConnection, options: &[PermissionOption]) -> Req
 
 /// Prints agent text as it streams and the name of every other update.
 fn show(update: &SessionUpdate) {
-    match update {
-        SessionUpdate::AgentMessageChunk(chunk) => match &chunk.content {
-            ContentBlock::Text(text) => {
-                print!("{}", text.text);
-                let _ = std::io::stdout().flush();
-            }
-            _ => println!("[agent_message_chunk]"),
-        },
-        other => {
-            let name = serde_json::to_value(other).ok().and_then(|v| v["sessionUpdate"].as_str().map(str::to_owned));
-            println!("[{}]", name.unwrap_or_default());
+    if let SessionUpdate::AgentMessageChunk(chunk) = update {
+        if let ContentBlock::Text(text) = &chunk.content {
+            print!("{}", text.text);
+            let _flushed = stdout().flush();
+        } else {
+            println!("[agent_message_chunk]");
         }
+    } else {
+        let name =
+            serde_json::to_value(update).ok().and_then(|value| value.get("sessionUpdate")?.as_str().map(str::to_owned));
+        println!("[{}]", name.unwrap_or_default());
     }
 }
 
+/// Runs one prompt against the Codex adapter and returns the stop reason.
+///
+/// # Errors
+///
+/// Returns the adapter's error, or an invalid-params error if it doesn't speak ACP v1.
 async fn converse(workload: Workload) -> Result<String, Error> {
     let Workload { agent, connection, prompt, cwd } = workload;
     let permission_connection = connection.clone();
@@ -63,8 +76,8 @@ async fn converse(workload: Workload) -> Result<String, Error> {
         .builder()
         .name(NAME)
         .on_receive_notification(
-            async move |n: SessionNotification, _cx: ConnectionTo<Agent>| {
-                show(&n.update);
+            async move |notification: SessionNotification, _cx: ConnectionTo<Agent>| {
+                show(&notification.update);
                 Ok(())
             },
             agent_client_protocol::on_receive_notification!(),
@@ -89,7 +102,7 @@ async fn converse(workload: Workload) -> Result<String, Error> {
                 return Err(Error::invalid_params()
                     .data(format!("agent answered protocol version {:?}, expected 1", init.protocol_version)));
             }
-            let ids: Vec<_> = init.auth_methods.iter().map(|m| m.id().to_string()).collect();
+            let ids: Vec<_> = init.auth_methods.iter().map(|method| method.id().to_string()).collect();
             init_connection.meta(json!({ "event": "auth_methods", "ids": ids }));
             // No authenticate call: Codex reads the mounted auth.json itself.
             let created = cx.send_request(NewSessionRequest::new(cwd)).block_task().await?;

@@ -1,6 +1,9 @@
 //! The model gateway, which injects model credentials.
 
-fn main() -> std::process::ExitCode {
+use std::process::ExitCode;
+
+/// Prints a stub notice on stderr and exits with failure.
+fn main() -> ExitCode {
     eprintln!("avirtmodelgwd: not implemented");
-    std::process::ExitCode::FAILURE
+    ExitCode::FAILURE
 }

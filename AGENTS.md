@@ -57,13 +57,30 @@ Every crate lives directly under `crates/`, and each directory uses its package 
 ```bash
 mise run bootstrap                                               # first step in a fresh clone or worktree: vendir sync, toolchain, Vale styles, git hooks
 mise install                                                      # pins Rust
-mise run check                                                    # fmt --check, clippy -D warnings, tests
+mise run check                                                    # fmt --check, clippy, rustdoc, shear, deny, nextest, doc tests, docs checks
 mise run build-images                                             # both workload images (needs Apple container)
 mise run serve                                                    # avirthostd
 mise run launch claude "Reply with the word pong" -- --follow     # avirt launch, in a second terminal
 ```
 
 `mise run check` is the gate for every change. The images rebuild `avirtinitd` from the workspace, so an `avirtinitd` or `avirt-core` change needs `mise run build-images` before an end-to-end run sees it.
+
+### Rust toolchain
+
+Any lint in the `all` and `pedantic` groups fails the build, and so does each nursery, cargo and restriction lint that `Cargo.toml` lists. The comment that precedes that list says why each missing lint is missing. Thresholds live in `clippy.toml`. Fix a finding in the code. The tree has no lint attributes and no per-lint exceptions, so a new one is a defect.
+
+```bash
+mise run lint-rust       # clippy, all targets, warnings denied
+mise run lint-rustdoc    # rustdoc over private items, warnings denied
+mise run lint-shear      # cargo-shear: unused dependencies
+mise run deny            # cargo-deny: advisories, bans, sources
+mise run test            # nextest, then the doc tests
+mise run coverage        # cargo-llvm-cov with the line and region floors
+mise run mutants         # cargo-mutants baseline; no gate
+mise run fuzz-smoke      # every fuzz target for 20 seconds; needs the pinned nightly
+```
+
+Pre-commit hooks run rustfmt, cargo-shear and cargo-deny on the files they cover, and pre-push hooks run clippy, rustdoc, and the tests. Coverage, mutants, and fuzzing run in no hook. CI fails a pull request that falls below the coverage floors, and a daily schedule measures mutants, coverage history, and fuzzing.
 
 ## Conventions
 

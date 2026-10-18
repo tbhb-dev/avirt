@@ -1,6 +1,9 @@
 //! The builder, which watches VCS and builds repository OCI artifacts for fast workload startup.
 
-fn main() -> std::process::ExitCode {
+use std::process::ExitCode;
+
+/// Prints a stub notice on stderr and exits with failure.
+fn main() -> ExitCode {
     eprintln!("avirtbuilderd: not implemented");
-    std::process::ExitCode::FAILURE
+    ExitCode::FAILURE
 }

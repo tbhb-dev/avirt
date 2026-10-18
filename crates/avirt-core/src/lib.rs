@@ -9,3 +9,5 @@ pub mod h2c;
 pub mod harness;
 pub mod hostd;
 pub mod state;
+
+extern crate alloc;

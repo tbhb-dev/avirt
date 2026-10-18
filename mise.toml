@@ -11,15 +11,22 @@ apm = "0.33.0"
 shfmt = "3.14.1"
 jq = "1.8.2"
 "github:EmbarkStudios/cargo-deny" = "0.20.2"
+"aqua:nextest-rs/nextest/cargo-nextest" = "0.9.148"
+"github:Boshen/cargo-shear" = "1.14.0"
+"github:taiki-e/cargo-llvm-cov" = "0.9.1"
+"cargo:cargo-mutants" = "27.1.0"
+"cargo:cargo-fuzz" = "0.13.2"
 "go:github.com/tbhb-dev/devtools/cmd/guard-markdown" = "v0.12.0"
 # The one source of truth for the Rust version: the crates' `rust-version` and the images'
 # builder stage (`rust:1.97.1-bookworm`) follow it.
-rust = { version = "1.97.1", profile = "minimal", components = "clippy,rustfmt" }
+rust = { version = "1.97.1", profile = "minimal", components = "clippy,rustfmt,llvm-tools" }
 
 [env]
 DEVTOOLS_LOCK_PLATFORMS = "linux-x64,macos-arm64"
 DEVTOOLS_GENERATED_PATHS = ".devtools/\n.config/mise/\ntarget/\ntmp/\nspikes/\nlogs/\n.vale/"
 DEVTOOLS_PROSE_GLOB = "*.{md,rs}"
+# Fuzzing needs a nightly compiler; this pin is used by the fuzz tasks only. Stable stays at the rust tool above.
+AVIRT_FUZZ_TOOLCHAIN = "nightly-2026-08-01"
 
 [task_config]
 includes = [
@@ -60,16 +67,36 @@ description = "Build every crate"
 run = "cargo build --workspace"
 
 [tasks.test]
-description = "Run the unit tests"
-run = "cargo test --workspace"
+description = "Run every test under nextest (NEXTEST_PROFILE=ci selects the CI profile), then the doc tests"
+run = [
+  "cargo nextest run --workspace --locked",
+  "cargo test --workspace --doc --locked",
+]
 
 [tasks.lint-rust]
-description = "clippy with warnings denied"
-run = "cargo clippy --workspace --all-targets -- -D warnings"
+description = "clippy with every group at deny and warnings denied"
+run = "cargo clippy --workspace --all-targets --locked -- -D warnings"
+
+[tasks.lint-rustdoc]
+description = "rustdoc with warnings denied, private items and intra-doc links included"
+env = { RUSTDOCFLAGS = "-D warnings" }
+run = "cargo doc --workspace --no-deps --document-private-items --locked"
+
+[tasks.lint-shear]
+description = "cargo-shear: fail on an unused or misplaced dependency"
+run = "cargo shear"
+
+[tasks.deny]
+description = "cargo-deny: advisories, bans and sources"
+run = "cargo deny check advisories bans sources"
 
 [tasks.fmt]
 description = "Format the code"
 run = "cargo fmt"
+
+[tasks.fmt-check]
+description = "Fail if rustfmt would change a file"
+run = "cargo fmt --check"
 
 [tasks.check-docs]
 shell = "bash -c"
@@ -86,13 +113,66 @@ description = "Run the bats suites of the repository-local agent skills"
 run = "bats .agents/skills/agent-commit/tests .agents/skills/agent-pr/tests .agents/skills/agent-merge-pr/tests"
 
 [tasks.check]
-description = "fmt --check, clippy -D warnings, the tests, the skill suites and check-docs"
+description = "The full local gate: fmt, clippy, rustdoc, shear, deny, the tests, the skill suites and check-docs"
 depends = ["check-docs", "test-skills"]
 run = [
-  "cargo fmt --check",
-  "cargo clippy --workspace --all-targets -- -D warnings",
-  "cargo test --workspace",
+  "mise run fmt-check",
+  "mise run lint-rust",
+  "mise run lint-rustdoc",
+  "mise run lint-shear",
+  "mise run deny",
+  "mise run test",
 ]
+
+# The floors are the line and region coverage that the CI coverage job measured on its macOS
+# runner, rounded down to a whole percent.
+# The report runs as its own step because llvm-cov crashes when nextest and the report
+# share one invocation.
+[tasks.coverage]
+description = "Run the tests under cargo-llvm-cov and fail below the line and region floors"
+run = [
+  "cargo llvm-cov nextest --workspace --locked --no-report",
+  "cargo llvm-cov report --summary-only --fail-under-lines 23 --fail-under-regions 22",
+]
+
+[tasks.coverage-report]
+description = "Write an HTML coverage report to target/llvm-cov/html"
+run = [
+  "cargo llvm-cov nextest --workspace --locked --no-report",
+  "cargo llvm-cov report --html",
+]
+
+# No score gate: cargo-mutants has no threshold flag, and the floor is the maintainer's to set.
+[tasks.mutants]
+description = "Run cargo-mutants over the workspace with nextest; writes mutants.out and gates nothing"
+run = "cargo mutants --workspace --test-tool nextest --jobs 2 --no-shuffle"
+
+[tasks.install-fuzz-toolchain]
+description = "Install the pinned nightly that cargo-fuzz needs"
+run = "rustup toolchain install $AVIRT_FUZZ_TOOLCHAIN --profile minimal"
+
+[tasks.fuzz]
+description = "Run one fuzz target until stopped: mise run fuzz connect_authority -- -max_total_time=60"
+depends = ["install-fuzz-toolchain"]
+dir = "fuzz"
+usage = '''
+arg "<target>" help="a target under fuzz/fuzz_targets"
+arg "[flags]" var=#true help="libFuzzer flags after --"
+'''
+run = 'RUSTUP_TOOLCHAIN=$AVIRT_FUZZ_TOOLCHAIN cargo fuzz run "${usage_target}" -- ${usage_flags}'
+
+[tasks.fuzz-smoke]
+description = "Run every fuzz target for 20 seconds each"
+depends = ["install-fuzz-toolchain"]
+dir = "fuzz"
+run = '''
+#!/usr/bin/env bash
+set -euo pipefail
+export RUSTUP_TOOLCHAIN=$AVIRT_FUZZ_TOOLCHAIN
+for target in $(cargo fuzz list); do
+  cargo fuzz run "$target" -- -max_total_time=20
+done
+'''
 
 [tasks.check-all]
 description = "Deeper bar: check and lint plus the full-history gitleaks scan"
@@ -192,4 +272,6 @@ run = [
   "mise run lint-skills",
   "mise run devtools:lint-curl",
   "mise run lint-rust",
+  "mise run lint-rustdoc",
+  "mise run lint-shear",
 ]

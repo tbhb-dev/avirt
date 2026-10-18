@@ -57,6 +57,7 @@ backpressure
 bindgen
 biome
 booleans
+Boshen
 bpf
 builderd
 buildkit
@@ -72,6 +73,7 @@ cdylib
 Cedar
 cedarschema
 CEL
+cfgs
 CGNAT
 cgo
 cgroup
@@ -177,6 +179,7 @@ hostname
 hostnames
 httparse
 hvsock
+idents
 IETF
 ifaddrs
 initfs
@@ -200,6 +203,7 @@ Landlock
 launchd
 libc
 libclang
+libfuzzer
 libuv
 linuxkit
 liveness
@@ -236,6 +240,7 @@ netlink
 netrc
 networkless
 NEWUSER
+nextest
 nftables
 NIC
 NLGRP
@@ -262,9 +267,12 @@ oneshot
 opencontainers
 oteld
 OTLP
+overcaptures
 passthrough
 passwordusercontent
+pathbuf
 PEERCRED
+peekable
 PEM
 PEP
 perf
@@ -288,6 +296,7 @@ prebuilds
 prek
 prettyplease
 privs
+proptest
 proxied
 proxyd
 psock
@@ -328,6 +337,7 @@ rulesets
 rumdl
 runtime
 runtimes
+RUSTDOCFLAGS
 rustix
 rustls
 RUSTSEC
@@ -339,6 +349,7 @@ SANs
 SBOM
 SBOMs
 schan
+scrutinee
 seccomp
 seccompiler
 secretsd
@@ -382,6 +393,7 @@ syscall
 syscalls
 sysread
 systemd
+taiki
 tailnet
 Tailscale
 Tauri
@@ -412,6 +424,7 @@ unlinks
 unparseable
 unpushed
 unscanned
+unseparated
 unshare
 untracked
 unwatch

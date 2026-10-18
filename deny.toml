@@ -1,5 +1,21 @@
-# cargo-deny config for `mise run vuln`, which checks advisories only.
+# cargo-deny policy for `mise run deny`; `mise run vuln` runs the advisories check alone.
+[graph]
+all-features = true
+
 [advisories]
-# Unmaintained notices fail only for crates the workspace names itself. A
-# transitive crate such as pingora's serde_yaml is not ours to replace.
+version = 2
+yanked = "deny"
+# Checks the workspace's direct dependencies. pingora-core 0.9.0, which avirtmediatord pins, pulls in
+# two unmaintained crates that no workspace crate can replace.
 unmaintained = "workspace"
+unsound = "all"
+
+[bans]
+# pingora-core 0.9.0 holds older versions of several crates, so a second version warns and does not fail.
+multiple-versions = "warn"
+wildcards = "deny"
+highlight = "all"
+
+[sources]
+unknown-registry = "deny"
+unknown-git = "deny"

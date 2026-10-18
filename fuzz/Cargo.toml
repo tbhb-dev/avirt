@@ -1,0 +1,29 @@
+[package]
+name = "avirt-fuzz"
+version = "0.0.0"
+edition = "2024"
+publish = false
+
+[package.metadata]
+cargo-fuzz = true
+
+# The fuzz crate builds on a pinned nightly, so it stays out of the stable workspace.
+[workspace]
+
+[[bin]]
+bench = false
+doc = false
+name = "connect_authority"
+path = "fuzz_targets/connect_authority.rs"
+test = false
+
+[[bin]]
+bench = false
+doc = false
+name = "absolute_uri_authority"
+path = "fuzz_targets/absolute_uri_authority.rs"
+test = false
+
+[dependencies]
+avirt-connect = { path = "../crates/avirt-connect" }
+libfuzzer-sys = "0.4.13"

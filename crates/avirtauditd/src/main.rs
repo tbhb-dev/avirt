@@ -1,6 +1,9 @@
 //! The audit logger, which delivers audit events as OCSF.
 
-fn main() -> std::process::ExitCode {
+use std::process::ExitCode;
+
+/// Prints a stub notice on stderr and exits with failure.
+fn main() -> ExitCode {
     eprintln!("avirtauditd: not implemented");
-    std::process::ExitCode::FAILURE
+    ExitCode::FAILURE
 }

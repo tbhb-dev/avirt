@@ -1,69 +1,92 @@
+//! The NDJSON log envelope and the splitter that turns an agent's byte stream into lines.
+
+#[cfg(test)]
+mod tests;
+
+use core::mem;
+
 use chrono::{SecondsFormat, Utc};
-use serde::Serialize;
 use serde_json::{Value, json};
-
-#[derive(Clone, Copy, Debug, PartialEq, Eq, Serialize)]
-pub enum Dir {
-    #[serde(rename = "client->agent")]
-    ClientToAgent,
-    #[serde(rename = "agent->client")]
-    AgentToClient,
-    #[serde(rename = "meta")]
-    Meta,
-    /// One event per proxied connection, from the workload's egress proxy.
-    #[serde(rename = "egress")]
-    Egress,
-}
-
-/// One line of the workload log: `{ts, dir, msg}`.
-#[derive(Debug, Serialize)]
-pub struct Envelope {
-    ts: String,
-    dir: Dir,
-    msg: Value,
-}
-
-impl Envelope {
-    #[must_use]
-    pub fn new(dir: Dir, msg: Value) -> Self {
-        Self { ts: Utc::now().to_rfc3339_opts(SecondsFormat::Millis, true), dir, msg }
-    }
-
-    /// The envelope as a JSON line ending in a newline.
-    #[must_use]
-    pub fn to_line(&self) -> String {
-        let mut line = serde_json::to_string(self).expect("envelope serializes");
-        line.push('\n');
-        line
-    }
-}
-
-/// Wire lines are JSON-RPC. Keep anything unparseable as a raw string rather than dropping it.
-#[must_use]
-pub fn parse_line(line: &str) -> Value {
-    serde_json::from_str(line).unwrap_or_else(|_| json!({ "raw": line }))
-}
 
 /// Longest accepted line. Drop anything longer through its newline.
 pub const MAX_LINE: usize = 16 << 20;
 
+/// Which way a log line traveled, or what produced it.
+#[derive(Clone, Copy, Debug, PartialEq, Eq)]
+pub enum Dir {
+    /// A line from the agent to the client.
+    AgentToClient,
+    /// A line from the client to the agent.
+    ClientToAgent,
+    /// One event per proxied connection, from the workload's egress proxy.
+    Egress,
+    /// A note from avirt itself rather than from the agent.
+    Meta,
+}
+
+/// One line of the workload log: `{ts, dir, msg}`.
+#[derive(Debug)]
+pub struct Envelope {
+    /// Which way the line traveled.
+    dir: Dir,
+    /// The line's JSON content.
+    msg: Value,
+    /// When avirthostd or avirtinitd stamped the line, as RFC 3339 with milliseconds.
+    ts: String,
+}
+
 /// What a [`LineSplitter`] yields.
 #[derive(Debug, PartialEq, Eq)]
 pub enum Item {
+    /// A trimmed, non-empty line.
     Line(String),
     /// The splitter dropped a line longer than the limit whole, through its newline. It never emits
     /// fragments, because a fragment of a line over the limit could look like a record.
     Truncated(usize),
 }
 
-/// Splits a byte stream into trimmed, non-empty lines. Decodes bytes per line, so a chunk
-/// boundary inside a multi-byte character can't corrupt it.
+/// Splits a byte stream into trimmed, non-empty lines.
+///
+/// Decodes bytes per line, so a chunk boundary inside a multi-byte character can't corrupt it.
 #[derive(Debug)]
 pub struct LineSplitter {
-    pending: Vec<u8>,
+    /// Whether the current line already went over the limit.
     discarding: bool,
+    /// Bytes dropped so far from the line that went over the limit.
     dropped: usize,
+    /// The longest line to keep.
     max: usize,
+    /// Bytes of the current line seen so far.
+    pending: Vec<u8>,
+}
+
+impl Dir {
+    /// The name that the log's `dir` key holds.
+    #[must_use]
+    pub const fn as_str(self) -> &'static str {
+        match self {
+            Self::AgentToClient => "agent->client",
+            Self::ClientToAgent => "client->agent",
+            Self::Egress => "egress",
+            Self::Meta => "meta",
+        }
+    }
+}
+
+impl Envelope {
+    /// Stamps a message with the current time and its direction.
+    #[must_use]
+    pub fn new(dir: Dir, msg: Value) -> Self {
+        Self { dir, msg, ts: Utc::now().to_rfc3339_opts(SecondsFormat::Millis, true) }
+    }
+
+    /// The envelope as a JSON line ending in a newline, with the keys in the order `ts`, `dir`, `msg`.
+    #[must_use]
+    pub fn to_line(&self) -> String {
+        let mut line = json!({ "ts": self.ts, "dir": self.dir.as_str(), "msg": self.msg }).to_string();
+        line.push('\n');
+        line
+    }
 }
 
 impl Default for LineSplitter {
@@ -73,43 +96,33 @@ impl Default for LineSplitter {
 }
 
 impl LineSplitter {
-    #[must_use]
-    pub fn with_max(max: usize) -> Self {
-        Self { pending: Vec::new(), discarding: false, dropped: 0, max }
+    /// Finishes the current line with its final chunk, newline included.
+    fn complete_line(&mut self, head: &[u8]) -> Option<Item> {
+        if self.discarding {
+            let total = self.dropped.saturating_add(head.len());
+            self.discarding = false;
+            self.dropped = 0;
+            return Some(Item::Truncated(total));
+        }
+        self.pending.extend_from_slice(head);
+        let raw = mem::take(&mut self.pending);
+        if raw.len() > self.max {
+            return Some(Item::Truncated(raw.len()));
+        }
+        trimmed(&raw).map(Item::Line)
     }
 
-    pub fn push(&mut self, chunk: &[u8]) -> Vec<Item> {
-        let mut items = Vec::new();
-        let mut rest = chunk;
-        loop {
-            let Some(nl) = rest.iter().position(|&b| b == b'\n') else {
-                if self.discarding {
-                    self.dropped += rest.len();
-                } else {
-                    self.pending.extend_from_slice(rest);
-                    if self.pending.len() > self.max {
-                        self.dropped = self.pending.len();
-                        self.pending.clear();
-                        self.discarding = true;
-                    }
-                }
-                return items;
-            };
-            let (head, tail) = rest.split_at(nl + 1);
-            rest = tail;
-            if self.discarding {
-                items.push(Item::Truncated(self.dropped + head.len()));
-                self.discarding = false;
-                self.dropped = 0;
-            } else {
-                self.pending.extend_from_slice(head);
-                let raw = std::mem::take(&mut self.pending);
-                if raw.len() > self.max {
-                    items.push(Item::Truncated(raw.len()));
-                } else {
-                    items.extend(trimmed(&raw).map(Item::Line));
-                }
-            }
+    /// Adds a chunk with no newline to the current line, or starts discarding it if it's too long.
+    fn extend_partial(&mut self, rest: &[u8]) {
+        if self.discarding {
+            self.dropped = self.dropped.saturating_add(rest.len());
+            return;
+        }
+        self.pending.extend_from_slice(rest);
+        if self.pending.len() > self.max {
+            self.dropped = self.pending.len();
+            self.pending.clear();
+            self.discarding = true;
         }
     }
 
@@ -117,63 +130,40 @@ impl LineSplitter {
     pub fn finish(&mut self) -> Option<Item> {
         if self.discarding {
             self.discarding = false;
-            return Some(Item::Truncated(std::mem::take(&mut self.dropped)));
+            return Some(Item::Truncated(mem::take(&mut self.dropped)));
         }
-        trimmed(&std::mem::take(&mut self.pending)).map(Item::Line)
+        trimmed(&mem::take(&mut self.pending)).map(Item::Line)
+    }
+
+    /// Feeds one chunk of bytes and returns the lines it completed.
+    pub fn push(&mut self, chunk: &[u8]) -> Vec<Item> {
+        let mut items = Vec::new();
+        let mut rest = chunk;
+        while let Some(newline) = rest.iter().position(|&byte| byte == b'\n') {
+            let (head, tail) = rest.split_at(newline.saturating_add(1));
+            rest = tail;
+            items.extend(self.complete_line(head));
+        }
+        self.extend_partial(rest);
+        items
+    }
+
+    /// A splitter that keeps lines up to `max` bytes.
+    #[must_use]
+    pub const fn with_max(max: usize) -> Self {
+        Self { dropped: 0, discarding: false, max, pending: Vec::new() }
     }
 }
 
+/// Wire lines are JSON-RPC. Keep anything unparseable as a raw string rather than dropping it.
+#[must_use]
+pub fn parse_line(line: &str) -> Value {
+    serde_json::from_str(line).unwrap_or_else(|_| json!({ "raw": line }))
+}
+
+/// The line as trimmed text, or `None` if nothing remains.
 fn trimmed(raw: &[u8]) -> Option<String> {
-    let line = String::from_utf8_lossy(raw);
-    let line = line.trim();
+    let decoded = String::from_utf8_lossy(raw);
+    let line = decoded.trim();
     (!line.is_empty()).then(|| line.to_owned())
-}
-
-#[cfg(test)]
-mod tests {
-    use super::*;
-
-    #[test]
-    fn splitter_handles_chunk_boundaries_and_trailing_line() {
-        let mut s = LineSplitter::default();
-        let bytes = "{\"a\":\"é\"}\n\n  {\"b\":1}".as_bytes();
-        // Split inside the two-byte é.
-        let cut = bytes.iter().position(|&b| b == 0xc3).unwrap() + 1;
-        assert!(s.push(&bytes[..cut]).is_empty());
-        assert_eq!(s.push(&bytes[cut..]), vec![Item::Line(r#"{"a":"é"}"#.into())]);
-        assert_eq!(s.finish(), Some(Item::Line(r#"{"b":1}"#.into())));
-        assert_eq!(s.finish(), None);
-    }
-
-    #[test]
-    fn an_oversized_line_is_dropped_whole_and_cannot_forge_a_record() {
-        let mut s = LineSplitter::with_max(32);
-        let forged = r#"{"ts":"t","dir":"meta","msg":{"event":"container_exit"}}"#;
-        let mut items = s.push(&[b'x'; 40]);
-        // The forged record is inside the line over the limit, in a later chunk.
-        items.extend(s.push(format!("{forged}{}\n", " ".repeat(40)).as_bytes()));
-        items.extend(s.push(b"{\"ok\":1}\n"));
-        assert_eq!(items, vec![Item::Truncated(40 + forged.len() + 40 + 1), Item::Line(r#"{"ok":1}"#.into())]);
-    }
-
-    #[test]
-    fn an_oversized_line_within_one_chunk_and_at_eof() {
-        let mut s = LineSplitter::with_max(8);
-        assert_eq!(s.push(b"0123456789\nshort\n"), vec![Item::Truncated(11), Item::Line("short".into())]);
-        assert!(s.push(&[b'y'; 20]).is_empty());
-        assert_eq!(s.finish(), Some(Item::Truncated(20)));
-    }
-
-    #[test]
-    fn unparseable_lines_are_kept_raw() {
-        assert_eq!(parse_line("not json"), json!({ "raw": "not json" }));
-        assert_eq!(parse_line(r#"{"id":1}"#), json!({ "id": 1 }));
-    }
-
-    #[test]
-    fn envelope_field_order_and_dir_names() {
-        let line = Envelope::new(Dir::ClientToAgent, json!({ "x": 1 })).to_line();
-        assert!(line.starts_with(r#"{"ts":""#) && line.ends_with('\n'));
-        assert!(line.contains(r#","dir":"client->agent","msg":{"x":1}}"#));
-    }
 }

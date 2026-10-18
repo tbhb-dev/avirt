@@ -21,3 +21,5 @@ tmp/
 !.vale/config/vocabularies/
 .vale/config/vocabularies/*
 !.vale/config/vocabularies/project/
+mutants.out*/
+*.profraw

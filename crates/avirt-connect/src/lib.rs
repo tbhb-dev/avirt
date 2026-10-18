@@ -1,10 +1,64 @@
 //! Parsing and destination checks for the proxy.
 
+use core::hash::BuildHasher;
+use core::net::{IpAddr, Ipv4Addr, Ipv6Addr};
 use std::collections::HashSet;
-use std::net::{IpAddr, Ipv4Addr, Ipv6Addr};
+use std::io::Result as IoResult;
 
-/// Everything that isn't a global unicast address: loopback, private, link-local, CGNAT,
-/// benchmarking, documentation, multicast, reserved, and broadcast ranges for IPv4. For IPv6 it covers
+use nix::ifaddrs::getifaddrs;
+
+/// A CONNECT authority: a lowercase hostname or IP literal without a trailing dot, and a port.
+#[derive(Debug, PartialEq, Eq)]
+pub struct Target {
+    /// The lowercase hostname or IP literal. It never has brackets or a trailing dot.
+    pub host: String,
+    /// The port, from 1 to 65535.
+    pub port: u16,
+}
+
+impl Target {
+    /// Parse `authority` into a target, or return `None` when it isn't a valid CONNECT authority.
+    #[must_use]
+    pub fn parse(authority: &str) -> Option<Self> {
+        let (name, digits) = authority.rsplit_once(':')?;
+        if !(1..=5).contains(&digits.len())
+            || digits.starts_with('0')
+            || !digits.bytes().all(|byte| byte.is_ascii_digit())
+        {
+            return None;
+        }
+        let port: u16 = digits.parse().ok().filter(|value| *value != 0)?;
+        let host = if let Some(inner) = name.strip_prefix('[').and_then(|inner_host| inner_host.strip_suffix(']')) {
+            inner.parse::<Ipv6Addr>().ok()?;
+            inner.to_owned()
+        } else {
+            let trimmed = name.strip_suffix('.').unwrap_or(name);
+            let numeric =
+                trimmed.rsplit('.').next().is_some_and(|last| last.starts_with(|ch: char| ch.is_ascii_digit()))
+                    || trimmed.to_ascii_lowercase().starts_with("0x");
+            let valid = !trimmed.is_empty()
+                && trimmed.len() <= 253
+                && trimmed.split('.').all(|label| {
+                    !label.is_empty()
+                        && label.len() <= 63
+                        && label.bytes().all(|byte| byte.is_ascii_alphanumeric() || byte == b'-' || byte == b'_')
+                });
+            // Whatever looks like an IPv4 address must be one in canonical dotted-quad form, so the
+            // log and any policy see `127.0.0.1` and not `2130706433`, `0177.0.0.1`, `0x7f000001`
+            // or `127.1`, which the system resolver would also accept.
+            if !valid || (numeric && trimmed.parse::<Ipv4Addr>().is_err()) {
+                return None;
+            }
+            trimmed.to_owned()
+        };
+        Some(Self { host: host.to_ascii_lowercase(), port })
+    }
+}
+
+/// Whether `ip` is anything other than a global unicast address.
+///
+/// For IPv4 that covers loopback, private, link-local, CGNAT, benchmarking, documentation,
+/// multicast, reserved, and broadcast ranges. For IPv6 it covers
 /// loopback, unspecified, IPv4-compatible, unique-local, link-local, site-local, multicast,
 /// discard, documentation, benchmarking, ORCHID, `ORCHIDv2`, segment-routing SIDs,
 /// IPv4-translated, Teredo, NAT64 and, through their embedded IPv4 address, IPv4-mapped
@@ -18,24 +72,26 @@ pub fn is_private(ip: IpAddr) -> bool {
     }
 }
 
+/// Whether an IPv4 address lies in a non-global range.
 fn v4_special(ip: Ipv4Addr) -> bool {
-    let [a, b, c, _] = ip.octets();
-    a == 0 // "this" network
-        || a == 10
-        || a == 127
-        || (a == 100 && (64..128).contains(&b)) // CGNAT
-        || (a == 169 && b == 254)
-        || (a == 172 && (16..32).contains(&b))
-        || (a == 192 && b == 0 && c == 0) // IETF protocol assignments
-        || (a == 192 && b == 0 && c == 2) // documentation
-        || (a == 192 && b == 88 && c == 99) // 6to4 relay anycast
-        || (a == 192 && b == 168)
-        || (a == 198 && (b == 18 || b == 19)) // benchmarking
-        || (a == 198 && b == 51 && c == 100) // documentation
-        || (a == 203 && b == 0 && c == 113) // documentation
-        || a >= 224 // multicast, reserved, and broadcast
+    let [first, second, third, _] = ip.octets();
+    first == 0 // "this" network
+        || first == 10
+        || first == 127
+        || (first == 100 && (64..128).contains(&second)) // CGNAT
+        || (first == 169 && second == 254)
+        || (first == 172 && (16..32).contains(&second))
+        || (first == 192 && second == 0 && third == 0) // IETF protocol assignments
+        || (first == 192 && second == 0 && third == 2) // documentation
+        || (first == 192 && second == 88 && third == 99) // 6to4 relay anycast
+        || (first == 192 && second == 168)
+        || (first == 198 && (second == 18 || second == 19)) // benchmarking
+        || (first == 198 && second == 51 && third == 100) // documentation
+        || (first == 203 && second == 0 && third == 113) // documentation
+        || first >= 224 // multicast, reserved, and broadcast
 }
 
+/// Whether an IPv6 address lies in a non-global range, or embeds a private IPv4 address.
 fn v6_special(ip: Ipv6Addr) -> bool {
     let seg = ip.segments();
     if let Some(v4) = ip.to_ipv4_mapped() {
@@ -74,77 +130,44 @@ fn v6_special(ip: Ipv6Addr) -> bool {
 
 /// Every address assigned to one of the host's interfaces, global ones included: a service
 /// listening on the wildcard address is reachable through any of them.
-pub fn host_addresses() -> std::io::Result<HashSet<IpAddr>> {
-    let interfaces = nix::ifaddrs::getifaddrs()?;
+///
+/// # Errors
+///
+/// Returns the operating system error when it can't read the interface list.
+pub fn host_addresses() -> IoResult<HashSet<IpAddr>> {
+    let interfaces = getifaddrs()?;
     Ok(interfaces
-        .filter_map(|i| i.address)
-        .filter_map(|a| {
-            a.as_sockaddr_in()
+        .filter_map(|interface| interface.address)
+        .filter_map(|address| {
+            address
+                .as_sockaddr_in()
                 .map(|v4| IpAddr::V4(v4.ip()))
-                .or_else(|| a.as_sockaddr_in6().map(|v6| IpAddr::V6(v6.ip())))
+                .or_else(|| address.as_sockaddr_in6().map(|v6| IpAddr::V6(v6.ip())))
         })
         .collect())
 }
 
 /// Check every resolved address. Refuse empty answers and unavailable host interfaces.
 #[must_use]
-pub fn destination_allowed<S: std::hash::BuildHasher>(
-    addrs: &[IpAddr],
-    own: &std::io::Result<HashSet<IpAddr, S>>,
-) -> bool {
-    let Ok(own) = own else { return false };
-    !addrs.is_empty() && addrs.iter().all(|ip| !is_private(*ip) && !is_host_address(*ip, own))
+pub fn destination_allowed<S>(addrs: &[IpAddr], own: &IoResult<HashSet<IpAddr, S>>) -> bool
+where
+    S: BuildHasher,
+{
+    let Ok(interfaces) = own else { return false };
+    !addrs.is_empty() && addrs.iter().all(|ip| !is_private(*ip) && !is_host_address(*ip, interfaces))
 }
 
 /// Whether the host itself owns `ip` (looking through an IPv4-mapped address).
 #[must_use]
-pub fn is_host_address<S: std::hash::BuildHasher>(ip: IpAddr, host: &HashSet<IpAddr, S>) -> bool {
+pub fn is_host_address<S>(ip: IpAddr, host: &HashSet<IpAddr, S>) -> bool
+where
+    S: BuildHasher,
+{
     let plain = match ip {
         IpAddr::V6(v6) => v6.to_ipv4_mapped().map_or(ip, IpAddr::V4),
         IpAddr::V4(_) => ip,
     };
     host.contains(&plain)
-}
-
-/// A CONNECT authority: a lowercase hostname or IP literal without a trailing dot, and a port.
-#[derive(Debug, PartialEq, Eq)]
-pub struct Target {
-    pub host: String,
-    pub port: u16,
-}
-
-impl Target {
-    #[must_use]
-    pub fn parse(authority: &str) -> Option<Self> {
-        let (host, port) = authority.rsplit_once(':')?;
-        if !(1..=5).contains(&port.len()) || port.starts_with('0') || !port.bytes().all(|b| b.is_ascii_digit()) {
-            return None;
-        }
-        let port: u16 = port.parse().ok().filter(|p| *p != 0)?;
-        let host = if let Some(inner) = host.strip_prefix('[').and_then(|h| h.strip_suffix(']')) {
-            inner.parse::<Ipv6Addr>().ok()?;
-            inner.to_owned()
-        } else {
-            let host = host.strip_suffix('.').unwrap_or(host);
-            let numeric = host.rsplit('.').next().is_some_and(|last| last.starts_with(|c: char| c.is_ascii_digit()))
-                || host.to_ascii_lowercase().starts_with("0x");
-            let valid = !host.is_empty()
-                && host.len() <= 253
-                && host.split('.').all(|label| {
-                    !label.is_empty()
-                        && label.len() <= 63
-                        && label.bytes().all(|b| b.is_ascii_alphanumeric() || b == b'-' || b == b'_')
-                });
-            // Whatever looks like an IPv4 address must be one in canonical dotted-quad form, so the
-            // log and any policy see `127.0.0.1` and not `2130706433`, `0177.0.0.1`, `0x7f000001`
-            // or `127.1`, which the system resolver would also accept.
-            if !valid || (numeric && host.parse::<Ipv4Addr>().is_err()) {
-                return None;
-            }
-            host.to_owned()
-        };
-        Some(Self { host: host.to_ascii_lowercase(), port })
-    }
 }
 
 /// Host and port of an absolute-form request target such as `http://example.com/x`, for logging.
@@ -153,173 +176,12 @@ pub fn absolute_uri_authority(target: &str) -> Option<(String, u16)> {
     let rest = target.strip_prefix("http://").or_else(|| target.strip_prefix("https://"))?;
     let authority = rest.split(['/', '?']).next()?;
     match authority.rsplit_once(':') {
-        Some((h, p)) => Some((h.to_ascii_lowercase(), p.parse().ok()?)),
+        Some((host, port)) => Some((host.to_ascii_lowercase(), port.parse().ok()?)),
         None => Some((authority.to_ascii_lowercase(), 80)),
     }
 }
 
 #[cfg(test)]
-mod tests {
-    use super::*;
-
-    fn ip(s: &str) -> IpAddr {
-        s.parse().unwrap()
-    }
-
-    #[test]
-    fn private_destinations() {
-        for p in [
-            "127.0.0.1",
-            "10.1.2.3",
-            "172.16.0.1",
-            "172.31.255.255",
-            "192.168.64.1",
-            "169.254.1.1",
-            "100.64.0.1",
-            "100.127.255.255",
-            "0.0.0.0",
-            "198.18.0.1",
-            "198.19.255.255",
-            "192.0.0.8",
-            "192.0.2.1",
-            "198.51.100.7",
-            "203.0.113.9",
-            "224.0.0.1",
-            "239.255.255.255",
-            "240.0.0.1",
-            "255.255.255.255",
-            "192.88.99.1",
-            "::ffff:0:808:808",
-            "2001:2::1",
-            "2001:10::1",
-            "2001:2f::1",
-            "3fff::1",
-            "5f00::1",
-            "::1",
-            "::",
-            "::127.0.0.1",
-            "::1.2.3.4",
-            "fd00::1",
-            "fe80::1",
-            "fec0::1",
-            "ff02::1",
-            "::ffff:127.0.0.1",
-            "::ffff:192.168.64.1",
-            "64:ff9b::7f00:1",
-            "64:ff9b::808:808",
-            "64:ff9b:1::1",
-            "100::1",
-            "2001::1",
-            "2001:db8::1",
-            "2002:7f00:1::1",
-            "2002:c0a8:4001::1",
-        ] {
-            assert!(is_private(ip(p)), "{p} should be refused");
-        }
-        for p in [
-            "1.1.1.1",
-            "8.8.8.8",
-            "172.32.0.1",
-            "100.128.0.1",
-            "198.20.0.1",
-            "192.0.3.1",
-            "223.255.255.255",
-            "2606:4700::1111",
-            "2606:4700:4700::1111",
-            "2a00:1450:4001::1",
-            "::ffff:1.1.1.1",
-            "2002:0101:0101::1",
-            "64:ff9a::1",
-            "2001:4860:4860::8888",
-        ] {
-            assert!(!is_private(ip(p)), "{p} should be allowed");
-        }
-    }
-
-    #[test]
-    fn the_hosts_own_addresses_are_recognised() {
-        let host: HashSet<IpAddr> = ["203.0.113.50", "2606:4700::5"].into_iter().map(ip).collect();
-        assert!(is_host_address(ip("203.0.113.50"), &host));
-        assert!(is_host_address(ip("::ffff:203.0.113.50"), &host));
-        assert!(is_host_address(ip("2606:4700::5"), &host));
-        assert!(!is_host_address(ip("1.1.1.1"), &host));
-        // Whatever this machine has, its loopback is among it.
-        assert!(is_host_address(ip("127.0.0.1"), &host_addresses().unwrap()));
-    }
-
-    #[test]
-    fn range_boundaries_and_mapped_host_addresses() {
-        for (address, private) in [
-            ("9.255.255.255", false),
-            ("10.0.0.0", true),
-            ("10.255.255.255", true),
-            ("11.0.0.0", false),
-            ("100.63.255.255", false),
-            ("100.64.0.0", true),
-            ("100.127.255.255", true),
-            ("100.128.0.0", false),
-            ("fbff::1", false),
-            ("fc00::1", true),
-            ("fdff::1", true),
-            ("fe00::1", false),
-            ("fe7f::1", false),
-            ("fe80::1", true),
-            ("febf::1", true),
-            ("fec0::1", true),
-        ] {
-            assert_eq!(is_private(ip(address)), private, "{address}");
-        }
-        let mut own = HashSet::new();
-        assert!(!is_private(ip("8.8.8.8")));
-        assert!(!is_host_address(ip("8.8.8.8"), &own));
-        own.insert(ip("8.8.8.8"));
-        assert!(is_host_address(ip("8.8.8.8"), &own));
-        assert!(is_host_address(ip("::ffff:8.8.8.8"), &own));
-    }
-
-    #[test]
-    fn connect_authorities() {
-        let t = |a| Target::parse(a);
-        assert_eq!(t("Example.COM.:443"), Some(Target { host: "example.com".into(), port: 443 }));
-        assert_eq!(t("[2606:4700::1]:443"), Some(Target { host: "2606:4700::1".into(), port: 443 }));
-        assert_eq!(t("1.1.1.1:80"), Some(Target { host: "1.1.1.1".into(), port: 80 }));
-        for bad in [
-            "example.com",
-            "example.com:+443",
-            "example.com:0443",
-            "example.com:00",
-            "example.com:65536",
-            "example.com:0",
-            "example.com:70000",
-            ":443",
-            "a b:443",
-            "[::1:443",
-            "exa/mple.com:443",
-            "2130706433:443",
-            "0177.0.0.1:443",
-            "0x7f000001:443",
-            "127.1:443",
-        ] {
-            assert_eq!(t(bad), None, "{bad}");
-        }
-    }
-
-    #[test]
-    fn destination_check_fails_closed() {
-        let global = ip("93.184.216.34");
-        let failed: std::io::Result<HashSet<IpAddr>> = Err(std::io::Error::other("x"));
-        assert!(!destination_allowed(&[global], &failed));
-        assert!(!destination_allowed(&[], &Ok(HashSet::new())));
-        assert!(destination_allowed(&[global], &Ok(HashSet::new())));
-        let own: std::io::Result<HashSet<IpAddr>> = Ok([global].into_iter().collect());
-        assert!(!destination_allowed(&[global], &own));
-        assert!(Target::parse("example.com:443").is_some());
-    }
-
-    #[test]
-    fn absolute_uri() {
-        assert_eq!(absolute_uri_authority("http://Example.com/x?y"), Some(("example.com".into(), 80)));
-        assert_eq!(absolute_uri_authority("http://h:8080/"), Some(("h".into(), 8080)));
-        assert_eq!(absolute_uri_authority("/x"), None);
-    }
-}
+mod properties;
+#[cfg(test)]
+mod tests;

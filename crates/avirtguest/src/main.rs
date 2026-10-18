@@ -1,6 +1,9 @@
 //! The guest CLI is in the image and connects to avirtapid through the mediator.
 
-fn main() -> std::process::ExitCode {
+use std::process::ExitCode;
+
+/// Prints a stub notice on stderr and exits with failure.
+fn main() -> ExitCode {
     eprintln!("avirtguest: not implemented");
-    std::process::ExitCode::FAILURE
+    ExitCode::FAILURE
 }

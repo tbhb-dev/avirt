@@ -64,6 +64,7 @@
 [Mm]emfd_create
 [Mm]ulticast
 [Mm]ultithreaded
+[Mm]utex
 [Nn]amespace
 [Nn]amespaces
 [Nn]etlink
@@ -72,6 +73,7 @@
 [Pp]laintext
 [Pp]rebuild
 [Pp]rebuilds
+[Pp]roptest
 [Pp]roxied
 [Pp]trace
 [Qq]uiesces
@@ -225,6 +227,8 @@ resolver's
 retry's
 RPCs
 rumdl
+rustdoc
+rustfmt
 rustls
 SANs
 SBOMs

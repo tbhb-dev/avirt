@@ -53,10 +53,53 @@ repos:
     hooks:
       - id: rust-fmt
         name: Rust format check
-        entry: mise exec -- cargo fmt --check
+        entry: mise run fmt-check
         language: system
         types: [rust]
         pass_filenames: false
+        stages: [pre-commit]
+
+      - id: cargo-shear
+        name: cargo-shear (unused dependencies)
+        entry: mise run lint-shear
+        language: system
+        files: (^|/)Cargo\.toml$
+        pass_filenames: false
+        stages: [pre-commit]
+
+      - id: cargo-deny
+        name: cargo-deny (advisories, bans, sources)
+        entry: mise run deny
+        language: system
+        files: ^(Cargo\.toml|Cargo\.lock|deny\.toml|crates/[^/]+/Cargo\.toml)$
+        pass_filenames: false
+        stages: [pre-commit]
+
+      # The heavy Rust gates run once per push, over the whole workspace.
+      # Coverage, mutants and fuzz stay out of every hook.
+      - id: cargo-clippy
+        name: Clippy (all targets)
+        entry: mise run lint-rust
+        language: system
+        always_run: true
+        pass_filenames: false
+        stages: [pre-push]
+
+      - id: cargo-doc
+        name: rustdoc (warnings denied)
+        entry: mise run lint-rustdoc
+        language: system
+        always_run: true
+        pass_filenames: false
+        stages: [pre-push]
+
+      - id: cargo-nextest
+        name: nextest and doc tests
+        entry: mise run test
+        language: system
+        always_run: true
+        pass_filenames: false
+        stages: [pre-push]
 
       - id: ryl
         name: ryl

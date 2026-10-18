@@ -1,6 +1,9 @@
 //! The edge proxy evaluates host policy and resolves external names. It checks private addresses before opening upstream connections.
 
-fn main() -> std::process::ExitCode {
+use std::process::ExitCode;
+
+/// Prints a stub notice on stderr and exits with failure.
+fn main() -> ExitCode {
     eprintln!("avirtedgeproxyd: not implemented");
-    std::process::ExitCode::FAILURE
+    ExitCode::FAILURE
 }
