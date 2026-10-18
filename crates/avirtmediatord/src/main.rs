@@ -6,7 +6,7 @@
 //! - `proxy.sock`: a CONNECT proxy. It accepts only `CONNECT host:port`, refuses private
 //!   destinations, and tunnels everything else. The only denies are `private-dest`,
 //!   `plain-http` and `unsupported-method`.
-//! - `uplink.sock`: the container's HTTP/2 workload uplink, spliced byte for byte to
+//! - `mediator.sock`: the container's HTTP/2 workload connection, spliced byte for byte to
 //!   avirthostd's own socket, so HTTP/2 stays end to end between avirtinitd and avirthostd.
 //!
 //! One NDJSON event per proxied connection goes to avirthostd over a second avirthostd connection.
@@ -43,7 +43,7 @@ const DIAL_TIMEOUT: Duration = Duration::from_secs(10);
 
 #[derive(Parser)]
 struct Args {
-    /// The workload's private directory; `proxy.sock` and `uplink.sock` are created in it, 0600.
+    /// The workload's private directory; `proxy.sock` and `mediator.sock` are created in it, 0600.
     #[arg(long)]
     dir: PathBuf,
     /// avirthostd's Unix socket.
@@ -372,7 +372,7 @@ impl ShutdownSignalWatch for Shutdown {
     }
 }
 
-/// Splices `uplink.sock` to avirthostd. Nothing is dialed until the first bytes arrive, so a
+/// Splices `mediator.sock` to avirthostd. Nothing is dialed until the first bytes arrive, so a
 /// readiness probe (connect and close) costs avirthostd nothing. Either direction ending ends
 /// the splice: HTTP/2 closes both ways when it is done.
 struct SpliceApp {
@@ -462,7 +462,7 @@ fn main() {
         "workload".into(),
         SpliceApp { hostd_sock: args.hostd_sock, workload: args.workload, secret: args.secret },
     );
-    workload.add_uds(&args.dir.join("uplink.sock").to_string_lossy(), private());
+    workload.add_uds(&args.dir.join("mediator.sock").to_string_lossy(), private());
     server.add_service(workload);
     server.bootstrap();
     let stdin_eof = Arc::new(tokio::sync::Notify::new());

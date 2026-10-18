@@ -1,7 +1,7 @@
 //! The container-side harness shared by both agents. The container has no network. Its only
 //! way out is two Unix sockets that avirthostd's per-workload mediator listens on, mounted at
-//! `/run/avirt`: `uplink.sock` for the avirthostd uplink, which only root may open, and `proxy.sock`
-//! for the egress proxy. avirtinitd (root) holds the uplink, relays a loopback port to the
+//! `/run/avirt`: `mediator.sock` for the avirthostd connection, which only root may open, and `proxy.sock`
+//! for the egress proxy. avirtinitd (root) holds the mediator connection, relays a loopback port to the
 //! proxy socket, and runs the adapter as an unprivileged user with every capability gone. The
 //! ACP conversation itself is supplied by the caller because the two adapters speak different
 //! protocol versions.
@@ -18,13 +18,13 @@ use tokio::io::{AsyncReadExt, AsyncWriteExt};
 use tokio::net::{TcpListener, UnixStream};
 use tokio::sync::Semaphore;
 
+use crate::connection::MediatorConnection;
 use crate::envelope::{Dir, MAX_LINE, parse_line};
-use crate::uplink::Uplink;
 
 pub struct Workload {
     /// The adapter subprocess with the tap installed; hand it to `connect_with`.
     pub agent: AcpAgent,
-    pub uplink: Uplink,
+    pub connection: MediatorConnection,
     pub prompt: String,
     pub cwd: String,
 }
@@ -43,12 +43,12 @@ const INTERNAL_ERROR: i32 = -32603;
 const EXIT_USAGE: u8 = 64;
 const EXIT_UNREACHABLE: u8 = 3;
 
-/// The mediator's workload uplink socket (host mode 0600, so root only in here).
-const UPLINK_SOCKET: &str = "/run/avirt/uplink.sock";
+/// The mediator's workload connection socket (host mode 0600, so root only in here).
+const MEDIATOR_SOCKET: &str = "/run/avirt/mediator.sock";
 /// The mediator's CONNECT proxy socket, also root only; the agent reaches it through a relay.
 const PROXY_SOCKET: &str = "/run/avirt/proxy.sock";
 /// How long to keep trying to reach the mediator before giving up.
-const UPLINK_WAIT: Duration = Duration::from_secs(15);
+const CONNECTION_WAIT: Duration = Duration::from_secs(15);
 const EXIT_WORKLOAD_FAILED: u8 = 2;
 
 fn required_env(name: &str) -> Result<String, ExitCode> {
@@ -68,21 +68,23 @@ where
     Fut: Future<Output = Result<String, Error>>,
 {
     let (workload_id, prompt, token) =
-        match (required_env("AVIRT_WORKLOAD_ID"), required_env("AVIRT_PROMPT"), required_env("AVIRT_UPLINK_TOKEN")) {
+        match (required_env("AVIRT_WORKLOAD_ID"), required_env("AVIRT_PROMPT"), required_env("AVIRT_CONNECTION_TOKEN"))
+        {
             (Ok(s), Ok(p), Ok(t)) => (s, p, t),
             (Err(code), ..) | (_, Err(code), _) | (.., Err(code)) => return code,
         };
     let cwd = std::env::var("AVIRT_CWD").ok().filter(|c| !c.is_empty()).unwrap_or_else(|| "/workspace".into());
 
     // Nothing starts until avirthostd has accepted the stream.
-    let uplink = match Uplink::open(Path::new(UPLINK_SOCKET), &workload_id, &token, UPLINK_WAIT).await {
-        Ok(uplink) => uplink,
-        Err(err) => {
-            eprintln!("cannot open the workload stream: {err}");
-            return ExitCode::from(EXIT_UNREACHABLE);
-        }
-    };
-    uplink.meta(
+    let connection =
+        match MediatorConnection::open(Path::new(MEDIATOR_SOCKET), &workload_id, &token, CONNECTION_WAIT).await {
+            Ok(connection) => connection,
+            Err(err) => {
+                eprintln!("cannot open the workload stream: {err}");
+                return ExitCode::from(EXIT_UNREACHABLE);
+            }
+        };
+    connection.meta(
         json!({ "event": "start", "agent": spec.agent, "workloadId": workload_id, "cwd": cwd, "prompt": prompt }),
     );
 
@@ -90,8 +92,8 @@ where
         Ok(addr) => format!("http://{addr}"),
         Err(err) => {
             eprintln!("cannot start the proxy relay: {err}");
-            uplink.meta(json!({ "event": "error", "message": "cannot start the proxy relay" }));
-            uplink.close(Duration::from_secs(5)).await;
+            connection.meta(json!({ "event": "error", "message": "cannot start the proxy relay" }));
+            connection.close(Duration::from_secs(5)).await;
             return ExitCode::from(EXIT_UNREACHABLE);
         }
     };
@@ -100,14 +102,14 @@ where
     // sockets. From here on, this process and everything it starts cannot (see the function).
     if let Err(why) = restrict_sockets() {
         eprintln!("cannot restrict sockets: {why}");
-        uplink.meta(json!({ "event": "error", "message": "cannot restrict sockets" }));
-        uplink.close(Duration::from_secs(5)).await;
+        connection.meta(json!({ "event": "error", "message": "cannot restrict sockets" }));
+        connection.close(Duration::from_secs(5)).await;
         return ExitCode::from(EXIT_UNREACHABLE);
     }
     let config = agent_config(&spec, &proxy);
     // The SDK's line hook sees every line it writes to or reads from the adapter, in both
     // directions, without altering them.
-    let tap = uplink.clone();
+    let tap = connection.clone();
     let agent = AcpAgent::new(config).with_debug(move |line, direction| {
         let line = line.trim();
         if line.is_empty() {
@@ -134,26 +136,26 @@ where
     let mut sigterm =
         tokio::signal::unix::signal(tokio::signal::unix::SignalKind::terminate()).expect("SIGTERM handler");
     let result = tokio::select! {
-        r = workload(Workload { agent, uplink: uplink.clone(), prompt, cwd }) => r,
-        reason = uplink.rejected() => Err(Error::new(INTERNAL_ERROR, reason)),
+        r = workload(Workload { agent, connection: connection.clone(), prompt, cwd }) => r,
+        reason = connection.rejected() => Err(Error::new(INTERNAL_ERROR, reason)),
         _ = sigterm.recv() => Err(Error::new(INTERNAL_ERROR, "terminated by SIGTERM")),
     };
 
     let code = match result {
         Ok(stop_reason) => {
             println!();
-            uplink.meta(json!({ "event": "exit", "stopReason": stop_reason }));
+            connection.meta(json!({ "event": "exit", "stopReason": stop_reason }));
             u8::from(stop_reason != "end_turn")
         }
         Err(err) => {
             let message = err.to_string();
             eprintln!("workload failed: {message}");
-            uplink.meta(json!({ "event": "error", "message": message }));
-            uplink.meta(json!({ "event": "exit", "stopReason": "error" }));
+            connection.meta(json!({ "event": "error", "message": message }));
+            connection.meta(json!({ "event": "exit", "stopReason": "error" }));
             EXIT_WORKLOAD_FAILED
         }
     };
-    uplink.close(Duration::from_secs(10)).await;
+    connection.close(Duration::from_secs(10)).await;
     ExitCode::from(code)
 }
 
@@ -302,10 +304,11 @@ fn restrict_sockets() -> Result<(), String> {
 /// removed; the rest, such as credentials and `CODEX_HOME`, pass through. All egress goes to
 /// the relay.
 fn agent_config(spec: &Spec<'_>, proxy: &str) -> AcpAgentConfig {
-    let mut args: Vec<&str> = ["AVIRT_WORKLOAD_ID", "AVIRT_PROMPT", "AVIRT_CWD", "AVIRT_UPLINK_TOKEN", "AVIRT_AGENT"]
-        .iter()
-        .flat_map(|name| ["-u", name])
-        .collect();
+    let mut args: Vec<&str> =
+        ["AVIRT_WORKLOAD_ID", "AVIRT_PROMPT", "AVIRT_CWD", "AVIRT_CONNECTION_TOKEN", "AVIRT_AGENT"]
+            .iter()
+            .flat_map(|name| ["-u", name])
+            .collect();
     args.extend([
         "setpriv",
         "--reuid=agent",

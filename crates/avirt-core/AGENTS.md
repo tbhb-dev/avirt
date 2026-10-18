@@ -19,13 +19,13 @@ The shared library. The avirthostd server and the avirtinitd harness both live h
 | `egress` | `WorkloadDir` (the 0700 workload directory) and `Proxy`, the mediator process with a cleared environment and a stdin-bound lifetime |
 | `state` | The runtime directory `$TMPDIR/avirt-<uid>/`, its lock, the startup cleanup, and `private_dir`, `make_removable` and `remove_tree` |
 | `harness` | The avirtinitd harness: the workload's HTTP/2 connection to its mediator first, the TCP proxy to `proxy.sock`, seccomp (Linux only), the scrubbed agent environment, `setpriv` |
-| `uplink` | The workload's HTTP/2 connection to its mediator, whose one long-lived POST carries NDJSON envelopes with `x-avirt-token` |
+| `connection` | The workload's HTTP/2 connection to its mediator, whose one long-lived POST carries NDJSON envelopes with `x-avirt-token` |
 | `envelope` | `Dir`, `Envelope`, `parse_line`, `MAX_LINE` (16 MiB) and `LineSplitter` |
 | `h2c` | Cleartext HTTP/2 client helpers |
 
 ## Invariants
 
-- **Workload startup order.** Nothing starts in the workload container until avirthostd has accepted `POST /workloads/<id>/stream`. Seccomp is installed before the adapter starts, and the agent's environment never carries `AVIRT_WORKLOAD_ID`, `AVIRT_PROMPT`, `AVIRT_CWD`, `AVIRT_UPLINK_TOKEN` or `AVIRT_AGENT`.
+- **Workload startup order.** Nothing starts in the workload container until avirthostd has accepted `POST /workloads/<id>/stream`. Seccomp is installed before the adapter starts, and the agent's environment never carries `AVIRT_WORKLOAD_ID`, `AVIRT_PROMPT`, `AVIRT_CWD`, `AVIRT_CONNECTION_TOKEN` or `AVIRT_AGENT`.
 - **Proxy half-close.** The TCP proxy to `proxy.sock` never forwards a client's end-of-stream to the socket, because nothing on a forwarded socket may half-close.
 - **Log ordering.** `container_exit` is always the last event of a workload. Errors are held and written before it.
 - **Oversized lines.** A line over `MAX_LINE` is dropped whole and replaced by `line_truncated`. A fragment of it is never written.

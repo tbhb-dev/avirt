@@ -8,8 +8,8 @@ use agent_client_protocol::schema::v1::{
     SelectedPermissionOutcome, SessionNotification, SessionUpdate,
 };
 use agent_client_protocol::{Agent, Client, ConnectionTo, Error, Responder};
+use avirt_core::connection::MediatorConnection;
 use avirt_core::harness::{self, Spec, Workload, pick_option};
-use avirt_core::uplink::Uplink;
 use serde_json::json;
 
 const NAME: &str = "codex-container";
@@ -19,7 +19,7 @@ pub async fn run() -> ExitCode {
     harness::run(Spec { agent: "codex", agent_command: "codex-acp", agent_env: &[] }, converse).await
 }
 
-fn approve(uplink: &Uplink, options: &[PermissionOption]) -> RequestPermissionResponse {
+fn approve(connection: &MediatorConnection, options: &[PermissionOption]) -> RequestPermissionResponse {
     let kind = |o: &PermissionOption| match o.kind {
         PermissionOptionKind::AllowOnce => "allow_once",
         PermissionOptionKind::AllowAlways => "allow_always",
@@ -28,7 +28,7 @@ fn approve(uplink: &Uplink, options: &[PermissionOption]) -> RequestPermissionRe
     let Some(choice) = pick_option(options, kind) else {
         return RequestPermissionResponse::new(RequestPermissionOutcome::Cancelled);
     };
-    uplink.meta(json!({ "event": "auto_approve", "optionId": choice.option_id, "name": choice.name }));
+    connection.meta(json!({ "event": "auto_approve", "optionId": choice.option_id, "name": choice.name }));
     RequestPermissionResponse::new(RequestPermissionOutcome::Selected(SelectedPermissionOutcome::new(
         choice.option_id.clone(),
     )))
@@ -52,9 +52,9 @@ fn show(update: &SessionUpdate) {
 }
 
 async fn converse(workload: Workload) -> Result<String, Error> {
-    let Workload { agent, uplink, prompt, cwd } = workload;
-    let permission_uplink = uplink.clone();
-    let init_uplink = uplink.clone();
+    let Workload { agent, connection, prompt, cwd } = workload;
+    let permission_connection = connection.clone();
+    let init_connection = connection.clone();
 
     // Updates are shown by a handler as they arrive, independently of the prompt request, so
     // output is not delayed until the turn ends and survives a rejected prompt. In v1 the
@@ -71,7 +71,7 @@ async fn converse(workload: Workload) -> Result<String, Error> {
         )
         .on_receive_request(
             async move |req: RequestPermissionRequest, responder: Responder<RequestPermissionResponse>, _cx| {
-                responder.respond(approve(&permission_uplink, &req.options))
+                responder.respond(approve(&permission_connection, &req.options))
             },
             agent_client_protocol::on_receive_request!(),
         )
@@ -90,7 +90,7 @@ async fn converse(workload: Workload) -> Result<String, Error> {
                     .data(format!("agent answered protocol version {:?}, expected 1", init.protocol_version)));
             }
             let ids: Vec<_> = init.auth_methods.iter().map(|m| m.id().to_string()).collect();
-            init_uplink.meta(json!({ "event": "auth_methods", "ids": ids }));
+            init_connection.meta(json!({ "event": "auth_methods", "ids": ids }));
             // No authenticate call: Codex reads the mounted auth.json itself.
             let created = cx.send_request(NewSessionRequest::new(cwd)).block_task().await?;
             let done =

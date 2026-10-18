@@ -22,7 +22,7 @@ where
     let (send, conn) = hyper::client::conn::http2::handshake(TokioExecutor::new(), TokioIo::new(io)).await?;
     tokio::spawn(async move {
         if let Err(err) = conn.await {
-            eprintln!("uplink connection error: {err}");
+            eprintln!("mediator connection error: {err}");
         }
     });
     Ok(send)

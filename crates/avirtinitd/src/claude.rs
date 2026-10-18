@@ -3,8 +3,8 @@ use std::process::ExitCode;
 
 use agent_client_protocol::schema::{ProtocolVersion, v2};
 use agent_client_protocol::{Agent, Client, Error, Responder, V2ConnectionTo};
+use avirt_core::connection::MediatorConnection;
 use avirt_core::harness::{self, Spec, Workload, pick_option};
-use avirt_core::uplink::Uplink;
 use serde_json::{Value, json};
 use tokio::sync::mpsc::unbounded_channel;
 
@@ -20,7 +20,7 @@ pub async fn run() -> ExitCode {
     harness::run(spec, converse).await
 }
 
-fn approve(uplink: &Uplink, options: &[v2::PermissionOption]) -> v2::RequestPermissionResponse {
+fn approve(connection: &MediatorConnection, options: &[v2::PermissionOption]) -> v2::RequestPermissionResponse {
     let kind = |o: &v2::PermissionOption| match &o.kind {
         v2::PermissionOptionKind::AllowOnce => "allow_once",
         v2::PermissionOptionKind::AllowAlways => "allow_always",
@@ -29,7 +29,7 @@ fn approve(uplink: &Uplink, options: &[v2::PermissionOption]) -> v2::RequestPerm
     let Some(choice) = pick_option(options, kind) else {
         return v2::RequestPermissionResponse::new(v2::RequestPermissionOutcome::Cancelled);
     };
-    uplink.meta(json!({ "event": "auto_approve", "optionId": choice.option_id, "name": choice.name }));
+    connection.meta(json!({ "event": "auto_approve", "optionId": choice.option_id, "name": choice.name }));
     v2::RequestPermissionResponse::new(v2::RequestPermissionOutcome::Selected(v2::SelectedPermissionOutcome::new(
         choice.option_id.clone(),
     )))
@@ -53,9 +53,9 @@ fn show(update: &v2::SessionUpdate) {
 }
 
 async fn converse(workload: Workload) -> Result<String, Error> {
-    let Workload { agent, uplink, prompt, cwd } = workload;
+    let Workload { agent, connection, prompt, cwd } = workload;
     let (updates_tx, mut updates) = unbounded_channel::<v2::UpdateSessionNotification>();
-    let permission_uplink = uplink.clone();
+    let permission_connection = connection.clone();
 
     Client
         .v2()
@@ -70,7 +70,7 @@ async fn converse(workload: Workload) -> Result<String, Error> {
             async move |req: v2::RequestPermissionRequest,
                         responder: Responder<v2::RequestPermissionResponse>,
                         _cx: V2ConnectionTo<Agent>| {
-                responder.respond(approve(&permission_uplink, &req.options))
+                responder.respond(approve(&permission_connection, &req.options))
             },
             agent_client_protocol::on_receive_request!(),
         )

@@ -23,7 +23,7 @@ ENV PATH=/opt/agent/node_modules/.bin:$PATH
 
 COPY --from=build /src/target/release/avirtinitd /usr/local/bin/avirtinitd
 
-# avirtinitd starts as root: it needs to own the uplink socket and the proxy relay. It runs
+# avirtinitd starts as root: it needs to own the mediator socket and the proxy relay. It runs
 # the adapter as `agent` (uid 1000; the base image's own uid 1000 user has to go) with every
 # capability dropped, so there is no USER line.
 RUN userdel --remove ubuntu \

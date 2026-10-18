@@ -8,13 +8,13 @@ generated: { by: claude-code/claude-sonnet-5-5, at: 2026-10-17T19:16:42Z }
 
 # Agent instructions: avirtmediatord
 
-The mediator binary. It runs one Pingora `Server` with two Unix-socket services in the workload's directory. Pingora is the default CONNECT engine; `--proxy-engine envoy` relays proxy streams to a supervised Envoy child while keeping the TCP proxy on `uplink.sock`. See [egress](../../docs/egress.md#experimental-host-envoy-mode) for Envoy mode's unverified parity and event limitations. avirtmedproxyd is planned to take over supervising the mediator's Envoy.
+The mediator binary. It runs one Pingora `Server` with two Unix-socket services in the workload's directory. Pingora is the default CONNECT engine; `--proxy-engine envoy` relays proxy streams to a supervised Envoy child while keeping the TCP proxy on `mediator.sock`. See [egress](../../docs/egress.md#experimental-host-envoy-mode) for Envoy mode's unverified parity and event limitations. avirtmedproxyd is planned to take over supervising the mediator's Envoy.
 
 ## Layout
 
 | Module | Holds |
 | --- | --- |
-| `main.rs` | Flags (`--dir`, `--hostd-sock`, `--workload`, and the secret from `AVIRT_MEDIATOR_SECRET`), the `ConnectApp` CONNECT proxy, the `SpliceApp` TCP proxy that forwards `uplink.sock` to avirthostd unchanged, the connection records, and the shutdown watch |
+| `main.rs` | Flags (`--dir`, `--hostd-sock`, `--workload`, and the secret from `AVIRT_MEDIATOR_SECRET`), the `ConnectApp` CONNECT proxy, the `SpliceApp` TCP proxy that forwards `mediator.sock` to avirthostd unchanged, the connection records, and the shutdown watch |
 | `policy.rs` | Re-exports of authority parsing and destination checks from `avirt_connect` |
 | `envoy.rs` | Static CONNECT bootstrap, the guardian process, Envoy supervision, stream forwarding and conversion of module snapshots to connection events |
 | `events.rs` | The event thread that writes one NDJSON line per proxied connection to the `EGRESS` connection |

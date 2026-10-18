@@ -18,7 +18,7 @@ use tokio_stream::wrappers::UnboundedReceiverStream;
 use crate::envelope::{Dir, Envelope};
 use crate::h2c;
 
-/// How one attempt to open the uplink failed.
+/// How one attempt to open the mediator connection failed.
 enum Attempt {
     Retry(String),
     Fatal(String),
@@ -27,16 +27,16 @@ enum Attempt {
 type Outcome = Option<Result<StatusCode, String>>;
 
 #[derive(Clone, Debug)]
-pub struct Uplink {
+pub struct MediatorConnection {
     /// `None` once closed; sends after that are no-ops.
     tx: Arc<Mutex<Option<mpsc::UnboundedSender<Bytes>>>>,
     outcome: watch::Receiver<Outcome>,
 }
 
-impl Uplink {
+impl MediatorConnection {
     /// Connects to the mediator's workload socket, runs the HTTP/2 client over it and opens
     /// the workload's streaming POST. Returns only once avirthostd has accepted the stream, so the
-    /// agent is never started into a dead uplink. Every step has a timeout: a socket file whose
+    /// agent is never started into a dead connection. Every step has a timeout: a socket file whose
     /// listener is gone accepts a connect and then says nothing.
     pub async fn open(socket: &Path, workload_id: &str, token: &str, wait: Duration) -> Result<Self> {
         let deadline = tokio::time::Instant::now() + wait;
@@ -45,7 +45,7 @@ impl Uplink {
             // connection inside the VM whether or not the host mediator is there. So the whole
             // sequence is retried, and readiness is avirthostd's answer to the stream request.
             match Self::attempt(socket, workload_id, token).await {
-                Ok(uplink) => return Ok(uplink),
+                Ok(connection) => return Ok(connection),
                 Err(Attempt::Fatal(why)) => bail!("{why}"),
                 Err(Attempt::Retry(why)) if tokio::time::Instant::now() >= deadline => {
                     bail!("the mediator is not answering on {} ({why})", socket.display());
@@ -109,7 +109,7 @@ impl Uplink {
     }
 
     pub fn send(&self, dir: Dir, msg: Value) {
-        if let Some(tx) = self.tx.lock().expect("uplink lock").as_ref() {
+        if let Some(tx) = self.tx.lock().expect("connection lock").as_ref() {
             let _ = tx.send(Bytes::from(Envelope::new(dir, msg).to_line()));
         }
     }
@@ -126,7 +126,7 @@ impl Uplink {
             rx.wait_for(|o| matches!(o, Some(Err(_))) || matches!(o, Some(Ok(s)) if *s != StatusCode::OK)).await;
         match outcome.as_deref() {
             Ok(Some(Ok(status))) => format!("avirthostd refused the stream: HTTP {status}"),
-            Ok(Some(Err(err))) => format!("uplink failed: {err}"),
+            Ok(Some(Err(err))) => format!("mediator connection failed: {err}"),
             _ => std::future::pending().await,
         }
     }
@@ -134,7 +134,7 @@ impl Uplink {
     /// Ends the request body and waits (bounded) for avirthostd to finish draining it. A no-op
     /// wait if the request already completed.
     pub async fn close(&self, timeout: Duration) {
-        self.tx.lock().expect("uplink lock").take();
+        self.tx.lock().expect("connection lock").take();
         let mut rx = self.outcome.clone();
         let _ = tokio::time::timeout(timeout, rx.wait_for(Option::is_some)).await;
     }

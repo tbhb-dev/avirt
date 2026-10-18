@@ -14,7 +14,7 @@ use anyhow::{Context, Result, bail};
 use tokio::process::{Child, ChildStdin, Command};
 
 /// A workload's private directory (0700), `workloads/<workload-id>/`, holding the proxy socket and the
-/// uplink socket. It is removed, with whatever is still in it, when dropped.
+/// mediator socket. It is removed, with whatever is still in it, when dropped.
 #[derive(Debug)]
 pub struct WorkloadDir(PathBuf);
 
@@ -40,10 +40,10 @@ impl WorkloadDir {
         self.0.join("proxy.sock")
     }
 
-    /// The container's workload uplink socket, mounted at `/run/avirt/uplink.sock`.
+    /// The container's workload connection socket, mounted at `/run/avirt/mediator.sock`.
     #[must_use]
-    pub fn uplink_socket(&self) -> PathBuf {
-        self.0.join("uplink.sock")
+    pub fn mediator_socket(&self) -> PathBuf {
+        self.0.join("mediator.sock")
     }
 
     #[must_use]
@@ -108,7 +108,7 @@ impl Proxy {
         loop {
             // A probe connects and closes without a byte; the mediator ignores it.
             let ready = tokio::net::UnixStream::connect(dir.proxy_socket()).await.is_ok()
-                && tokio::net::UnixStream::connect(dir.uplink_socket()).await.is_ok();
+                && tokio::net::UnixStream::connect(dir.mediator_socket()).await.is_ok();
             if ready {
                 return Ok(proxy);
             }

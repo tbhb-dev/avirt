@@ -199,7 +199,7 @@ struct Launch<'a> {
     id: &'a str,
     profile: &'a dyn Profile,
     proxy_socket: &'a Path,
-    uplink_socket: &'a Path,
+    mediator_socket: &'a Path,
     token: &'a str,
     prompt: &'a str,
     cwd: Option<&'a Path>,
@@ -311,7 +311,7 @@ async fn handle_control(hostd: Arc<Hostd>, req: Request<Incoming>) -> Result<Res
     })
 }
 
-/// What a workload's uplink connection may ask for: that workload's own stream and nothing else,
+/// What a workload's connection may ask for: that workload's own stream and nothing else,
 /// so a container cannot write into another workload's log or launch anything.
 fn handle_workload(hostd: &Arc<Hostd>, id: &str, req: Request<Incoming>) -> Response<Body> {
     match (req.method(), req.uri().path()) {
@@ -482,7 +482,7 @@ impl Hostd {
         token: TaskTrackerToken,
     ) -> Result<String> {
         let (id, workload) = self.register()?;
-        let uplink_token = workload.token.clone();
+        let connection_token = workload.token.clone();
         let dir = match WorkloadDir::create(&self.state.workloads(), &id) {
             Ok(dir) => dir,
             Err(err) => {
@@ -508,13 +508,13 @@ impl Hostd {
             }
         };
         let profile = &self.profiles[agent];
-        let (proxy_socket, uplink_socket) = (dir.proxy_socket(), dir.uplink_socket());
+        let (proxy_socket, mediator_socket) = (dir.proxy_socket(), dir.mediator_socket());
         let launch = Launch {
             id: &id,
             profile: profile.as_ref(),
             proxy_socket: &proxy_socket,
-            uplink_socket: &uplink_socket,
-            token: &uplink_token,
+            mediator_socket: &mediator_socket,
+            token: &connection_token,
             prompt,
             cwd,
         };
@@ -543,7 +543,7 @@ impl Hostd {
                     let status = tokio::select! {
                         s = child.wait() => s,
                         died = proxy.exited() => {
-                            // Without its mediator the container has no uplink and no proxy.
+                            // Without its mediator the container has no connection and no proxy.
                             let how = died.map_or_else(|e| e.to_string(), |s| s.to_string());
                             workload.hold(json!({
                                 "event": "container_error",
@@ -601,7 +601,7 @@ impl Hostd {
     }
 
     fn command(&self, launch: &Launch<'_>, extra_args: &[OsString], inherit: &[&str]) -> std::io::Result<Command> {
-        let Launch { id, profile, proxy_socket, uplink_socket, token, prompt, cwd } = *launch;
+        let Launch { id, profile, proxy_socket, mediator_socket, token, prompt, cwd } = *launch;
         let container_log = Self::create_private(&self.config.logs_dir.join(format!("{id}.container.log")))?;
         let mut cmd = Command::new("container");
         // Start from nothing: avirthostd's environment holds credentials for every agent, and a
@@ -639,19 +639,19 @@ impl Hostd {
         .arg("-v")
         .arg(mount(proxy_socket, "/run/avirt/proxy.sock"))
         .arg("-v")
-        .arg(mount(uplink_socket, "/run/avirt/uplink.sock"))
+        .arg(mount(mediator_socket, "/run/avirt/mediator.sock"))
         .args(extra_args);
         if let Some(cwd) = cwd {
             cmd.arg("-v").arg(mount(cwd, "/workspace"));
         }
         // `-e NAME` with no value makes the container CLI read it from its own environment, so
         // the prompt never appears on argv.
-        cmd.args(["-e", "AVIRT_PROMPT", "-e", "AVIRT_CWD", "-e", "AVIRT_UPLINK_TOKEN"])
+        cmd.args(["-e", "AVIRT_PROMPT", "-e", "AVIRT_CWD", "-e", "AVIRT_CONNECTION_TOKEN"])
             .arg("-e")
             .arg(format!("AVIRT_WORKLOAD_ID={id}"))
             .arg(profile.image())
             .env("AVIRT_PROMPT", prompt)
-            .env("AVIRT_UPLINK_TOKEN", token)
+            .env("AVIRT_CONNECTION_TOKEN", token)
             .env("AVIRT_CWD", if cwd.is_some() { "/workspace" } else { "" })
             .stdin(Stdio::null())
             .stdout(container_log.try_clone()?)
