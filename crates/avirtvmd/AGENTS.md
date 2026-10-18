@@ -20,13 +20,14 @@ The per-workload VM host helper. It's a SwiftPM package rather than a Cargo crat
 | `Sources/AvirtVMD/Helper.swift` | `runHelper`, which orders startup: incarnation, lock, socket, then serving until stdin closes or a `Stop` arrives |
 | `Sources/AvirtVMD/Control/` | `ControlServer` (the handshake and the requests), the length framing, `Incarnation`, the stdin watcher, and the peer user check |
 | `Sources/AvirtVMD/Protocol/` | `avirtvmd.proto`, the wire contract, and `Messages.swift` with aliases for the generated types. `SwiftProtobufPlugin` generates the Swift at build time and needs `protoc` on `PATH` |
+| `Sources/AvirtVMD/Prepare/` | The one-shot `prepare` steps: `fetch`, `extract`, `initfs`, and `rootfs`. Each writes only to the paths on its command line (`--out`, and `--store` for `initfs`) and prints one JSON object |
 | `Sources/AvirtVMD/Sys.swift` | The C library calls that need an `unsafe` expression. No other file may use one |
 | `Tests/AvirtVMDTests/` | The tests, and `fixtures/` with the golden protocol encodings |
 
 ## Invariants
 
 - The helper reads one stdin line, 32 lowercase hexadecimal characters, within 5 seconds. After that, end-of-file on stdin means avirthostd has exited, and the helper stops and exits 0. Nothing else about a workload arrives on argv or in the environment.
-- Exit 64 for bad flags or a bad incarnation line. Exit 69 when a precondition outside avirtvmd fails: another process holds the lock, or the socket can't bind.
+- Exit 64 for bad flags or a bad incarnation line. Exit 69 when a precondition outside avirtvmd fails: another process holds the lock, or the socket can't bind. Exit 70 when a `prepare` step fails, with one line on stderr.
 - Take an exclusive `flock` on `<dir>/vmd.lock` before binding, and hold it until the process ends. A free lock tells avirthostd that the helper and its VM have exited.
 - Bind `<dir>/v.sock` with mode 0600 and refuse a connection from any user but this process's, judged by `LOCAL_PEERCRED`. Remove the socket on a clean exit.
 - Every frame is a 4-byte big-endian length and one Protocol Buffers message of at most 1 MiB. `FrameDecoder` rejects a longer length before it buffers any of the body, which the `NIOExtras` decoder doesn't, so the package doesn't use `NIOExtras`.

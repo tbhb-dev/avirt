@@ -11,6 +11,8 @@ public enum HelperExit {
   public static let usage: Int32 = 64
   /// A precondition outside avirtvmd: the lock is held, or the socket path is in use.
   public static let precondition: Int32 = 69
+  /// A step failed for a reason inside avirtvmd, such as a bad archive.
+  public static let failure: Int32 = 70
 }
 
 /// How long avirthostd has to write the incarnation line.
