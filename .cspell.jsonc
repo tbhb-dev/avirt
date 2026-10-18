@@ -38,7 +38,10 @@
   // Address literals and the malformed host are parser rejection fixtures.
   "overrides": [
     {
-      "filename": "crates/avirt-connect/src/lib.rs",
+      "filename": [
+        "crates/avirt-connect/src/lib.rs",
+        "crates/avirt-connect/src/tests.rs"
+      ],
       "ignoreRegExpList": [
         "/the_hosts_own_addresses_are_recognised/g",
         "/\"[0-9a-f]*:[0-9a-f:]+\"/gi",

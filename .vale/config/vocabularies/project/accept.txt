@@ -64,6 +64,7 @@
 [Mm]emfd_create
 [Mm]ulticast
 [Mm]ultithreaded
+[Mm]utex
 [Nn]amespace
 [Nn]amespaces
 [Nn]etlink

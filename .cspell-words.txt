@@ -73,6 +73,7 @@ cdylib
 Cedar
 cedarschema
 CEL
+cfgs
 CGNAT
 cgo
 cgroup
@@ -178,6 +179,7 @@ hostname
 hostnames
 httparse
 hvsock
+idents
 IETF
 ifaddrs
 initfs
@@ -264,9 +266,12 @@ oneshot
 opencontainers
 oteld
 OTLP
+overcaptures
 passthrough
 passwordusercontent
+pathbuf
 PEERCRED
+peekable
 PEM
 PEP
 perf
@@ -342,6 +347,7 @@ SANs
 SBOM
 SBOMs
 schan
+scrutinee
 seccomp
 seccompiler
 secretsd
@@ -416,6 +422,7 @@ unlinks
 unparseable
 unpushed
 unscanned
+unseparated
 unshare
 untracked
 unwatch

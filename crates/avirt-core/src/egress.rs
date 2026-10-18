@@ -1,43 +1,47 @@
 //! Host side of the mediator: a private directory and one `avirtmediatord` process per workload.
+//!
 //! The mediator listens on two sockets in that directory, which are bind-mounted into the
 //! container (the runtime relays a mounted socket file to its host listener), and dials
 //! avirthostd's own socket.
 
-use std::fs::OpenOptions;
-use std::os::unix::fs::{DirBuilderExt, OpenOptionsExt};
+use core::time::Duration;
+use std::env;
+use std::fs::{self, DirBuilder, OpenOptions};
+use std::io;
+use std::os::unix::fs::{DirBuilderExt as _, OpenOptionsExt as _};
 use std::path::{Path, PathBuf};
-use std::process::ExitStatus;
-use std::process::Stdio;
-use std::time::Duration;
+use std::process::{ExitStatus, Stdio};
 
-use anyhow::{Context, Result, bail};
+use anyhow::{Context as _, Result, bail};
+use tokio::net::UnixStream;
 use tokio::process::{Child, ChildStdin, Command};
-
-/// A workload's private directory (0700), `workloads/<workload-id>/`. It holds the proxy socket and the
-/// mediator socket. Dropping it removes the directory and whatever is still in it.
-#[derive(Debug)]
-pub struct WorkloadDir(PathBuf);
+use tokio::time::{self, Instant};
 
 /// Longest path `sockaddr_un` can hold on macOS, including the final NUL.
 const SUN_PATH_MAX: usize = 104;
 
+/// A workload's private directory (0700), `workloads/<workload-id>/`.
+///
+/// It holds the proxy socket and the mediator socket. Dropping it removes the directory and
+/// whatever is still in it.
+#[derive(Debug)]
+pub struct WorkloadDir(PathBuf);
+
 impl WorkloadDir {
-    /// Created as `parent/<id>` (the state root's `workloads/`). Fails if it already exists or if a
-    /// socket path inside it would not fit in `sockaddr_un`.
+    /// Creates `parent/<id>` (the state root's `workloads/`).
+    ///
+    /// # Errors
+    ///
+    /// Returns an error if the directory already exists or creating it fails, or if a socket path
+    /// inside it would not fit in `sockaddr_un`.
     pub fn create(parent: &Path, id: &str) -> Result<Self> {
         let path = parent.join(id);
         let longest = path.join("proxy.sock");
         if longest.as_os_str().len() >= SUN_PATH_MAX {
             bail!("{} is too long for a Unix socket path", longest.display());
         }
-        std::fs::DirBuilder::new().mode(0o700).create(&path)?;
+        DirBuilder::new().mode(0o700).create(&path)?;
         Ok(Self(path))
-    }
-
-    /// The container's CONNECT proxy socket, mounted at `/run/avirt/proxy.sock`.
-    #[must_use]
-    pub fn proxy_socket(&self) -> PathBuf {
-        self.0.join("proxy.sock")
     }
 
     /// The container's workload connection socket, mounted at `/run/avirt/mediator.sock`.
@@ -46,43 +50,80 @@ impl WorkloadDir {
         self.0.join("mediator.sock")
     }
 
+    /// The directory's path.
     #[must_use]
     pub fn path(&self) -> &Path {
         &self.0
+    }
+
+    /// The container's CONNECT proxy socket, mounted at `/run/avirt/proxy.sock`.
+    #[must_use]
+    pub fn proxy_socket(&self) -> PathBuf {
+        self.0.join("proxy.sock")
     }
 }
 
 impl Drop for WorkloadDir {
     fn drop(&mut self) {
-        let _ = std::fs::remove_dir_all(&self.0);
+        drop(fs::remove_dir_all(&self.0));
     }
 }
 
-/// A running `avirtmediatord`. Never write to its stdin. Closing it (or avirthostd dying)
-/// shuts it down.
+/// A running `avirtmediatord`.
+///
+/// Never write to its stdin. Closing it (or avirthostd dying) shuts it down.
 #[derive(Debug)]
 pub struct Proxy {
+    /// The mediator process.
     child: Child,
+    /// The mediator's stdin, held open until `stop`.
     stdin: Option<ChildStdin>,
 }
 
+/// What [`Proxy::spawn`] needs to start one workload's mediator.
+#[derive(Clone, Copy, Debug)]
+pub struct ProxySpec<'spec> {
+    /// The `avirtmediatord` binary.
+    pub bin: &'spec Path,
+    /// The workload's private directory, which holds the mediator's sockets.
+    pub dir: &'spec WorkloadDir,
+    /// avirthostd's own socket, which the mediator dials.
+    pub hostd_sock: &'spec Path,
+    /// The workload's identifier.
+    pub id: &'spec str,
+    /// Where the mediator's stderr goes. The file must not exist yet.
+    pub log_path: &'spec Path,
+    /// The secret the mediator presents in its connection preambles.
+    pub secret: &'spec str,
+}
+
 impl Proxy {
-    /// Starts the mediator for `dir` and waits up to 3 s for both sockets to accept
-    /// connections. The sockets must exist before avirthostd starts the container, because the runtime
-    /// only mounts a socket file that's already there.
-    pub async fn spawn(
-        bin: &Path,
-        id: &str,
-        dir: &WorkloadDir,
-        hostd_sock: &Path,
-        secret: &str,
-        log_path: &Path,
-    ) -> Result<Self> {
+    /// Resolves when the mediator exits on its own, which is a failure while a workload runs.
+    ///
+    /// # Errors
+    ///
+    /// Returns an error if waiting on the process fails.
+    pub async fn exited(&mut self) -> io::Result<ExitStatus> {
+        self.child.wait().await
+    }
+
+    /// Starts the mediator for the spec's directory and waits up to 3 s for both sockets to
+    /// accept connections.
+    ///
+    /// The sockets must exist before avirthostd starts the container, because the runtime only
+    /// mounts a socket file that's already there.
+    ///
+    /// # Errors
+    ///
+    /// Returns an error if the log file already exists, the mediator won't start, or it exits or
+    /// times out before both sockets accept connections.
+    pub async fn spawn(spec: &ProxySpec<'_>) -> Result<Self> {
+        let ProxySpec { bin, dir, hostd_sock, id, log_path, secret } = *spec;
         let stderr = OpenOptions::new().create_new(true).append(true).mode(0o600).open(log_path)?;
         let mut child = Command::new(bin)
             // Only what it needs: no credentials from avirthostd's environment.
             .env_clear()
-            .envs(["PATH", "HOME", "TMPDIR"].iter().filter_map(|n| std::env::var_os(n).map(|v| (*n, v))))
+            .envs(["PATH", "HOME", "TMPDIR"].iter().filter_map(|name| env::var_os(name).map(|value| (*name, value))))
             .env("AVIRT_MEDIATOR_SECRET", secret)
             .arg("--dir")
             .arg(dir.path())
@@ -100,34 +141,29 @@ impl Proxy {
         let stdin = child.stdin.take();
         let mut proxy = Self { child, stdin };
 
-        let deadline = tokio::time::Instant::now() + Duration::from_secs(3);
+        let started = Instant::now();
         loop {
             // A probe connects and closes without a byte. The mediator ignores it.
-            let ready = tokio::net::UnixStream::connect(dir.proxy_socket()).await.is_ok()
-                && tokio::net::UnixStream::connect(dir.mediator_socket()).await.is_ok();
+            let ready = UnixStream::connect(dir.proxy_socket()).await.is_ok()
+                && UnixStream::connect(dir.mediator_socket()).await.is_ok();
             if ready {
                 return Ok(proxy);
             }
-            if proxy.child.try_wait()?.is_some() || tokio::time::Instant::now() >= deadline {
+            if proxy.child.try_wait()?.is_some() || started.elapsed() >= Duration::from_secs(3) {
                 proxy.stop().await;
                 bail!("the mediator did not start (see {})", log_path.display());
             }
-            tokio::time::sleep(Duration::from_millis(50)).await;
+            time::sleep(Duration::from_millis(50)).await;
         }
-    }
-
-    /// Resolves when the mediator exits on its own, which is a failure while a workload runs.
-    pub async fn exited(&mut self) -> std::io::Result<ExitStatus> {
-        self.child.wait().await
     }
 
     /// Closes stdin and waits for the mediator to flush its events and exit (5 s cap, then
     /// kills it).
     pub async fn stop(mut self) {
         drop(self.stdin.take());
-        if tokio::time::timeout(Duration::from_secs(5), self.child.wait()).await.is_err() {
-            let _ = self.child.kill().await;
-            let _ = self.child.wait().await;
+        if time::timeout(Duration::from_secs(5), self.child.wait()).await.is_err() {
+            drop(self.child.kill().await);
+            drop(self.child.wait().await);
         }
     }
 }

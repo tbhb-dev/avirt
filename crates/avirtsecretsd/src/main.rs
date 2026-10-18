@@ -1,6 +1,9 @@
 //! The secrets broker fetches secrets from providers and serves the credential broker API.
 
-fn main() -> std::process::ExitCode {
+use std::process::ExitCode;
+
+/// Prints a stub notice on stderr and exits with failure.
+fn main() -> ExitCode {
     eprintln!("avirtsecretsd: not implemented");
-    std::process::ExitCode::FAILURE
+    ExitCode::FAILURE
 }

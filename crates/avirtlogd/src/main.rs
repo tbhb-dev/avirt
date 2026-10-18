@@ -1,6 +1,9 @@
 //! The log collector, which gathers workload stdout and stderr, transforms it and sends it to avirtoteld as OpenTelemetry Logs.
 
-fn main() -> std::process::ExitCode {
+use std::process::ExitCode;
+
+/// Prints a stub notice on stderr and exits with failure.
+fn main() -> ExitCode {
     eprintln!("avirtlogd: not implemented");
-    std::process::ExitCode::FAILURE
+    ExitCode::FAILURE
 }

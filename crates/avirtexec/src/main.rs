@@ -1,6 +1,9 @@
 //! A stub for the workload process that runs commands.
 
-fn main() -> std::process::ExitCode {
+use std::process::ExitCode;
+
+/// Prints a stub notice on stderr and exits with failure.
+fn main() -> ExitCode {
     eprintln!("avirtexec: not implemented");
-    std::process::ExitCode::FAILURE
+    ExitCode::FAILURE
 }

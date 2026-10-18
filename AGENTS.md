@@ -67,6 +67,8 @@ mise run launch claude "Reply with the word pong" -- --follow     # avirt launch
 
 ### Rust toolchain
 
+Any lint in the `all` and `pedantic` groups fails the build, and so does each nursery, cargo and restriction lint that `Cargo.toml` lists. The comment that precedes that list says why each missing lint is missing. Thresholds live in `clippy.toml`. Fix a finding in the code. The tree has no lint attributes and no per-lint exceptions, so a new one is a defect.
+
 ```bash
 mise run lint-rust       # clippy, all targets, warnings denied
 mise run lint-rustdoc    # rustdoc over private items, warnings denied
