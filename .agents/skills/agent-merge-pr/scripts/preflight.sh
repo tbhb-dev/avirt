@@ -91,6 +91,27 @@ else
   echo "BROKEN: these settings are empty or aren't patterns grep can read, and merge.sh refuses: $(printf '%s' "$bad_patterns" | tr '\n' ' ')"
 fi
 
+section "loosened gates"
+loosening=$state/merge.loosening
+if am_loosening "$base" "$head" "$loosening"; then
+  if [ -s "$loosening" ]; then
+    sed 's/^/  /' "$loosening"
+    owner_login=$(as_conf owner_login tbhb)
+    if [ -z "$owner_login" ]; then
+      echo "owner_login: EMPTY. merge.sh refuses."
+    elif owner_verdict=$(am_reviewer_verdict "$pr" "$head" "$owner_login"); then
+      if [ "$owner_verdict" = ok ]; then echo "$owner_login: approved the current head, so the loosened lines can merge"; else echo "$owner_login: NOT APPROVED, $owner_verdict. merge.sh refuses."; fi
+    else
+      echo "$owner_login: UNREADABLE, the reviews couldn't be read. merge.sh refuses."
+    fi
+  else
+    echo "none found"
+  fi
+else
+  echo "UNREADABLE: the diff couldn't be read, or loosening_markers or gate_config_paths is empty. merge.sh refuses."
+fi
+[ ! -f "$loosening" ] || unlink "$loosening"
+
 section "reviewer approval"
 reviewer=$(as_conf required_reviewer)
 if [ -z "$reviewer" ]; then

@@ -979,6 +979,60 @@ hook_command() {
   [[ $output == *"required_reviewer: NOT CONFIGURED"* ]] || false
 }
 
+@test "the owner's approval on the head lets a loosened gate merge, and the report lists the lines" {
+  advance_feature tools/check.py 'import os  # noqa: F401\n'
+  more_review tbhb APPROVED @head
+  stamped
+  merge
+  [ "$status" -eq 0 ]
+  [ "$(merged_calls)" = 1 ]
+  [[ $output == *"Loosened gates, approved by tbhb on the head: tools/check.py: adds a suppression"* ]] || false
+  run grep -F -- "--kind fixed" "$tmp/mail.calls"
+  [[ $output == *"Loosened gates, approved by tbhb on the head"* ]] || false
+}
+
+@test "an owner approval of an older head does not clear a loosened gate" {
+  advance_feature tools/check.py 'import os  # noqa: F401\n'
+  more_review tbhb APPROVED 0123456789abcdef0123456789abcdef01234567
+  stamped
+  merge
+  [ "$status" -eq 1 ]
+  [[ $output == *"needs the approval of tbhb on its current head"* ]] || false
+  [[ $output == *"not the current head"* ]] || false
+  [ "$(merged_calls)" = 0 ]
+}
+
+@test "a later owner change request does not clear a loosened gate" {
+  advance_feature tools/check.py 'import os  # noqa: F401\n'
+  more_review tbhb APPROVED @head
+  more_review tbhb CHANGES_REQUESTED @head
+  stamped
+  merge
+  [ "$status" -eq 1 ]
+  [[ $output == *"requests changes"* ]] || false
+  [ "$(merged_calls)" = 0 ]
+}
+
+@test "no owner review leaves a loosened gate refused" {
+  advance_feature tools/check.py 'import os  # noqa: F401\n'
+  stamped
+  merge
+  [ "$status" -eq 1 ]
+  [[ $output == *"no approving or blocking review from tbhb"* ]] || false
+}
+
+@test "a repository settings file cannot name the owner account" {
+  mkdir -p "$tmp/skills"
+  cp -R "$scripts/.." "$tmp/skills/agent-merge-pr"
+  cp -R "$scripts/../../agent-commit" "$tmp/skills/agent-commit"
+  printf 'owner_login = someone-else\n' >>"$tmp/skills/agent-commit/agent-skills.conf"
+  unset AGENT_SKILLS_OWNER_LOGIN
+  run bash -c ". '$tmp/skills/agent-merge-pr/scripts/common.sh'; as_conf owner_login tbhb"
+  [ "$output" = tbhb ]
+  AGENT_SKILLS_OWNER_LOGIN=from-env run bash -c ". '$tmp/skills/agent-merge-pr/scripts/common.sh'; as_conf owner_login tbhb"
+  [ "$output" = from-env ]
+}
+
 @test "an ordinary change has nothing a loosening check reads" {
   advance_feature tools/check.py 'import os\nprint(os.sep)\n'
   stamped

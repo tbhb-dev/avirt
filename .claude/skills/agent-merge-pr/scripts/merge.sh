@@ -172,14 +172,23 @@ case "$golden_status" in
 *) as_die "golden_paths isn't a pattern grep can read: $golden" ;;
 esac
 
-# A change that loosens a gate goes to the owner. This catches what a script can see in the diff; the author
-# and the reviewers flag the rest.
+# A change that loosens a gate needs the owner's approval on the current
+# head. This catches what a script can see in the diff, and the author and
+# the reviewers flag the rest.
 loosening=$state/merge.loosening
 am_loosening "$base" "$expected" "$loosening" || as_die "couldn't read the diff of #$pr for gate changes, or loosening_markers or gate_config_paths is empty"
+loosen_note=""
 if [ -s "$loosening" ]; then
   cat "$loosening" >&2
-  as_mail blocker "$pr" "needs-owner: #$pr in $repo loosens a gate, so the owner reviews and merges it. Nothing was merged. $(tr '\n' ' ' <"$loosening")"
-  as_die "#$pr loosens a gate, as listed above. The owner reviews and merges it. Nothing was merged."
+  owner_login=$(as_conf owner_login tbhb)
+  owner_verdict="owner_login is empty"
+  [ -z "$owner_login" ] || owner_verdict=$(am_reviewer_verdict "$pr" "$expected" "$owner_login") || as_die "couldn't read the reviews of #$pr"
+  if [ "$owner_verdict" != ok ]; then
+    as_mail blocker "$pr" "needs-owner: #$pr in $repo loosens a gate and lacks the owner's approval on its head ($owner_verdict). Nothing was merged. $(tr '\n' ' ' <"$loosening")"
+    as_die "#$pr loosens a gate, as listed above, and needs the approval of ${owner_login:-the owner} on its current head: $owner_verdict. Nothing was merged."
+  fi
+  loosen_note="Loosened gates, approved by $owner_login on the head: $(tr '\n' ' ' <"$loosening")"
+  echo "$loosen_note"
 fi
 # Owner paths don't stop a merge. The reviewer's approval gates it, and the
 # report lists the owner paths the pull request changes.
@@ -392,5 +401,6 @@ _as_forget merge checks paths body lint message delete labels loosening verdicts
 
 report="merged #$pr in $repo as $oid.$branch_note"
 [ -z "$owner_note" ] || report="$report $owner_note"
+[ -z "$loosen_note" ] || report="$report $loosen_note"
 as_mail fixed "$pr" "$report"
 echo "$report"
