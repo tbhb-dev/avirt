@@ -65,6 +65,8 @@ const MAX_HEAD: usize = 8 * 1024;
 /// The number of connections each service handles at once.
 const MAX_CONNECTIONS: usize = 128;
 
+/// Set when the shutdown watch can't register its signal handlers. The mediator then exits nonzero.
+static SIGNALS_FAILED: AtomicBool = AtomicBool::new(false);
 /// Concurrent connections each service handles. The rest wait.
 static LIMIT: Semaphore = Semaphore::const_new(MAX_CONNECTIONS);
 /// Tunnels that passed the policy and haven't emitted their event yet.
@@ -253,9 +255,18 @@ impl ServerApp for ConnectApp {
 #[async_trait]
 impl ShutdownSignalWatch for Shutdown {
     async fn recv(&self) -> ShutdownSignal {
-        let (Ok(mut sigint), Ok(mut sigterm)) = (signal(SignalKind::interrupt()), signal(SignalKind::terminate()))
-        else {
-            // Without signal handlers nothing could stop the mediator later, so it stops now.
+        let interrupt = signal(SignalKind::interrupt());
+        let terminate = signal(SignalKind::terminate());
+        if let Err(err) = &interrupt {
+            eprintln!("cannot register the SIGINT handler: {err}");
+        }
+        if let Err(err) = &terminate {
+            eprintln!("cannot register the SIGTERM handler: {err}");
+        }
+        let (Ok(mut sigint), Ok(mut sigterm)) = (interrupt, terminate) else {
+            // Without signal handlers nothing could stop the mediator later, so it stops now and
+            // `main` exits with a failure.
+            SIGNALS_FAILED.store(true, Ordering::Release);
             return ShutdownSignal::FastShutdown;
         };
         tokio::select! {
@@ -383,7 +394,7 @@ fn main() -> ExitCode {
     flush_open();
     // Every event is on avirthostd's socket before the process exits.
     events::close();
-    ExitCode::SUCCESS
+    if SIGNALS_FAILED.load(Ordering::Acquire) { ExitCode::FAILURE } else { ExitCode::SUCCESS }
 }
 
 /// Opens the tunnel: sends the 200 reply and forwards bytes that arrived with the CONNECT.
