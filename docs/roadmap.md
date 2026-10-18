@@ -18,9 +18,23 @@ Each phase is one commit that passes `mise run check`, its own checklist, and th
 
 # Regression suite
 
+## Status: implemented
+
+Every phase runs this suite on every runtime it touches. The bypass checks run inside the agent's own process tree, by asking the agent to run a script, because a process started from outside the agent's tree isn't under its restrictions. Each check must fail, and fail fast:
+
+- direct TCP (`curl --noproxy '*'`, bash `/dev/tcp`), UDP, DNS (`getent`, a Node resolver aimed at 1.1.1.1 and at the proxy host) and IPv6. Once the workload DNS stub exists, `getent` of an allowed name resolves through it and appears as a `dns` event, a name the policy denies gets `NXDOMAIN`, and DNS aimed at any other address still fails.
+- Node `fetch` with every proxy variable unset.
+- `/proc/self/status` shows capabilities at 0 and `NoNewPrivs: 1`.
+- `su`, `mount` and the setuid binaries gain nothing, and `unshare -Urn` gets an empty network namespace.
+- opening the workload's sockets directly gives `EACCES` (they're listed as `root:root 0600`, or owned by a per-process UID with mode 0600 once those processes exist), and no avirthostd socket exists anywhere in the sandbox container's filesystem.
+- `/proc/1/fd`, `/proc/1/mem` and `/proc/1/environ` are unreadable, and the kernel refuses `kill -9 1`.
+- CONNECT to `127.0.0.1`, `localhost`, `[::1]` and the host's own addresses gets 403 `private-dest`, and an absolute-URI `GET` gets 501 `plain-http`.
+
+## Status: planned
+
 Run the applicable checks on each affected runtime. Prompt the agent to run restriction checks from its own process tree. Run boundary checks as unrestricted root inside the guest. Include runtime processes and inherited descriptors.
 
-## Network checks
+### Network checks
 
 - Permitted TCP, UDP, ICMP echo and DNS succeed over IPv4 and IPv6. Denied flows produce events, and no flow leaves except through the mediator and edge. Node fetch and other clients work without proxy variables.
 - DNS to any address on TCP or UDP port 53 reaches `/dns`. Denied names get `NXDOMAIN`. Allowed names get synthetic answers. avirtmediatord refuses unknown synthetic addresses. Table exhaustion refuses allocation, and mediator restart preserves the table without address reuse.
