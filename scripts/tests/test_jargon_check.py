@@ -268,6 +268,17 @@ def test_out_of_scope_files_are_ignored(tmp_path, monkeypatch):
     assert findings == []
 
 
+def test_local_skills_are_scanned(tmp_path, monkeypatch):
+    findings, _ = terms(tmp_path, monkeypatch, {".agents/skills/example/SKILL.md": TWICE})
+    assert names(findings) == ["drift budget"]
+    assert all(f.path == ".agents/skills/example/SKILL.md" for f in findings)
+
+
+def test_deployed_skill_directory_is_ignored(tmp_path, monkeypatch):
+    findings, _ = terms(tmp_path, monkeypatch, {".claude/skills/example/SKILL.md": TWICE})
+    assert findings == []
+
+
 def test_exit_status(tmp_path, monkeypatch, capsys):
     make_repo(tmp_path, monkeypatch, BASE)
     assert jc.main(["--base", "main"]) == 0

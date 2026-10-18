@@ -247,7 +247,7 @@ def in_scope(path: str, deployed: set[str]) -> bool:
         return True
     if len(parts) == 1:
         return True
-    return parts[:2] == [".claude", "skills"]
+    return parts[:2] == [".agents", "skills"]
 
 
 def tree_files(ref: str) -> list[str]:
