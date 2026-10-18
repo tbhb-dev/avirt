@@ -1,4 +1,4 @@
-//! The MCP gateway for the host. It doesn't provide the service yet.
+//! A stub for the host MCP gateway that proxies workload tool calls.
 
 fn main() -> std::process::ExitCode {
     eprintln!("avirtmcpgwd: not implemented");

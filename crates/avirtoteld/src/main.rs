@@ -1,4 +1,4 @@
-//! The OpenTelemetry Collector for the host. It doesn't collect data yet.
+//! A stub for the host daemon that collects OpenTelemetry data.
 
 fn main() -> std::process::ExitCode {
     eprintln!("avirtoteld: not implemented");
