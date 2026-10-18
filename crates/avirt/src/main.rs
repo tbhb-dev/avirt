@@ -1,4 +1,4 @@
-//! `avirt launch` asks a running avirthostd to start an actor.
+//! `avirt launch` asks a running avirthostd to start a workload.
 
 use std::fs::File;
 use std::io::{Read, Seek, SeekFrom};
@@ -22,7 +22,7 @@ struct Cli {
 
 #[derive(Subcommand)]
 enum Command {
-    /// Ask a running avirthostd to start an actor.
+    /// Ask a running avirthostd to start a workload.
     Launch(Launch),
 }
 
@@ -40,7 +40,7 @@ struct Launch {
     /// Host directory to mount at /workspace in the container
     #[arg(long)]
     cwd: Option<PathBuf>,
-    /// Print the actor log until the container exits
+    /// Print the workload log until the container exits
     #[arg(short, long)]
     follow: bool,
     #[arg(long, env = "PORT", default_value_t = DEFAULT_PORT)]
@@ -77,7 +77,7 @@ async fn launch(args: Launch) -> Result<ExitCode> {
     }
     let reply: LaunchResponse = serde_json::from_value(reply).context("unexpected launch response")?;
     let log_path = PathBuf::from(&reply.log_path);
-    println!("actor {}", reply.actor_id);
+    println!("workload {}", reply.workload_id);
     println!("log     {}", log_path.display());
     if args.follow {
         follow(&log_path, &url).await?;
@@ -86,7 +86,7 @@ async fn launch(args: Launch) -> Result<ExitCode> {
 }
 
 /// Polls the log and prints new lines until avirthostd writes `container_exit`, which is
-/// always the last event of an actor. If the log stops growing and avirthostd's control API
+/// always the last event of a workload. If the log stops growing and avirthostd's control API
 /// stops answering, avirthostd is gone and the follow ends with an error instead of waiting
 /// forever.
 async fn follow(path: &std::path::Path, url: &str) -> Result<()> {

@@ -1,4 +1,4 @@
-//! Supervision checks with a fake Envoy and avirthostd, without actors or workloads.
+//! Supervision checks with a fake Envoy and avirthostd, without workloads or workloads.
 use std::fs;
 use std::io::{BufRead, BufReader};
 use std::os::unix::fs::PermissionsExt;
@@ -114,7 +114,7 @@ impl Harness {
             .arg(&dir.0)
             .arg("--hostd-sock")
             .arg(&socket)
-            .args(["--actor", "test"])
+            .args(["--workload", "test"])
             .env("AVIRT_MEDIATOR_SECRET", "test-secret")
             .env_remove("AVIRT_PROXY_ENGINE")
             .env_remove("AVIRT_ENVOY_BIN")

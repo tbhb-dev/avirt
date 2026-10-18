@@ -8,14 +8,14 @@ use agent_client_protocol::schema::v1::{
     SelectedPermissionOutcome, SessionNotification, SessionUpdate,
 };
 use agent_client_protocol::{Agent, Client, ConnectionTo, Error, Responder};
-use avirt_core::harness::{self, Actor, Spec, pick_option};
+use avirt_core::harness::{self, Spec, Workload, pick_option};
 use avirt_core::uplink::Uplink;
 use serde_json::json;
 
 const NAME: &str = "codex-container";
 
 pub async fn run() -> ExitCode {
-    // CODEX_HOME points at the actor's mounted credentials and is inherited by the adapter.
+    // CODEX_HOME points at the workload's mounted credentials and is inherited by the adapter.
     harness::run(Spec { agent: "codex", agent_command: "codex-acp", agent_env: &[] }, converse).await
 }
 
@@ -51,8 +51,8 @@ fn show(update: &SessionUpdate) {
     }
 }
 
-async fn converse(actor: Actor) -> Result<String, Error> {
-    let Actor { agent, uplink, prompt, cwd } = actor;
+async fn converse(workload: Workload) -> Result<String, Error> {
+    let Workload { agent, uplink, prompt, cwd } = workload;
     let permission_uplink = uplink.clone();
     let init_uplink = uplink.clone();
 

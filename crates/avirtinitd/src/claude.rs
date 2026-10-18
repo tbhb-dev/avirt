@@ -3,7 +3,7 @@ use std::process::ExitCode;
 
 use agent_client_protocol::schema::{ProtocolVersion, v2};
 use agent_client_protocol::{Agent, Client, Error, Responder, V2ConnectionTo};
-use avirt_core::harness::{self, Actor, Spec, pick_option};
+use avirt_core::harness::{self, Spec, Workload, pick_option};
 use avirt_core::uplink::Uplink;
 use serde_json::{Value, json};
 use tokio::sync::mpsc::unbounded_channel;
@@ -52,8 +52,8 @@ fn show(update: &v2::SessionUpdate) {
     }
 }
 
-async fn converse(actor: Actor) -> Result<String, Error> {
-    let Actor { agent, uplink, prompt, cwd } = actor;
+async fn converse(workload: Workload) -> Result<String, Error> {
+    let Workload { agent, uplink, prompt, cwd } = workload;
     let (updates_tx, mut updates) = unbounded_channel::<v2::UpdateSessionNotification>();
     let permission_uplink = uplink.clone();
 

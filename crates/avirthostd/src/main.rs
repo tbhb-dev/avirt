@@ -18,7 +18,7 @@ struct Args {
     port: u16,
     #[arg(long, env = "LOGS_DIR", default_value = "logs")]
     logs_dir: PathBuf,
-    /// The per-actor mediator [default: avirtmediatord next to this binary]
+    /// The per-workload mediator [default: avirtmediatord next to this binary]
     #[arg(long, env = "AVIRT_MEDIATOR_BIN")]
     mediator_bin: Option<PathBuf>,
 }

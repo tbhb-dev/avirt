@@ -5,7 +5,7 @@ use serde_json::Value;
 
 /// Loopback port avirthostd listens on by default.
 pub const DEFAULT_PORT: u16 = 8787;
-/// `POST` path that starts an actor.
+/// `POST` path that starts a workload.
 pub const LAUNCH_PATH: &str = "/launch";
 /// `POST` path that answers when avirthostd is up.
 pub const HEALTH_PATH: &str = "/health";
@@ -31,12 +31,12 @@ pub struct LaunchRequest {
 #[derive(Debug, Serialize, Deserialize)]
 #[serde(rename_all = "camelCase")]
 pub struct LaunchResponse {
-    pub actor_id: String,
+    pub workload_id: String,
     pub log_path: String,
 }
 
 /// Whether a log line is the `container_exit` meta event, which is always the last event of an
-/// actor. Each line is parsed as JSON; raw text is never pattern-matched.
+/// workload. Each line is parsed as JSON; raw text is never pattern-matched.
 #[must_use]
 pub fn is_terminal_event(line: &str) -> bool {
     serde_json::from_str::<Value>(line).is_ok_and(|e| e["dir"] == "meta" && e["msg"]["event"] == "container_exit")

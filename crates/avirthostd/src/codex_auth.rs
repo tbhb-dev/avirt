@@ -1,5 +1,5 @@
 //! Codex keeps its login in `auth.json`. `ChatGPT` logins carry a refresh token that rotates when
-//! Codex refreshes, so a container that refreshes can invalidate the host's copy. Each actor
+//! Codex refreshes, so a container that refreshes can invalidate the host's copy. Each workload
 //! gets a private copy in a temp `CODEX_HOME`; afterwards a refreshed copy is written back.
 //!
 //! The agent has write access to the mounted directory, so everything read back from it is
@@ -19,7 +19,7 @@ use chrono::{DateTime, FixedOffset};
 use serde_json::{Value, json};
 use tempfile::TempDir;
 
-/// Upper bound on the size of an actor's `auth.json`; real files are a few KiB.
+/// Upper bound on the size of a workload's `auth.json`; real files are a few KiB.
 const MAX_AUTH_BYTES: u64 = 1 << 20;
 
 pub struct HostAuth {
@@ -105,14 +105,14 @@ impl HostAuth {
             .permissions(fs::Permissions::from_mode(0o700))
             .tempdir_in(scratch)?;
         let mount = format!("{}:/codex-home", home.path().display());
-        let actor_file = home.path().join("auth.json");
-        let mut file = OpenOptions::new().write(true).create_new(true).mode(0o600).open(&actor_file)?;
+        let workload_file = home.path().join("auth.json");
+        let mut file = OpenOptions::new().write(true).create_new(true).mode(0o600).open(&workload_file)?;
         file.write_all(&seed)?;
         drop(file);
         // Owns the directory and the seed; if setup fails after this point, dropping it still
         // writes back and removes the directory, and the seed goes with it.
         let host = self.path.clone();
-        let cleanup = Cleanup::new(move || Some(finish(&host, home, &actor_file, &seed)));
+        let cleanup = Cleanup::new(move || Some(finish(&host, home, &workload_file, &seed)));
         Ok(Prepared {
             args: ["-v", &mount, "-e", "INITIAL_AGENT_MODE", "-e", "CODEX_HOME=/codex-home"].map(Into::into).to_vec(),
             inherit: vec!["INITIAL_AGENT_MODE"],
@@ -121,9 +121,9 @@ impl HostAuth {
     }
 }
 
-/// Write-back, then removal of the actor directory. Returns the `auth_writeback` log event.
-fn finish(host: &Path, home: TempDir, actor_file: &Path, seed: &[u8]) -> Value {
-    let result = match write_back(host, actor_file, seed) {
+/// Write-back, then removal of the workload directory. Returns the `auth_writeback` log event.
+fn finish(host: &Path, home: TempDir, workload_file: &Path, seed: &[u8]) -> Value {
+    let result = match write_back(host, workload_file, seed) {
         Ok(reason) => reason.to_owned(),
         Err(err) => format!("failed: {}", err.kind()),
     };
@@ -135,9 +135,9 @@ fn finish(host: &Path, home: TempDir, actor_file: &Path, seed: &[u8]) -> Value {
     json!({ "event": "auth_writeback", "result": result })
 }
 
-/// Reads the actor's `auth.json` without following symlinks and only if it is a small regular
+/// Reads the workload's `auth.json` without following symlinks and only if it is a small regular
 /// file. `Ok(None)` means there is no file.
-fn read_actor_file(path: &Path) -> io::Result<Option<Result<Vec<u8>, &'static str>>> {
+fn read_workload_file(path: &Path) -> io::Result<Option<Result<Vec<u8>, &'static str>>> {
     // O_NONBLOCK keeps a planted FIFO from hanging the open; O_NOFOLLOW refuses a symlink.
     let opened = OpenOptions::new().read(true).custom_flags(libc::O_NOFOLLOW | libc::O_NONBLOCK).open(path);
     let file = match opened {
@@ -159,11 +159,11 @@ fn read_actor_file(path: &Path) -> io::Result<Option<Result<Vec<u8>, &'static st
     Ok(Some(Ok(bytes)))
 }
 
-/// Copies the actor's `auth.json` over the host's only if Codex refreshed it there and it is
+/// Copies the workload's `auth.json` over the host's only if Codex refreshed it there and it is
 /// strictly newer than the host's current file. Returns a fixed reason string.
-fn write_back(host: &Path, actor_file: &Path, seed: &[u8]) -> io::Result<&'static str> {
-    let after = match read_actor_file(actor_file)? {
-        None => return Ok("no auth.json in actor home"),
+fn write_back(host: &Path, workload_file: &Path, seed: &[u8]) -> io::Result<&'static str> {
+    let after = match read_workload_file(workload_file)? {
+        None => return Ok("no auth.json in workload home"),
         Some(Err(reason)) => return Ok(reason),
         Some(Ok(bytes)) => bytes,
     };
@@ -190,8 +190,8 @@ fn write_back(host: &Path, actor_file: &Path, seed: &[u8]) -> io::Result<&'stati
         return Ok("refused: last_refresh in the future");
     }
 
-    // One writer at a time across actors and avirthostd processes: the compare and the replace below must
-    // not interleave with another actor's.
+    // One writer at a time across workloads and avirthostd processes: the compare and the replace below must
+    // not interleave with another workload's.
     let dir = host.parent().unwrap_or_else(|| Path::new("."));
     let lock =
         OpenOptions::new().write(true).create(true).truncate(false).mode(0o600).open(dir.join("auth.json.lock"))?;
@@ -258,16 +258,16 @@ mod tests {
     struct Fixture {
         _dir: TempDir,
         host: PathBuf,
-        actor: PathBuf,
+        workload: PathBuf,
     }
 
-    fn fixture(host_contents: &[u8], actor_contents: &[u8]) -> Fixture {
+    fn fixture(host_contents: &[u8], workload_contents: &[u8]) -> Fixture {
         let dir = tempfile::tempdir().unwrap();
         let host = dir.path().join("auth.json");
-        let actor = dir.path().join("actor-auth.json");
+        let workload = dir.path().join("workload-auth.json");
         fs::write(&host, host_contents).unwrap();
-        fs::write(&actor, actor_contents).unwrap();
-        Fixture { _dir: dir, host, actor }
+        fs::write(&workload, workload_contents).unwrap();
+        Fixture { _dir: dir, host, workload }
     }
 
     const OLD: &str = "2026-10-01T00:00:00Z";
@@ -275,7 +275,7 @@ mod tests {
     const NEWER: &str = "2026-10-03T00:00:00Z";
 
     #[test]
-    fn actor_home_is_private_and_removed_by_cleanup() {
+    fn workload_home_is_private_and_removed_by_cleanup() {
         let seed = auth("chatgpt", OLD);
         let f = fixture(&seed, &seed);
         let mut prepared = HostAuth { path: f.host.clone() }.prepare(f.host.parent().unwrap()).unwrap();
@@ -290,17 +290,17 @@ mod tests {
     }
 
     #[test]
-    fn newer_actor_copy_replaces_host_and_backup_is_kept_once() {
+    fn newer_workload_copy_replaces_host_and_backup_is_kept_once() {
         let seed = auth("chatgpt", OLD);
         let f = fixture(&seed, &auth("chatgpt", NEW));
-        assert_eq!(write_back(&f.host, &f.actor, &seed).unwrap(), "wrote refreshed auth.json back to host");
+        assert_eq!(write_back(&f.host, &f.workload, &seed).unwrap(), "wrote refreshed auth.json back to host");
         assert_eq!(fs::read(&f.host).unwrap(), auth("chatgpt", NEW));
         let backup = f.host.with_file_name("auth.json.pre-avirt-backup");
         assert_eq!(fs::read(&backup).unwrap(), seed);
 
         // A second rotation must not overwrite the first backup.
-        fs::write(&f.actor, auth("chatgpt", NEWER)).unwrap();
-        write_back(&f.host, &f.actor, &seed).unwrap();
+        fs::write(&f.workload, auth("chatgpt", NEWER)).unwrap();
+        write_back(&f.host, &f.workload, &seed).unwrap();
         assert_eq!(fs::read(&f.host).unwrap(), auth("chatgpt", NEWER));
         assert_eq!(fs::read(&backup).unwrap(), seed);
     }
@@ -309,7 +309,7 @@ mod tests {
     fn host_that_moved_on_is_not_clobbered() {
         let seed = auth("chatgpt", OLD);
         let f = fixture(&auth("chatgpt", NEWER), &auth("chatgpt", NEW));
-        assert_eq!(write_back(&f.host, &f.actor, &seed).unwrap(), "host newer");
+        assert_eq!(write_back(&f.host, &f.workload, &seed).unwrap(), "host newer");
         assert_eq!(fs::read(&f.host).unwrap(), auth("chatgpt", NEWER));
     }
 
@@ -317,11 +317,11 @@ mod tests {
     fn unchanged_and_invalid_copies_are_left_alone() {
         let seed = auth("chatgpt", OLD);
         let f = fixture(&seed, &seed);
-        assert_eq!(write_back(&f.host, &f.actor, &seed).unwrap(), "unchanged");
-        fs::write(&f.actor, b"not json with secret").unwrap();
-        assert_eq!(write_back(&f.host, &f.actor, &seed).unwrap(), "refused: invalid auth.json");
-        fs::write(&f.actor, auth("apikey", NEW)).unwrap();
-        assert_eq!(write_back(&f.host, &f.actor, &seed).unwrap(), "refused: auth_mode changed");
+        assert_eq!(write_back(&f.host, &f.workload, &seed).unwrap(), "unchanged");
+        fs::write(&f.workload, b"not json with secret").unwrap();
+        assert_eq!(write_back(&f.host, &f.workload, &seed).unwrap(), "refused: invalid auth.json");
+        fs::write(&f.workload, auth("apikey", NEW)).unwrap();
+        assert_eq!(write_back(&f.host, &f.workload, &seed).unwrap(), "refused: auth_mode changed");
         assert_eq!(fs::read(&f.host).unwrap(), seed);
     }
 
@@ -329,21 +329,21 @@ mod tests {
     fn host_switched_login_mode_is_not_clobbered() {
         let seed = auth("chatgpt", OLD);
         let f = fixture(&auth("apikey", OLD), &auth("chatgpt", NEW));
-        assert_eq!(write_back(&f.host, &f.actor, &seed).unwrap(), "refused: host auth.json changed");
+        assert_eq!(write_back(&f.host, &f.workload, &seed).unwrap(), "refused: host auth.json changed");
         assert_eq!(fs::read(&f.host).unwrap(), auth("apikey", OLD));
         assert!(!f.host.with_file_name("auth.json.pre-avirt-backup").exists());
     }
 
     #[test]
-    fn symlink_and_oversize_actor_files_are_refused() {
+    fn symlink_and_oversize_workload_files_are_refused() {
         let seed = auth("chatgpt", OLD);
         let f = fixture(&seed, &auth("chatgpt", NEW));
-        fs::remove_file(&f.actor).unwrap();
-        std::os::unix::fs::symlink(&f.host, &f.actor).unwrap();
-        assert_eq!(write_back(&f.host, &f.actor, &seed).unwrap(), "refused: not a regular file");
-        fs::remove_file(&f.actor).unwrap();
-        fs::write(&f.actor, vec![b' '; 2 << 20]).unwrap();
-        assert_eq!(write_back(&f.host, &f.actor, &seed).unwrap(), "refused: file too large");
+        fs::remove_file(&f.workload).unwrap();
+        std::os::unix::fs::symlink(&f.host, &f.workload).unwrap();
+        assert_eq!(write_back(&f.host, &f.workload, &seed).unwrap(), "refused: not a regular file");
+        fs::remove_file(&f.workload).unwrap();
+        fs::write(&f.workload, vec![b' '; 2 << 20]).unwrap();
+        assert_eq!(write_back(&f.host, &f.workload, &seed).unwrap(), "refused: file too large");
         assert_eq!(fs::read(&f.host).unwrap(), seed);
     }
 
@@ -368,19 +368,19 @@ mod tests {
     fn a_refresh_that_keeps_the_identity_is_accepted() {
         let seed = login(OLD, "acct-1", "user-1");
         let f = fixture(&seed, &login(NEW, "acct-1", "user-1"));
-        assert_eq!(write_back(&f.host, &f.actor, &seed).unwrap(), "wrote refreshed auth.json back to host");
+        assert_eq!(write_back(&f.host, &f.workload, &seed).unwrap(), "wrote refreshed auth.json back to host");
     }
 
     #[test]
     fn a_forged_future_last_refresh_is_refused() {
         let seed = login(OLD, "acct-1", "user-1");
         let f = fixture(&seed, &login("9999-12-31T23:59:59Z", "acct-1", "user-1"));
-        assert_eq!(write_back(&f.host, &f.actor, &seed).unwrap(), "refused: last_refresh in the future");
+        assert_eq!(write_back(&f.host, &f.workload, &seed).unwrap(), "refused: last_refresh in the future");
         assert_eq!(fs::read(&f.host).unwrap(), seed);
         // Slightly ahead of the clock is tolerated.
         let soon = (chrono::Utc::now() + chrono::Duration::minutes(2)).to_rfc3339();
-        fs::write(&f.actor, login(&soon, "acct-1", "user-1")).unwrap();
-        assert_eq!(write_back(&f.host, &f.actor, &seed).unwrap(), "wrote refreshed auth.json back to host");
+        fs::write(&f.workload, login(&soon, "acct-1", "user-1")).unwrap();
+        assert_eq!(write_back(&f.host, &f.workload, &seed).unwrap(), "wrote refreshed auth.json back to host");
     }
 
     #[test]
@@ -388,7 +388,7 @@ mod tests {
         let seed = login(OLD, "acct-1", "user-1");
         for other in [login(NEW, "acct-2", "user-1"), login(NEW, "acct-1", "user-2")] {
             let f = fixture(&seed, &other);
-            assert_eq!(write_back(&f.host, &f.actor, &seed).unwrap(), "refused: account changed");
+            assert_eq!(write_back(&f.host, &f.workload, &seed).unwrap(), "refused: account changed");
             assert_eq!(fs::read(&f.host).unwrap(), seed);
         }
     }
@@ -399,11 +399,11 @@ mod tests {
         let mut changed: Value = serde_json::from_slice(&login(NEW, "acct-1", "user-1")).unwrap();
         changed["extra"] = json!("x");
         let f = fixture(&seed, changed.to_string().as_bytes());
-        assert_eq!(write_back(&f.host, &f.actor, &seed).unwrap(), "refused: auth.json keys changed");
+        assert_eq!(write_back(&f.host, &f.workload, &seed).unwrap(), "refused: auth.json keys changed");
         let mut dropped: Value = serde_json::from_slice(&login(NEW, "acct-1", "user-1")).unwrap();
         dropped.as_object_mut().unwrap().remove("OPENAI_API_KEY");
-        fs::write(&f.actor, dropped.to_string()).unwrap();
-        assert_eq!(write_back(&f.host, &f.actor, &seed).unwrap(), "refused: auth.json keys changed");
+        fs::write(&f.workload, dropped.to_string()).unwrap();
+        assert_eq!(write_back(&f.host, &f.workload, &seed).unwrap(), "refused: auth.json keys changed");
     }
 
     #[test]

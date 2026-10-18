@@ -57,12 +57,12 @@ depends = ["build-hostd"]
 run = "./target/debug/avirthostd"
 
 [tasks.build-hostd]
-description = "Build avirthostd and the mediator it starts for each actor"
+description = "Build avirthostd and the mediator it starts for each workload"
 hide = true
 run = "cargo build --quiet -p avirthostd -p avirtmediatord"
 
 [tasks.launch]
-description = "Start an actor on a running avirthostd: mise run launch claude \"prompt\" -- --follow"
+description = "Start a workload on a running avirthostd: mise run launch claude \"prompt\" -- --follow"
 usage = '''
 arg "<agent>" help="claude or codex"
 arg "<prompt>"

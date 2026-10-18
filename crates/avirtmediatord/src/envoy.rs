@@ -121,7 +121,7 @@ pub struct Envoy {
 }
 
 impl Envoy {
-    pub fn start(dir: &Path, binary: &Path, module: &Path, actor: String) -> io::Result<Self> {
+    pub fn start(dir: &Path, binary: &Path, module: &Path, workload: String) -> io::Result<Self> {
         let socket = dir.join("envoy.sock");
         let config = dir.join("envoy.json");
         let module = module.canonicalize()?;
@@ -143,7 +143,7 @@ impl Envoy {
             let mut pending = HashMap::new();
             for line in io::BufReader::new(stdout).lines().map_while(Result::ok) {
                 if let Ok(record) = serde_json::from_str(&line)
-                    && let Some(event) = accept_event(&record, &actor, &mut pending)
+                    && let Some(event) = accept_event(&record, &workload, &mut pending)
                 {
                     events::send(event.to_string());
                 }
@@ -206,10 +206,10 @@ impl Drop for Envoy {
     }
 }
 
-fn accept_event(record: &Value, actor: &str, pending: &mut HashMap<u64, Value>) -> Option<Value> {
+fn accept_event(record: &Value, workload: &str, pending: &mut HashMap<u64, Value>) -> Option<Value> {
     let id = record.get("avirt_conn")?.as_u64()?;
     let mut event = record.get("event")?.as_object()?.clone();
-    event.insert("actor".into(), json!(actor));
+    event.insert("workload".into(), json!(workload));
     let event = Value::Object(event);
     if record.get("complete")?.as_bool()? {
         pending.remove(&id);
@@ -242,7 +242,7 @@ mod tests {
 
     #[test]
     fn connect_bootstrap() {
-        let config = bootstrap(Path::new("/actor/envoy.sock"), Path::new("/build/libavirtenvoy.so"));
+        let config = bootstrap(Path::new("/workload/envoy.sock"), Path::new("/build/libavirtenvoy.so"));
         let resources = &config["static_resources"];
         assert_eq!(resources["listeners"][0]["address"]["pipe"]["mode"], 0o600);
         let hcm = &resources["listeners"][0]["filter_chains"][0]["filters"][0]["typed_config"];
@@ -271,16 +271,18 @@ mod tests {
     }
 
     #[test]
-    fn events_preserve_envelope_payload_and_actor_binding() {
+    fn events_preserve_envelope_payload_and_workload_binding() {
         let mut pending = HashMap::new();
-        let event = json!({"event": "conn", "actor": "untrusted", "host": "example.com", "bytes_up": 12});
+        let event = json!({"event": "conn", "workload": "untrusted", "host": "example.com", "bytes_up": 12});
         assert!(
-            accept_event(&json!({"avirt_conn": 1, "complete": false, "event": event}), "actor", &mut pending).is_none()
+            accept_event(&json!({"avirt_conn": 1, "complete": false, "event": event}), "workload", &mut pending)
+                .is_none()
         );
         assert_eq!(pending.len(), 1);
         let result =
-            accept_event(&json!({"avirt_conn": 1, "complete": true, "event": event}), "actor", &mut pending).unwrap();
-        assert_eq!(result["actor"], "actor");
+            accept_event(&json!({"avirt_conn": 1, "complete": true, "event": event}), "workload", &mut pending)
+                .unwrap();
+        assert_eq!(result["workload"], "workload");
         assert_eq!(result["bytes_up"], 12);
         assert!(pending.is_empty());
     }

@@ -1,5 +1,5 @@
-//! `avirthostd`: serves `/launch` and `/actors/:id/stream` over h2c, starts one container
-//! per actor and writes each actor's NDJSON log.
+//! `avirthostd`: serves `/launch` and `/workloads/:id/stream` over h2c, starts one container
+//! per workload and writes each workload's NDJSON log.
 
 use std::collections::{HashMap, VecDeque};
 use std::convert::Infallible;
@@ -33,7 +33,7 @@ use tokio_util::task::TaskTracker;
 use tokio_util::task::task_tracker::TaskTrackerToken;
 
 use crate::api::{HEALTH_PATH, LAUNCH_PATH, LaunchRequest, LaunchResponse};
-use crate::egress::{ActorDir, Proxy};
+use crate::egress::{Proxy, WorkloadDir};
 use crate::envelope::{Dir, Envelope, Item, LineSplitter};
 use crate::h2c::Body;
 use crate::state::{CONTAINER_LABEL, StateRoot, WORKLOAD_LABEL, private_dir};
@@ -106,7 +106,7 @@ impl Cleanup {
         }
     }
 
-    /// Runs the cleanup; the returned meta message, if any, belongs in the actor log.
+    /// Runs the cleanup; the returned meta message, if any, belongs in the workload log.
     pub fn run(&mut self) -> Option<Value> {
         self.0.take().and_then(|f| f())
     }
@@ -122,22 +122,22 @@ impl Drop for Cleanup {
 pub struct Config {
     pub port: u16,
     pub logs_dir: PathBuf,
-    /// The `avirtmediatord` binary started for each actor.
+    /// The `avirtmediatord` binary started for each workload.
     pub mediator_bin: PathBuf,
 }
 
 enum Entry {
-    Live(Arc<Actor>),
+    Live(Arc<Workload>),
     /// Exit note written and stream drained; kept so a late stream POST gets 410, not 404.
     Exited,
 }
 
-struct Actor {
+struct Workload {
     /// Presented by avirtinitd on its stream POST. The runtime's vsock relays can be dialed
     /// by anything in the container, so the sockets' permissions alone do not prove who is on
     /// the other end; this secret is only ever in avirtinitd's environment.
     token: String,
-    /// Presented by this actor's mediator in its connection preambles. It is passed to the
+    /// Presented by this workload's mediator in its connection preambles. It is passed to the
     /// mediator's environment only, never to the container.
     mediator_secret: String,
     /// Set by the first (and only) accepted event connection.
@@ -156,13 +156,13 @@ struct State {
     exited: bool,
     /// Errors, the cleanup result (`auth_writeback`) and finally `container_exit`, all held back
     /// until the stream has drained so they follow every streamed line, in that order.
-    /// `container_exit` is always the last event of an actor.
+    /// `container_exit` is always the last event of a workload.
     notes: Vec<Value>,
     cleanup_note: Option<Value>,
     exit_note: Option<Value>,
 }
 
-impl Actor {
+impl Workload {
     fn write(&self, line: &str) {
         let mut log = self.log.lock().expect("log lock");
         if let Err(err) = log.write_all(line.as_bytes()) {
@@ -180,7 +180,7 @@ impl Actor {
     }
 
     /// Writes the held exit note once the container has exited and the stream is done.
-    /// Returns true if this call completed the actor.
+    /// Returns true if this call completed the workload.
     fn flush_exit(&self, state: &mut State) -> bool {
         if state.exited && !state.streaming {
             let notes = std::mem::take(&mut state.notes);
@@ -211,7 +211,7 @@ struct Hostd {
     /// The socket mediators dial (in the state root's `hostd/` directory).
     hostd_sock: PathBuf,
     state: StateRoot,
-    actors: Mutex<HashMap<String, Entry>>,
+    workloads: Mutex<HashMap<String, Entry>>,
     tombstones: Mutex<VecDeque<String>>,
     tracker: TaskTracker,
     shutdown: CancellationToken,
@@ -237,7 +237,7 @@ pub async fn serve(profiles: HashMap<String, Box<dyn Profile>>, config: Config) 
     }
 
     // The control API (`/launch`) is for the CLI on this machine only. Containers have no
-    // network and cannot reach it; an actor's mediator dials avirthostd's own socket instead.
+    // network and cannot reach it; a workload's mediator dials avirthostd's own socket instead.
     let listener = TcpListener::bind(("127.0.0.1", config.port)).await?;
     let hostd_sock = state.hostd().join("hostd.sock");
     let mediators = UnixListener::bind(&hostd_sock)?;
@@ -248,7 +248,7 @@ pub async fn serve(profiles: HashMap<String, Box<dyn Profile>>, config: Config) 
         config,
         hostd_sock,
         state,
-        actors: Mutex::default(),
+        workloads: Mutex::default(),
         tombstones: Mutex::default(),
         tracker: TaskTracker::new(),
         shutdown: CancellationToken::new(),
@@ -311,11 +311,11 @@ async fn handle_control(hostd: Arc<Hostd>, req: Request<Incoming>) -> Result<Res
     })
 }
 
-/// What an actor's uplink connection may ask for: that actor's own stream and nothing else,
-/// so a container cannot write into another actor's log or launch anything.
-fn handle_actor(hostd: &Arc<Hostd>, id: &str, req: Request<Incoming>) -> Response<Body> {
+/// What a workload's uplink connection may ask for: that workload's own stream and nothing else,
+/// so a container cannot write into another workload's log or launch anything.
+fn handle_workload(hostd: &Arc<Hostd>, id: &str, req: Request<Incoming>) -> Response<Body> {
     match (req.method(), req.uri().path()) {
-        (&Method::POST, p) if p == format!("/actors/{id}/stream") => stream_route(hostd, id, req),
+        (&Method::POST, p) if p == format!("/workloads/{id}/stream") => stream_route(hostd, id, req),
         _ => error(StatusCode::NOT_FOUND, "not found"),
     }
 }
@@ -352,7 +352,7 @@ async fn launch_route(hostd: &Arc<Hostd>, req: Request<Incoming>) -> Response<Bo
     match launched {
         Ok(id) => {
             let log_path = hostd.log_path(&id);
-            let response = LaunchResponse { actor_id: id, log_path: log_path.to_string_lossy().into_owned() };
+            let response = LaunchResponse { workload_id: id, log_path: log_path.to_string_lossy().into_owned() };
             reply(StatusCode::OK, &serde_json::to_value(response).expect("serializable"))
         }
         Err(err) if err.downcast_ref::<Refused>().is_some() => error(StatusCode::BAD_REQUEST, &err.to_string()),
@@ -367,22 +367,22 @@ async fn launch_route(hostd: &Arc<Hostd>, req: Request<Incoming>) -> Response<Bo
 }
 
 fn stream_route(hostd: &Arc<Hostd>, id: &str, req: Request<Incoming>) -> Response<Body> {
-    let actor = match hostd.actors.lock().expect("actors lock").get(id) {
-        None => return error(StatusCode::NOT_FOUND, "unknown actor"),
-        Some(Entry::Exited) => return error(StatusCode::GONE, "actor already exited"),
-        Some(Entry::Live(actor)) => Arc::clone(actor),
+    let workload = match hostd.workloads.lock().expect("workloads lock").get(id) {
+        None => return error(StatusCode::NOT_FOUND, "unknown workload"),
+        Some(Entry::Exited) => return error(StatusCode::GONE, "workload already exited"),
+        Some(Entry::Live(workload)) => Arc::clone(workload),
     };
     let presented = req.headers().get("x-avirt-token").and_then(|v| v.to_str().ok()).unwrap_or_default();
-    if !constant_time_eq(presented.as_bytes(), actor.token.as_bytes()) {
-        return error(StatusCode::FORBIDDEN, "bad actor token");
+    if !constant_time_eq(presented.as_bytes(), workload.token.as_bytes()) {
+        return error(StatusCode::FORBIDDEN, "bad workload token");
     }
     {
-        let mut state = actor.state.lock().expect("state lock");
+        let mut state = workload.state.lock().expect("state lock");
         if state.streamed {
-            return error(StatusCode::CONFLICT, "actor already streamed");
+            return error(StatusCode::CONFLICT, "workload already streamed");
         }
         if state.exited {
-            return error(StatusCode::GONE, "actor already exited");
+            return error(StatusCode::GONE, "workload already exited");
         }
         state.streamed = true;
         state.streaming = true;
@@ -402,11 +402,11 @@ fn stream_route(hostd: &Arc<Hostd>, id: &str, req: Request<Incoming>) -> Respons
         let mut lines = 0usize;
         let mut emit = |item: Item| match item {
             Item::Line(line) => {
-                actor.write(&(line + "\n"));
+                workload.write(&(line + "\n"));
                 lines += 1;
             }
             // Written by avirthostd, so an agent cannot make it look like anything else.
-            Item::Truncated(bytes) => actor.note(json!({ "event": "line_truncated", "bytes": bytes })),
+            Item::Truncated(bytes) => workload.note(json!({ "event": "line_truncated", "bytes": bytes })),
         };
         // An aborted stream (RST_STREAM, killed container) ends in an error rather than a clean
         // end; either way the trailing partial line is flushed below.
@@ -418,9 +418,9 @@ fn stream_route(hostd: &Arc<Hostd>, id: &str, req: Request<Incoming>) -> Respons
         splitter.finish().into_iter().for_each(&mut emit);
 
         let completed = {
-            let mut state = actor.state.lock().expect("state lock");
+            let mut state = workload.state.lock().expect("state lock");
             state.streaming = false;
-            actor.flush_exit(&mut state)
+            workload.flush_exit(&mut state)
         };
         if completed {
             hostd.mark_exited(&id);
@@ -481,9 +481,9 @@ impl Hostd {
         prepared: &mut Option<Prepared>,
         token: TaskTrackerToken,
     ) -> Result<String> {
-        let (id, actor) = self.register()?;
-        let uplink_token = actor.token.clone();
-        let dir = match ActorDir::create(&self.state.actors(), &id) {
+        let (id, workload) = self.register()?;
+        let uplink_token = workload.token.clone();
+        let dir = match WorkloadDir::create(&self.state.workloads(), &id) {
             Ok(dir) => dir,
             Err(err) => {
                 self.forget(&id);
@@ -496,7 +496,7 @@ impl Hostd {
             &id,
             &dir,
             &self.hostd_sock,
-            &actor.mediator_secret,
+            &workload.mediator_secret,
             &mediator_log,
         )
         .await
@@ -545,9 +545,9 @@ impl Hostd {
                         died = proxy.exited() => {
                             // Without its mediator the container has no uplink and no proxy.
                             let how = died.map_or_else(|e| e.to_string(), |s| s.to_string());
-                            actor.hold(json!({
+                            workload.hold(json!({
                                 "event": "container_error",
-                                "message": format!("the actor mediator exited unexpectedly ({how}); stopping the container"),
+                                "message": format!("the workload mediator exited unexpectedly ({how}); stopping the container"),
                             }));
                             let (status, confirmed) = stop_and_wait(&task_id, &mut child).await;
                             gone = confirmed;
@@ -566,11 +566,11 @@ impl Hostd {
             // While the mediator still splices: give a stream the container opened just before
             // dying time to be routed (it would be refused with 410 otherwise), and an open stream
             // time to drain into the log.
-            if !actor.state.lock().expect("state lock").streamed {
+            if !workload.state.lock().expect("state lock").streamed {
                 tokio::time::sleep(Duration::from_secs(1)).await;
             }
             for _ in 0..200 {
-                if !actor.state.lock().expect("state lock").streaming {
+                if !workload.state.lock().expect("state lock").streaming {
                     break;
                 }
                 tokio::time::sleep(Duration::from_millis(50)).await;
@@ -578,7 +578,7 @@ impl Hostd {
             // Then stop the mediator, which flushes its last events to avirthostd, and wait for
             // them to reach the log before the exit notes follow.
             proxy.stop().await;
-            let _ = tokio::time::timeout(Duration::from_secs(5), actor.egress_eof.cancelled()).await;
+            let _ = tokio::time::timeout(Duration::from_secs(5), workload.egress_eof.cancelled()).await;
             let cleanup_note = if gone {
                 // Cleanup may block on a file lock.
                 tokio::task::spawn_blocking(move || cleanup.run()).await.ok().flatten()
@@ -586,15 +586,15 @@ impl Hostd {
                 // A write-back could race an agent that is still running; leave the temp
                 // directory for the next startup's sweep.
                 cleanup.abandon();
-                actor.hold(json!({
+                workload.hold(json!({
                     "event": "container_error",
                     "message": "the container could not be confirmed gone; cleanup and write-back were skipped",
                 }));
                 None
             };
-            actor.state.lock().expect("state lock").cleanup_note = cleanup_note;
-            hostd.finish(&task_id, &actor, status);
-            // Removes the actor directory with both sockets in it, last.
+            workload.state.lock().expect("state lock").cleanup_note = cleanup_note;
+            hostd.finish(&task_id, &workload, status);
+            // Removes the workload directory with both sockets in it, last.
             drop(dir);
         });
         Ok(id)
@@ -648,7 +648,7 @@ impl Hostd {
         // the prompt never appears on argv.
         cmd.args(["-e", "AVIRT_PROMPT", "-e", "AVIRT_CWD", "-e", "AVIRT_UPLINK_TOKEN"])
             .arg("-e")
-            .arg(format!("AVIRT_ACTOR_ID={id}"))
+            .arg(format!("AVIRT_WORKLOAD_ID={id}"))
             .arg(profile.image())
             .env("AVIRT_PROMPT", prompt)
             .env("AVIRT_UPLINK_TOKEN", token)
@@ -661,13 +661,13 @@ impl Hostd {
         Ok(cmd)
     }
 
-    /// Picks an unused id (redrawn on collision) and registers the actor with its log.
-    fn register(&self) -> Result<(String, Arc<Actor>)> {
-        let mut actors = self.actors.lock().expect("actors lock");
+    /// Picks an unused id (redrawn on collision) and registers the workload with its log.
+    fn register(&self) -> Result<(String, Arc<Workload>)> {
+        let mut workloads = self.workloads.lock().expect("workloads lock");
         // A fresh id that is also unused on disk (earlier runs leave logs behind).
         let (id, log) = loop {
             let id = format!("{:08x}", rand::random::<u32>());
-            if actors.contains_key(&id) {
+            if workloads.contains_key(&id) {
                 continue;
             }
             match Self::create_private(&self.log_path(&id)) {
@@ -676,7 +676,7 @@ impl Hostd {
                 Err(e) => return Err(e.into()),
             }
         };
-        let actor = Arc::new(Actor {
+        let workload = Arc::new(Workload {
             token: format!("{:032x}", rand::random::<u128>()),
             mediator_secret: format!("{:032x}", rand::random::<u128>()),
             egress_taken: AtomicBool::new(false),
@@ -684,51 +684,51 @@ impl Hostd {
             state: Mutex::default(),
             egress_eof: CancellationToken::new(),
         });
-        actors.insert(id.clone(), Entry::Live(Arc::clone(&actor)));
-        Ok((id, actor))
+        workloads.insert(id.clone(), Entry::Live(Arc::clone(&workload)));
+        Ok((id, workload))
     }
 
     fn forget(&self, id: &str) {
-        self.actors.lock().expect("actors lock").remove(id);
+        self.workloads.lock().expect("workloads lock").remove(id);
     }
 
     /// Records the container's exit. `container_error` is written at once; `container_exit` is
     /// held until the stream has drained (or written now if none was ever accepted).
-    fn finish(&self, id: &str, actor: &Actor, status: std::io::Result<Value>) {
+    fn finish(&self, id: &str, workload: &Workload, status: std::io::Result<Value>) {
         let completed = {
-            let mut state = actor.state.lock().expect("state lock");
+            let mut state = workload.state.lock().expect("state lock");
             state.exited = true;
             match status {
                 Ok(exit) => state.exit_note = Some(exit),
                 Err(err) => {
                     state.notes.push(json!({ "event": "container_error", "message": err.to_string() }));
-                    // Still the last event of the actor, so followers have one thing to wait for.
+                    // Still the last event of the workload, so followers have one thing to wait for.
                     state.exit_note = Some(json!({ "event": "container_exit", "code": null, "signal": null }));
                 }
             }
-            actor.flush_exit(&mut state)
+            workload.flush_exit(&mut state)
         };
         if completed {
             self.mark_exited(id);
         }
     }
 
-    /// Replaces a finished actor with a tombstone (so a late stream gets 410), keeping at most
+    /// Replaces a finished workload with a tombstone (so a late stream gets 410), keeping at most
     /// `MAX_TOMBSTONES` of them.
     fn mark_exited(&self, id: &str) {
-        let mut actors = self.actors.lock().expect("actors lock");
-        actors.insert(id.to_owned(), Entry::Exited);
+        let mut workloads = self.workloads.lock().expect("workloads lock");
+        workloads.insert(id.to_owned(), Entry::Exited);
         let mut order = self.tombstones.lock().expect("tombstones lock");
         order.push_back(id.to_owned());
         while order.len() > MAX_TOMBSTONES {
             if let Some(old) = order.pop_front() {
-                actors.remove(&old);
+                workloads.remove(&old);
             }
         }
     }
 }
 
-/// How many finished actors are remembered for the 410 answer.
+/// How many finished workloads are remembered for the 410 answer.
 const MAX_TOMBSTONES: usize = 1024;
 
 /// Runs a `container` subcommand with a time limit; true if it succeeded.
@@ -771,8 +771,8 @@ async fn stop_and_wait(id: &str, child: &mut Child) -> (std::io::Result<ExitStat
 }
 
 /// Accepts mediator connections on avirthostd's socket. Each starts with one line naming its
-/// kind and the actor it belongs to (the mediator was started for that actor, so the
-/// container cannot pick another): `ACTOR <id>` is followed by the actor's HTTP/2 stream,
+/// kind and the workload it belongs to (the mediator was started for that workload, so the
+/// container cannot pick another): `WORKLOAD <id>` is followed by the workload's HTTP/2 stream,
 /// spliced through from avirtinitd, and `EGRESS <id>` by NDJSON proxy events.
 async fn mediator_loop(hostd: Arc<Hostd>, listener: UnixListener) {
     loop {
@@ -790,21 +790,21 @@ async fn mediator_connection(hostd: Arc<Hostd>, mut conn: UnixStream) {
     let (Some(kind), Some(id), Some(secret), None) = (parts.next(), parts.next(), parts.next(), parts.next()) else {
         return;
     };
-    let actor = match hostd.actors.lock().expect("actors lock").get(id) {
-        Some(Entry::Live(actor)) => Arc::clone(actor),
+    let workload = match hostd.workloads.lock().expect("workloads lock").get(id) {
+        Some(Entry::Live(workload)) => Arc::clone(workload),
         _ => return,
     };
-    // Only this actor's mediator knows the secret; a same-user process that merely knows
-    // the actor id cannot inject events or end the event stream early.
-    if !constant_time_eq(secret.as_bytes(), actor.mediator_secret.as_bytes()) {
+    // Only this workload's mediator knows the secret; a same-user process that merely knows
+    // the workload id cannot inject events or end the event stream early.
+    if !constant_time_eq(secret.as_bytes(), workload.mediator_secret.as_bytes()) {
         return;
     }
     match kind {
-        "ACTOR" => {
+        "WORKLOAD" => {
             let id = Arc::new(id.to_owned());
             let service = service_fn(move |req| {
                 let (hostd, id) = (Arc::clone(&hostd), Arc::clone(&id));
-                async move { Ok::<_, Infallible>(handle_actor(&hostd, &id, req)) }
+                async move { Ok::<_, Infallible>(handle_workload(&hostd, &id, req)) }
             });
             let conn = hyper::server::conn::http2::Builder::new(TokioExecutor::new())
                 .serve_connection(TokioIo::new(conn), service);
@@ -813,7 +813,7 @@ async fn mediator_connection(hostd: Arc<Hostd>, mut conn: UnixStream) {
             }
         }
         "EGRESS" => {
-            if actor.egress_taken.swap(true, Ordering::SeqCst) {
+            if workload.egress_taken.swap(true, Ordering::SeqCst) {
                 return;
             }
             let mut splitter = LineSplitter::default();
@@ -821,9 +821,9 @@ async fn mediator_connection(hostd: Arc<Hostd>, mut conn: UnixStream) {
             let mut emit = |item: Item| match item {
                 Item::Line(line) => {
                     let event = serde_json::from_str(&line).unwrap_or_else(|_| json!({ "raw": line }));
-                    actor.write(&Envelope::new(Dir::Egress, event).to_line());
+                    workload.write(&Envelope::new(Dir::Egress, event).to_line());
                 }
-                Item::Truncated(bytes) => actor.note(json!({ "event": "line_truncated", "bytes": bytes })),
+                Item::Truncated(bytes) => workload.note(json!({ "event": "line_truncated", "bytes": bytes })),
             };
             while let Ok(n) = conn.read(&mut buf).await {
                 if n == 0 {
@@ -832,7 +832,7 @@ async fn mediator_connection(hostd: Arc<Hostd>, mut conn: UnixStream) {
                 splitter.push(&buf[..n]).into_iter().for_each(&mut emit);
             }
             splitter.finish().into_iter().for_each(&mut emit);
-            actor.egress_eof.cancel();
+            workload.egress_eof.cancel();
         }
         _ => {}
     }

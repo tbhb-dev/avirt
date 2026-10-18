@@ -1,12 +1,12 @@
 #![recursion_limit = "256"]
 
-//! Per-actor mediator, spawned by avirthostd. It owns the two Unix sockets that are mounted
+//! Per-workload mediator, spawned by avirthostd. It owns the two Unix sockets that are mounted
 //! into one container and is the container's only way out:
 //!
 //! - `proxy.sock`: a CONNECT proxy. It accepts only `CONNECT host:port`, refuses private
 //!   destinations, and tunnels everything else. The only denies are `private-dest`,
 //!   `plain-http` and `unsupported-method`.
-//! - `uplink.sock`: the container's HTTP/2 actor uplink, spliced byte for byte to
+//! - `uplink.sock`: the container's HTTP/2 workload uplink, spliced byte for byte to
 //!   avirthostd's own socket, so HTTP/2 stays end to end between avirtinitd and avirthostd.
 //!
 //! One NDJSON event per proxied connection goes to avirthostd over a second avirthostd connection.
@@ -43,15 +43,15 @@ const DIAL_TIMEOUT: Duration = Duration::from_secs(10);
 
 #[derive(Parser)]
 struct Args {
-    /// The actor's private directory; `proxy.sock` and `uplink.sock` are created in it, 0600.
+    /// The workload's private directory; `proxy.sock` and `uplink.sock` are created in it, 0600.
     #[arg(long)]
     dir: PathBuf,
     /// avirthostd's Unix socket.
     #[arg(long)]
     hostd_sock: PathBuf,
-    /// Actor id, recorded in every event and sent to avirthostd as the connections' binding.
+    /// Workload id, recorded in every event and sent to avirthostd as the connections' binding.
     #[arg(long)]
-    actor: String,
+    workload: String,
     /// What this mediator presents to avirthostd in its connection preambles. It comes from the
     /// environment so that it is not on the command line, and the container never sees it.
     #[arg(long, env = "AVIRT_MEDIATOR_SECRET", hide_env_values = true)]
@@ -91,7 +91,7 @@ static OPEN: LazyLock<Mutex<HashMap<u64, Arc<Conn>>>> = LazyLock::new(Mutex::def
 /// Concurrent connections each service will carry; the rest wait.
 static LIMIT: Semaphore = Semaphore::const_new(MAX_CONNECTIONS);
 const MAX_CONNECTIONS: usize = 128;
-static ACTOR: LazyLock<Mutex<String>> = LazyLock::new(Mutex::default);
+static WORKLOAD: LazyLock<Mutex<String>> = LazyLock::new(Mutex::default);
 
 impl Conn {
     fn new(method: &str, host: &str, port: u16) -> Arc<Self> {
@@ -123,7 +123,7 @@ impl Conn {
         OPEN.lock().expect("open lock").remove(&self.id);
         let event = json!({
             "event": "conn",
-            "actor": *ACTOR.lock().expect("actor lock"),
+            "workload": *WORKLOAD.lock().expect("workload lock"),
             "started": self.started.to_rfc3339_opts(chrono::SecondsFormat::Millis, true),
             "method": self.method,
             "host": self.host,
@@ -377,7 +377,7 @@ impl ShutdownSignalWatch for Shutdown {
 /// the splice: HTTP/2 closes both ways when it is done.
 struct SpliceApp {
     hostd_sock: PathBuf,
-    actor: String,
+    workload: String,
     secret: String,
 }
 
@@ -391,7 +391,7 @@ impl ServerApp for SpliceApp {
         let mut first = [0u8; 4096];
         let n = tokio::time::timeout(HEAD_TIMEOUT, stream.read(&mut first)).await.ok()?.ok().filter(|n| *n > 0)?;
         let mut hostd = UnixStream::connect(&self.hostd_sock).await.ok()?;
-        hostd.write_all(format!("ACTOR {} {}\n", self.actor, self.secret).as_bytes()).await.ok()?;
+        hostd.write_all(format!("WORKLOAD {} {}\n", self.workload, self.secret).as_bytes()).await.ok()?;
         hostd.write_all(&first[..n]).await.ok()?;
         let (mut from_hostd, mut to_hostd) = hostd.split();
         let (mut from_container, mut to_container) = tokio::io::split(&mut stream);
@@ -419,8 +419,8 @@ fn main() {
         std::process::exit(envoy::supervise());
     }
     let args = Args::parse();
-    ACTOR.lock().expect("actor lock").clone_from(&args.actor);
-    if let Err(err) = events::connect(&args.hostd_sock, &args.actor, &args.secret) {
+    WORKLOAD.lock().expect("workload lock").clone_from(&args.workload);
+    if let Err(err) = events::connect(&args.hostd_sock, &args.workload, &args.secret) {
         eprintln!("cannot reach avirthostd at {}: {err}", args.hostd_sock.display());
         std::process::exit(1);
     }
@@ -431,7 +431,7 @@ fn main() {
                 eprintln!("--envoy-module is required with --proxy-engine envoy");
                 std::process::exit(1);
             };
-            match envoy::Envoy::start(&args.dir, &args.envoy_bin, module, args.actor.clone()) {
+            match envoy::Envoy::start(&args.dir, &args.envoy_bin, module, args.workload.clone()) {
                 Ok(child) => Some(Arc::new(Mutex::new(child))),
                 Err(error) => {
                     eprintln!("cannot start Envoy: {error}");
@@ -458,10 +458,12 @@ fn main() {
         proxy.add_uds(&args.dir.join("proxy.sock").to_string_lossy(), private());
         server.add_service(proxy);
     }
-    let mut actor =
-        Service::new("actor".into(), SpliceApp { hostd_sock: args.hostd_sock, actor: args.actor, secret: args.secret });
-    actor.add_uds(&args.dir.join("uplink.sock").to_string_lossy(), private());
-    server.add_service(actor);
+    let mut workload = Service::new(
+        "workload".into(),
+        SpliceApp { hostd_sock: args.hostd_sock, workload: args.workload, secret: args.secret },
+    );
+    workload.add_uds(&args.dir.join("uplink.sock").to_string_lossy(), private());
+    server.add_service(workload);
     server.bootstrap();
     let stdin_eof = Arc::new(tokio::sync::Notify::new());
     let notify = Arc::clone(&stdin_eof);

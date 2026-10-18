@@ -1,4 +1,4 @@
-//! The container's single long-lived HTTP/2 request whose body is the NDJSON actor log.
+//! The container's single long-lived HTTP/2 request whose body is the NDJSON workload log.
 
 use std::convert::Infallible;
 use std::path::Path;
@@ -34,17 +34,17 @@ pub struct Uplink {
 }
 
 impl Uplink {
-    /// Connects to the mediator's actor socket, runs the HTTP/2 client over it and opens
-    /// the actor's streaming POST. Returns only once avirthostd has accepted the stream, so the
+    /// Connects to the mediator's workload socket, runs the HTTP/2 client over it and opens
+    /// the workload's streaming POST. Returns only once avirthostd has accepted the stream, so the
     /// agent is never started into a dead uplink. Every step has a timeout: a socket file whose
     /// listener is gone accepts a connect and then says nothing.
-    pub async fn open(socket: &Path, actor_id: &str, token: &str, wait: Duration) -> Result<Self> {
+    pub async fn open(socket: &Path, workload_id: &str, token: &str, wait: Duration) -> Result<Self> {
         let deadline = tokio::time::Instant::now() + wait;
         loop {
             // Connecting is not proof that anyone is listening: the runtime's relay accepts the
             // connection inside the VM whether or not the host mediator is there. So the whole
             // sequence is retried, and readiness is avirthostd's answer to the stream request.
-            match Self::attempt(socket, actor_id, token).await {
+            match Self::attempt(socket, workload_id, token).await {
                 Ok(uplink) => return Ok(uplink),
                 Err(Attempt::Fatal(why)) => bail!("{why}"),
                 Err(Attempt::Retry(why)) if tokio::time::Instant::now() >= deadline => {
@@ -55,7 +55,7 @@ impl Uplink {
         }
     }
 
-    async fn attempt(socket: &Path, actor_id: &str, token: &str) -> Result<Self, Attempt> {
+    async fn attempt(socket: &Path, workload_id: &str, token: &str) -> Result<Self, Attempt> {
         let retry = |why: &str| Attempt::Retry(why.to_owned());
         let conn = match tokio::time::timeout(Duration::from_secs(5), UnixStream::connect(socket)).await {
             Ok(Ok(conn)) => conn,
@@ -70,7 +70,7 @@ impl Uplink {
         let (tx, rx) = mpsc::unbounded_channel::<Bytes>();
         let frames = UnboundedReceiverStream::new(rx).map(|b| Ok::<_, Infallible>(Frame::data(b)));
         let body = BodyExt::boxed(StreamBody::new(frames));
-        let request = Request::post(format!("http://localhost/actors/{actor_id}/stream"))
+        let request = Request::post(format!("http://localhost/workloads/{workload_id}/stream"))
             .header("content-type", "application/x-ndjson")
             .header("x-avirt-token", token)
             .body(body)
@@ -98,7 +98,7 @@ impl Uplink {
         });
         match tokio::time::timeout(Duration::from_secs(4), started_rx).await {
             Ok(Ok(Ok(StatusCode::OK))) => Ok(Self { tx: Arc::new(Mutex::new(Some(tx))), outcome }),
-            // A refusal that retrying cannot fix: wrong token, unknown, repeated or finished actor.
+            // A refusal that retrying cannot fix: wrong token, unknown, repeated or finished workload.
             Ok(Ok(Ok(status))) if matches!(status.as_u16(), 403 | 404 | 409 | 410) => {
                 Err(Attempt::Fatal(format!("avirthostd refused the stream: HTTP {status}")))
             }

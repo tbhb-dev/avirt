@@ -1,10 +1,10 @@
-//! `avirthostd`'s state root, `$TMPDIR/avirt-<uid>/` (0700): everything an actor leaves on disk
+//! `avirthostd`'s state root, `$TMPDIR/avirt-<uid>/` (0700): everything a workload leaves on disk
 //! lives under it, so that an avirthostd that was killed uncleanly can be swept up by the next one.
 //!
 //! ```text
 //! lock            held (flock) for avirthostd's lifetime; a second avirthostd refuses to start
 //! hostd/         the socket mediators dial
-//! actors/<id>/  per-actor sockets
+//! workloads/<id>/  per-workload sockets
 //! scratch/        per-launch temp files, such as a Codex home holding an `auth.json` copy
 //! ```
 //!
@@ -21,7 +21,7 @@ use serde_json::Value;
 
 /// Label put on every container avirthostd starts, so a sweep finds them without guessing at names.
 pub const CONTAINER_LABEL: &str = "avirt=1";
-/// Marks the container as an actor's workload.
+/// Marks the container as a workload.
 pub const WORKLOAD_LABEL: &str = "avirt.role=workload";
 
 #[derive(Debug)]
@@ -113,8 +113,8 @@ impl StateRoot {
     }
 
     #[must_use]
-    pub fn actors(&self) -> PathBuf {
-        self.path.join("actors")
+    pub fn workloads(&self) -> PathBuf {
+        self.path.join("workloads")
     }
 
     #[must_use]
@@ -134,7 +134,7 @@ impl StateRoot {
     #[must_use]
     pub fn sweep(&self) -> Swept {
         let mut swept = Swept { containers: sweep_containers(), ..Swept::default() };
-        for dir in [self.actors(), self.scratch(), self.hostd()] {
+        for dir in [self.workloads(), self.scratch(), self.hostd()] {
             swept.dirs += fs::read_dir(&dir).map_or(0, Iterator::count);
             if let Err(e) = remove_tree(&dir) {
                 swept.failures.push(format!("{}: {e}", dir.display()));

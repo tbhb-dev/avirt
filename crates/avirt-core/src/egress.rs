@@ -1,4 +1,4 @@
-//! Host side of the mediator: a private directory and one `avirtmediatord` process per actor.
+//! Host side of the mediator: a private directory and one `avirtmediatord` process per workload.
 //! The mediator listens on two sockets in that directory, which are bind-mounted into the
 //! container (the runtime relays a mounted socket file to its host listener), and dials
 //! avirthostd's own socket.
@@ -13,16 +13,16 @@ use std::time::Duration;
 use anyhow::{Context, Result, bail};
 use tokio::process::{Child, ChildStdin, Command};
 
-/// An actor's private directory (0700), `actors/<actor-id>/`, holding the proxy socket and the
+/// A workload's private directory (0700), `workloads/<workload-id>/`, holding the proxy socket and the
 /// uplink socket. It is removed, with whatever is still in it, when dropped.
 #[derive(Debug)]
-pub struct ActorDir(PathBuf);
+pub struct WorkloadDir(PathBuf);
 
 /// Longest path `sockaddr_un` can hold on macOS, including the terminating NUL.
 const SUN_PATH_MAX: usize = 104;
 
-impl ActorDir {
-    /// Created as `parent/<id>` (the state root's `actors/`). Fails if it already exists or if a
+impl WorkloadDir {
+    /// Created as `parent/<id>` (the state root's `workloads/`). Fails if it already exists or if a
     /// socket path inside it would not fit in `sockaddr_un`.
     pub fn create(parent: &Path, id: &str) -> Result<Self> {
         let path = parent.join(id);
@@ -40,7 +40,7 @@ impl ActorDir {
         self.0.join("proxy.sock")
     }
 
-    /// The container's actor uplink socket, mounted at `/run/avirt/uplink.sock`.
+    /// The container's workload uplink socket, mounted at `/run/avirt/uplink.sock`.
     #[must_use]
     pub fn uplink_socket(&self) -> PathBuf {
         self.0.join("uplink.sock")
@@ -52,7 +52,7 @@ impl ActorDir {
     }
 }
 
-impl Drop for ActorDir {
+impl Drop for WorkloadDir {
     fn drop(&mut self) {
         let _ = std::fs::remove_dir_all(&self.0);
     }
@@ -73,7 +73,7 @@ impl Proxy {
     pub async fn spawn(
         bin: &Path,
         id: &str,
-        dir: &ActorDir,
+        dir: &WorkloadDir,
         hostd_sock: &Path,
         secret: &str,
         log_path: &Path,
@@ -92,7 +92,7 @@ impl Proxy {
             .arg(dir.path())
             .arg("--hostd-sock")
             .arg(hostd_sock)
-            .args(["--actor", id])
+            .args(["--workload", id])
             .stdin(Stdio::piped())
             .stdout(Stdio::null())
             .stderr(stderr)
@@ -120,7 +120,7 @@ impl Proxy {
         }
     }
 
-    /// Resolves when the mediator exits on its own, which is a failure while an actor runs.
+    /// Resolves when the mediator exits on its own, which is a failure while a workload runs.
     pub async fn exited(&mut self) -> std::io::Result<ExitStatus> {
         self.child.wait().await
     }

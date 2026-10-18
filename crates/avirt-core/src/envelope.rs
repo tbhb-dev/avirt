@@ -10,12 +10,12 @@ pub enum Dir {
     AgentToClient,
     #[serde(rename = "meta")]
     Meta,
-    /// One event per proxied connection, from the actor's egress proxy.
+    /// One event per proxied connection, from the workload's egress proxy.
     #[serde(rename = "egress")]
     Egress,
 }
 
-/// One line of the actor log: `{ts, dir, msg}`.
+/// One line of the workload log: `{ts, dir, msg}`.
 #[derive(Debug, Serialize)]
 pub struct Envelope {
     ts: String,
