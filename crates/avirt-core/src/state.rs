@@ -48,6 +48,12 @@ impl Root {
         self.path.join("cache")
     }
 
+    /// Where each workload's VM state lives. The sweep leaves it to the runtime.
+    #[must_use]
+    pub fn containers(&self) -> PathBuf {
+        self.path.join("containers")
+    }
+
     /// The directory with the socket mediators dial.
     #[must_use]
     pub fn hostd(&self) -> PathBuf {
@@ -76,7 +82,7 @@ impl Root {
     ///
     /// Returns an error if creating the state root fails or it isn't a private directory owned by
     /// this user, or if another avirthostd holds the lock.
-    fn open_in(base: &Path) -> Result<Self> {
+    pub(crate) fn open_in(base: &Path) -> Result<Self> {
         let path = base.join(format!("avirt-{}", process::getuid().as_raw()));
         private_dir(&path)?;
         let lock = OpenOptions::new()
@@ -106,18 +112,14 @@ impl Root {
     ///
     /// The lock guarantees nobody else is running, so everything it finds is stale. The sweep
     /// never writes anything back to the host (it deletes a Codex home's `auth.json`). It reports
-    /// any directory it can't remove and continues.
+    /// any directory it can't remove and continues. A workload directory named in `keep` stays,
+    /// because the runtime couldn't confirm that its workload has exited.
     #[must_use]
-    pub fn sweep(&self) -> Swept {
+    pub fn sweep(&self, keep: &[String]) -> Swept {
         let mut swept = Swept::default();
         for dir in [self.workloads(), self.scratch(), self.hostd()] {
-            swept.dirs = swept.dirs.saturating_add(fs::read_dir(&dir).map_or(0, Iterator::count));
-            if let Err(err) = remove_tree(&dir) {
-                swept.failures.push(format!("{}: {err}", dir.display()));
-            }
-            if let Err(err) = private_dir(&dir) {
-                swept.failures.push(format!("{}: {err}", dir.display()));
-            }
+            let spared = if dir == self.workloads() { keep } else { &[] };
+            clear(&dir, spared, &mut swept);
         }
         swept
     }
@@ -126,6 +128,28 @@ impl Root {
     #[must_use]
     pub fn workloads(&self) -> PathBuf {
         self.path.join("workloads")
+    }
+}
+
+/// Empties `dir` except for the entries named in `spared`, and recreates it as a private directory.
+fn clear(dir: &Path, spared: &[String], swept: &mut Swept) {
+    let entries: Vec<PathBuf> = fs::read_dir(dir)
+        .into_iter()
+        .flatten()
+        .flatten()
+        .map(|entry| entry.path())
+        .filter(|path| !path.file_name().is_some_and(|name| spared.iter().any(|keep| name == keep.as_str())))
+        .collect();
+    swept.dirs = swept.dirs.saturating_add(entries.len());
+    let removals =
+        if spared.is_empty() { vec![remove_tree(dir)] } else { entries.iter().map(|path| remove_tree(path)).collect() };
+    for removal in removals {
+        if let Err(err) = removal {
+            swept.failures.push(format!("{}: {err}", dir.display()));
+        }
+    }
+    if let Err(err) = private_dir(dir) {
+        swept.failures.push(format!("{}: {err}", dir.display()));
     }
 }
 

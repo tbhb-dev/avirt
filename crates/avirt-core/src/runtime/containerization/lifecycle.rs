@@ -264,8 +264,8 @@ impl ChildSupervisor {
 
     /// The state of a helper that holds its lock: from its connection if this supervisor started
     /// it, and from a probe otherwise.
-    async fn live_state(&self, dir: &Path, intent: &Intent) -> HelperState {
-        let ours = self.records().get(&intent.workload).map(|record| record.handle.is_closed());
+    async fn live_state(&self, name: &str, dir: &Path, intent: &Intent) -> HelperState {
+        let ours = self.records().get(name).map(|record| record.handle.is_closed());
         match ours {
             Some(false) => HelperState::Running,
             Some(true) => HelperState::Unknown("the control connection is closed".to_owned()),
@@ -340,10 +340,10 @@ impl ChildSupervisor {
         let state = match lock_state(dir) {
             LockState::Failed(why) => HelperState::Unknown(format!("the helper's lock: {why}")),
             LockState::Free | LockState::Missing => HelperState::Ended,
-            LockState::Held => self.live_state(dir, &intent).await,
+            LockState::Held => self.live_state(name, dir, &intent).await,
         };
         let incarnation = Incarnation::from_hex(&intent.incarnation);
-        Some(HelperStatus { incarnation, state, workload: intent.workload })
+        Some(HelperStatus { incarnation, state, workload: name.to_owned() })
     }
 
     /// The connection for asking a helper to stop: this supervisor's own if it started the

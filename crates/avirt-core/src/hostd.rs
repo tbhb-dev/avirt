@@ -604,7 +604,7 @@ where
     // avirthostd left behind without racing a live one.
     let state = state::Root::open()?;
     let ended = runtime.sweep(&state).await;
-    let swept = state.sweep();
+    let swept = state.sweep(&ended.kept);
     if !ended.removed.is_empty() || swept.dirs > 0 {
         let names: Vec<String> = ended.removed.iter().map(|name| format!("\"{name}\"")).collect();
         console::out_line(format_args!(

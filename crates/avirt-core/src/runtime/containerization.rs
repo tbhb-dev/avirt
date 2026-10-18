@@ -7,5 +7,6 @@ pub mod images;
 pub mod intent;
 pub mod lifecycle;
 pub mod proto;
+pub mod reconcile;
 #[cfg(test)]
 mod testing;
