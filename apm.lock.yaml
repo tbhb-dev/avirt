@@ -69,7 +69,7 @@ dependencies:
   - .claude/skills/agent-pr/scripts/review.sh
   - .claude/skills/agent-pr/tests/agent-pr.bats
   deployed_file_hashes:
-    .claude/skills/agent-pr/SKILL.md: sha256:6fa40c74d178bd40233a4e853713d34c24c8bd55b1b349af6a56a5622cd5b0cd
+    .claude/skills/agent-pr/SKILL.md: sha256:e1aa9b595b8fe15b0afa11aa09ce770dff4e1bcb1c0f566e8aeaf95728fc6c2e
     .claude/skills/agent-pr/apm.yml: sha256:c0ef5aac45ad60b2c57f272bab184e395b23a3249c577bee30f5386a318d2bcc
     .claude/skills/agent-pr/scripts/check.sh: sha256:408e7018aba8dc44423a5060586796110e768ea33f1145dca3b325952953e009
     .claude/skills/agent-pr/scripts/draft.sh: sha256:96a756b7c1f84ff7f709ce8ebc39f98697848cc0dc060ca9b6472166e43eead6
@@ -711,7 +711,7 @@ deployments:
   owners:
   - ./.agents/skills/agent-pr
   active_owner: ./.agents/skills/agent-pr
-  content_hash: sha256:6fa40c74d178bd40233a4e853713d34c24c8bd55b1b349af6a56a5622cd5b0cd
+  content_hash: sha256:e1aa9b595b8fe15b0afa11aa09ce770dff4e1bcb1c0f566e8aeaf95728fc6c2e
 - kind: project-relative
   target: claude
   value: .claude/skills/agent-pr/apm.yml
