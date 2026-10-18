@@ -1295,19 +1295,21 @@ hook_command() {
   [ "$(cat "$tmp/ready.calls")" = "$(git rev-parse --show-toplevel) 7 $head" ]
 }
 
-@test "a pull request that changes an owner path goes to the owner, with every owner path named" {
+@test "a pull request that changes owner paths merges, and the report names every one" {
   advance_feature owned/rule.txt
   advance_feature owned/other.txt
   stamped
   merge
-  [ "$status" -eq 1 ]
-  [[ $output == *"#7 changes owner paths: "* ]] || false
+  [ "$status" -eq 0 ]
+  [ "$(merged_calls)" = 1 ]
+  [[ $output == *"Owner paths changed: "* ]] || false
   [[ $output == *"owned/rule.txt"* ]] || false
   [[ $output == *"owned/other.txt"* ]] || false
   [[ $output != *"notes.txt"* ]] || false
-  [ "$(merged_calls)" = 0 ]
-  run grep -c "needs-owner: #7 in widgets changes owner paths" "$tmp/mail.calls"
-  [ "$output" = 1 ]
+  run grep -F -- "--kind fixed" "$tmp/mail.calls"
+  [[ $output == *"Owner paths changed: owned/other.txt owned/rule.txt."* ]] || false
+  run grep -c -- "--kind blocker" "$tmp/mail.calls"
+  [ "$output" = 0 ]
 }
 
 @test "a rename out of an owner path counts as touching it" {
@@ -1318,9 +1320,8 @@ hook_command() {
   edit_pr ".headRefOid = \"$head\""
   stamped
   merge
-  [ "$status" -eq 1 ]
-  [[ $output == *"owned/rule.txt"* ]] || false
-  [ "$(merged_calls)" = 0 ]
+  [ "$status" -eq 0 ]
+  [[ $output == *"Owner paths changed: owned/rule.txt."* ]] || false
 }
 
 @test "an ordinary pull request says nothing about owner paths" {
@@ -1330,6 +1331,16 @@ hook_command() {
   [[ $output != *owner* ]] || false
   run grep -c -i "owner" "$tmp/mail.calls"
   [ "$output" = 0 ]
+}
+
+@test "the owner-review label still refuses a merge that touches an owner path" {
+  advance_feature owned/rule.txt
+  edit_pr '.labels = [{name: "owner-review"}]'
+  stamped
+  merge
+  [ "$status" -eq 1 ]
+  [[ $output == *"owner-review label"* ]] || false
+  [ "$(merged_calls)" = 0 ]
 }
 
 @test "paths that can't be read refuse the merge" {
@@ -1377,7 +1388,7 @@ EOF
 }
 
 @test "the gates run in order, each reading the live state" {
-  advance_feature owned/rule.txt
+  advance_feature tools/check.py 'import os  # noqa: F401\n'
   stamped
   edit_pr '.isDraft = true | .mergeStateStatus = "BEHIND"'
   printf '1\n' >"$tmp/ready-status"
@@ -1392,7 +1403,7 @@ EOF
   printf '0\n' >"$tmp/ready-status"
   export AGENT_SKILLS_LINT_SQUASH_CMD="touch '$tmp/linted'; exit 1"
   merge
-  [[ $output == *"changes owner paths"* ]] || false
+  [[ $output == *"loosens a gate"* ]] || false
   [ ! -e "$tmp/linted" ]
   [ "$(merged_calls)" = 0 ]
 }

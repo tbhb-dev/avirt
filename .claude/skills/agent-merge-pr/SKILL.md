@@ -35,7 +35,7 @@ bash .claude/skills/agent-merge-pr/scripts/preflight.sh <pr>
 
 It prints the pull request's state, base, head commit, draft flag, and merge state. Each check shows the verdict of its latest run, because a re-run leaves the superseded run in the list. The preflight also prints the required reviewer's verdict and the readiness answer. After those comes a briefing with the title, the published description, every commit message the squash collapses, the list of changed files, and the sign-off line. It never fails, and it leaves the repository as it found it.
 
-Stop when it reports a draft pull request, a failing or running check, an owner path among the changes, or a missing precondition. A refusal isn't yours to work around: report `needs-owner` and stop. A failing check goes to `fix-pr`, and a running one to `watch-pr`.
+Stop when it reports a draft pull request, a failing or running check, or a missing precondition. A refusal isn't yours to work around: report `needs-owner` and stop. A failing check goes to `fix-pr`, and a running one to `watch-pr`.
 
 The installed `squash-message.sh` doesn't serve here. It overwrites `SQUASH_AGENTMSG` with a skeleton and calls `gh auth status` to decide whether it can run, so an unattended run can't rely on it.
 
@@ -90,7 +90,7 @@ Pass the head commit the review stamped, in full, as the preflight printed it. A
 7. A readiness command, `merge_ready_cmd`, that exits 0 when run as `<cmd> <repo-root> <pr> <head>`. With no command set, as here, this step passes, and the required checks and the merge state still apply.
 8. No golden file among the changed paths, by the `golden_paths` pattern. A golden file changes only on the owner's review of its baseline diff.
 9. No loosened gate in the diff that the script detects. It looks for a suppression marker on an added line (`loosening_markers`). In a gate or lint configuration file (`gate_config_paths`), it also looks for an added exclusion and a removed hook or lint task. That check is a backstop. A loosened gate it can't see is the author's and the reviewers' to flag, and such a pull request goes to the owner.
-10. No owner path among the changed paths, by the `owner_paths` pattern. Commits supply the changed paths, and a rename counts under both names. A pull request that changes one goes to the owner.
+10. Owner paths, by the `owner_paths` pattern, don't stop the merge. Commits supply the changed paths, and a rename counts under both names. The script lists the owner paths in its output and in the report, and the reviewer's approval is the gate.
 11. A passing commit-msg lint.
 
 After those commands, the script checks the stamp a second time. Any open pull request that sits on this one's branch then gets this one's base. Next the script merges from its own copy of the reviewed body, pinned to the reviewed head with `--match-head-commit`, and never with `--admin` or `--auto`. Last, it confirms that GitHub shows the pull request as merged and that the merge commit has the reviewed message. Then it tidies up:
@@ -98,12 +98,12 @@ After those commands, the script checks the stamp a second time. Any open pull r
 - It deletes the remote head branch, unless the branch is in a fork or no longer points at the merged head. A push that landed after the merge stays, and the report says so.
 - Your main checkout moves forward to the merge, but only while it's on the base branch with no changes to tracked files.
 - Its worktree and local branch go too, but only when the worktree is under `.claude/worktrees/` with no changes, you aren't standing in it, and the branch is still at the reviewed head. An ignored file keeps the worktree too, unless the `disposable_ignored` pattern lists it as a cache or a consumed draft, so local configuration such as `.env` survives.
-- Finally, it removes the draft and the review state, then reports `fixed` with the pull request number and the full merge commit id.
+- Finally, it removes the draft and the review state, then reports `fixed` with the pull request number, the full merge commit id, and any owner paths the pull request changed.
 
 The exit code says how it went.
 
 - **Exit 0.** Merged. It prints the full id of the merge commit.
-- **Exit 1.** Refused or failed, with the reason. A refusal for an owner path, a golden file or a loosened gate went out as a `blocker` report. Don't retry it. A merge that ends with another message than the reviewed one, or that GitHub doesn't show as merged, reports a `blocker` and leaves everything in place.
+- **Exit 1.** Refused or failed, with the reason. A refusal for a golden file or a loosened gate went out as a `blocker` report. Don't retry it. A merge that ends with another message than the reviewed one, or that GitHub doesn't show as merged, reports a `blocker` and leaves everything in place.
 
 ## Step 6: report
 

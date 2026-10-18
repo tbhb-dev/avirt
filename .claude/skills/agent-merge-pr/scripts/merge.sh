@@ -8,7 +8,8 @@
 # pull request, and the head oid, and the live head is that oid; the pull
 # request is open and not a draft; its merge state is CLEAN; every check,
 # judged by its latest run, succeeded; any readiness command
-# says yes; no changed path is an owner path; and the commit-msg gates pass.
+# says yes; no golden file or loosened gate is among the changes; and the
+# commit-msg gates pass.
 # It checks the stamp a second time after those commands have run, then
 # moves the base of any open pull request that sits on this one's branch, and
 # merges from its own copy of the reviewed message, pinned to the
@@ -146,7 +147,7 @@ if [ -n "$ready" ]; then
   "$ready" "$root" "$pr" "$expected" || as_die "the readiness command says #$pr isn't ready to merge"
 fi
 
-# --- gate 6: owner paths, golden files, loosened gates -----------------
+# --- gate 6: golden files, loosened gates, and a note on owner paths ----
 
 base=$(am_live "$pr" baseRefName) || as_die "couldn't read #$pr"
 head_ref=$(am_live "$pr" headRefName) || as_die "couldn't read #$pr"
@@ -178,12 +179,13 @@ if [ -s "$loosening" ]; then
   as_mail blocker "$pr" "needs-owner: #$pr in $repo loosens a gate, so the owner reviews and merges it. Nothing was merged. $(tr '\n' ' ' <"$loosening")"
   as_die "#$pr loosens a gate, as listed above. The owner reviews and merges it. Nothing was merged."
 fi
-# A change to an owner path goes to the owner.
+# Owner paths don't stop a merge. The reviewer's approval gates it, and the
+# report lists the owner paths the pull request changes.
+owner_note=""
 if as_owner_path "$paths"; then
-  owner_hits=$(grep -E -- "$(as_conf owner_paths)" "$paths" | tr '
-' ' ')
-  as_mail blocker "$pr" "needs-owner: #$pr in $repo changes owner paths (${owner_hits% }), so the owner reviews and merges it. Nothing was merged."
-  as_die "#$pr changes owner paths: ${owner_hits% }. The owner reviews and merges it. Nothing was merged."
+  owner_hits=$(grep -E -- "$(as_conf owner_paths)" "$paths" | tr '\n' ' ')
+  owner_note="Owner paths changed: ${owner_hits% }."
+  echo "$owner_note"
 fi
 
 # --- gate 7: the commit-msg gates --------------------------------------
@@ -387,5 +389,6 @@ as_clear squash
 _as_forget merge checks paths body lint message delete labels loosening verdicts required required.raw rulesets ignored
 
 report="merged #$pr in $repo as $oid.$branch_note"
+[ -z "$owner_note" ] || report="$report $owner_note"
 as_mail fixed "$pr" "$report"
 echo "$report"
