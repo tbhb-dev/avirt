@@ -9,9 +9,11 @@ final class FakeWorkload: VirtualWorkload {
   private let exits = AsyncStream.makeStream(of: Int32.self)
   private let terminated = Mutex(0)
   private let exitOnTerminate: Bool
+  private let exitDelay: Duration
 
-  init(exitOnTerminate: Bool) {
+  init(exitOnTerminate: Bool, exitDelay: Duration = .zero) {
     self.exitOnTerminate = exitOnTerminate
+    self.exitDelay = exitDelay
   }
 
   var terminations: Int { terminated.withLock { $0 } }
@@ -32,7 +34,12 @@ final class FakeWorkload: VirtualWorkload {
   }
 
   func stop() async throws {
-    exit(with: 137)
+    guard exitDelay > .zero else { return exit(with: 137) }
+    let delay = exitDelay
+    Task {
+      try? await Task.sleep(for: delay)
+      self.exit(with: 137)
+    }
   }
 }
 
@@ -117,6 +124,17 @@ struct WorkloadHostTests {
     try await host.start(digest: "a") { try spec(scratch) }
     await host.stop(graceSeconds: 0)
     #expect(await host.waitForExit() == WorkloadOutcome(code: 137, error: ""))
+  }
+
+  @Test("A forced stop returns only after the workload's exit has closed the log")
+  func forcedStopWaitsForExit() async throws {
+    let scratch = try ScratchDirectory()
+    defer { scratch.remove() }
+    let workload = FakeWorkload(exitOnTerminate: false, exitDelay: .milliseconds(200))
+    let host = host(workload)
+    try await host.start(digest: "a") { try spec(scratch) }
+    await host.stop(graceSeconds: 0)
+    #expect(await host.current == .exited(WorkloadOutcome(code: 137, error: "")))
   }
 
   @Test("Stop in the idle state answers at once and Stop is idempotent")

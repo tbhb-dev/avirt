@@ -104,7 +104,8 @@ actor WorkloadHost {
   /// Stops the workload.
   ///
   /// During a start it waits for the start to settle, then stops the workload that launched. It sends
-  /// SIGTERM, then forces a stop after the grace period. Calling it again does nothing more.
+  /// SIGTERM, then forces a stop after the grace period and waits for the workload's exit, which closes the stdio log.
+  /// Calling it again does nothing more.
   func stop(graceSeconds: UInt32) async {
     switch phase {
     case .idle, .exited:
@@ -131,7 +132,10 @@ actor WorkloadHost {
       group.cancelAll()
       return first
     }
-    if !exited { try? await virtual.stop() }
+    if !exited {
+      try? await virtual.stop()
+      _ = await waitForExit()
+    }
   }
 
   /// The outcome once the workload has exited, or nil if the caller's task is cancelled first.
