@@ -13,6 +13,10 @@ generated: { by: codex/gpt-6, at: 2026-10-18T05:10:25Z }
 
 The root workspace includes `avirt-connect` for CONNECT authority parsing and destination checks. `mise run check` checks the root workspace. The implemented mediator uses the [Pingora CONNECT app](./egress.md#how-avirtmediatord-handles-egress).
 
+## Prose checks
+
+Vale's banned-term rules block `mise run lint`. For a human review of candidate terms in added prose, run `mise run lint-jargon` on demand. The report always exits 0 and runs outside lint and pre-commit, while `mise run check` includes its tests. Judge the prose in context: preserve its meaning and grammar, and reserve glossary entries for real terms.
+
 # Status: planned
 
 ## Targets
