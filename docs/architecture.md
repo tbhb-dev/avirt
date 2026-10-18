@@ -4,7 +4,7 @@ title: avirt architecture
 description: What avirt is, its components, the workload topology as implemented and as planned, and where each part is specified.
 tags: [avirt, architecture, overview]
 implementation: partial
-generated: { by: codex/gpt-6, at: 2026-10-18T03:05:39Z }
+generated: { by: codex/gpt-6, at: 2026-10-18T05:20:59Z }
 ---
 
 # Overview
@@ -16,7 +16,7 @@ Status: implemented. The current code has these components. See [topology](#stat
 | Component | Binary | Runs | Role |
 | --- | --- | --- | --- |
 | avirthostd | `avirthostd` | On the host, one per user | Serves the control API and launches workloads. Stores real credentials (see [secrets](./secrets.md#status-implemented)) and writes logs |
-| command-line tool | `avirt` | On the host, per invocation | The <!-- Project glossary term. --><!-- vale project.WordList = NO -->operator CLI<!-- vale project.WordList = YES -->: `avirt launch` asks avirthostd to start a workload and can follow its log (see [<!-- Project glossary term. --><!-- vale project.WordList = NO -->operator CLI<!-- vale project.WordList = YES -->](./operator-cli.md#status-implemented)) |
+| Operator CLI | `avirt` | On the host, per invocation | The operator CLI: `avirt launch` asks avirthostd to start a workload and can follow its log (see [operator CLI](./operator-cli.md#status-implemented)) |
 | Mediator | `avirtmediatord` | One per workload | Pingora CONNECT proxy, and a TCP proxy that forwards avirtinitd's HTTP/2 connection on `mediator.sock` to avirthostd with the bytes unchanged |
 | avirtinitd | `avirtinitd` | As root inside the workload container, one per workload | ACP client that spawns the agent adapter and taps each JSON-RPC line (see [ACP](./acp.md#status-implemented)). Also runs a TCP proxy from the agent's `HTTPS_PROXY` to `proxy.sock` and applies the agent's sandbox |
 | Agent | The adapter plus its tools | Inside the workload container as uid 1000 | The ACP agent itself (`AVIRT_AGENT=claude\|codex`) |
@@ -150,12 +150,12 @@ Status: planned. These hold for each runtime and each phase once the planned des
 - [Sandbox](./sandbox.md) - the Landlock rulesets for each workload and mediator process
 - [Lifecycle and state](./lifecycle.md) - launch and teardown order, the runtime directory, crash cleanup, and path limits
 - [Workload lifecycle and layers](./workload-lifecycle.md) - the workload container's layers from the avirt base to the per-workload writable layer. Assembly on each runtime and progression through boot, running, and teardown
-- [Compute runtimes](./compute-runtimes.md) - the runtime interface, the Containerization runtime for Apple, Docker Desktop, and the <!-- Project glossary term. --><!-- vale project.WordList = NO -->Apple container CLI runtime<!-- vale project.WordList = YES --> the current code uses
+- [Compute runtimes](./compute-runtimes.md) - the runtime interface, the Containerization runtime for Apple, Docker Desktop, and the Apple container CLI runtime the current code uses
 - [Build and platforms](./build-and-platforms.md) - build targets, Swift gating, linking, signing, the CI matrix, the toolchain, and host privileges per runtime
 - [avirthostd API and log format](./hostd-api.md) - starting avirthostd, the control API, environment variables, and the NDJSON log
-- [Operator command-line tool](./operator-cli.md) - `avirt`, which launches workloads and follows their logs
-- [Admin command-line tool](./admin-cli.md) - `avirtadmin`, the local host administration command-line tool
-- [Guest command-line tool](./guest-cli.md) - `avirtguest`, the command-line tool inside workloads
+- [Operator CLI](./operator-cli.md) - `avirt`, which launches workloads and follows their logs
+- [Admin CLI](./admin-cli.md) - `avirtadmin`, the local admin CLI
+- [Guest CLI](./guest-cli.md) - `avirtguest`, the guest CLI
 - [ACP](./acp.md) - how avirt drives agents over ACP (with the [Claude](./acp-claude.md) and [Codex](./acp-codex.md) specifics)
 - [Roadmap](./roadmap.md) - the planned phases and each phase's verification checklist
 - [Performance metrics](./performance.md) - what to measure in each area, where, how, and which metrics are SLO candidates

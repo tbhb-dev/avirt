@@ -4,7 +4,7 @@ title: Workload topology and connections
 description: The connections inside one workload and between workloads (workload container, mediator, avirthostd, host services, avirtedgeproxyd), the runtime-provided Unix sockets and avirthostd's SNI routing, the HTTP/2 streams on the workload's connection to its mediator, launch handshake, freeze, reconnect, resuming the `/envelopes` stream and port publication.
 tags: [avirt, workload, protocol, http2]
 implementation: partial
-generated: { by: codex/gpt-6, at: 2026-10-18T03:05:39Z }
+generated: { by: codex/gpt-6, at: 2026-10-18T05:20:59Z }
 ---
 
 # Status: implemented
@@ -13,9 +13,9 @@ generated: { by: codex/gpt-6, at: 2026-10-18T03:05:39Z }
 
 The workload container uses `--network none`. The runtime mounts two Unix socket files into it with `-v` from the workload's private directory `workloads/<id>/` (0700). For each mounted socket file, the runtime forwards connections to the host process listening on it. Both files are mode 0600 on the host, which maps through, so only root in the workload container can open them.
 
-| Guest path | Host listener | Carries |
+| Guest path | Host listener | Traffic |
 | --- | --- | --- |
-| `/run/avirt/mediator.sock` | Mediator | The workload's HTTP/2 connection to its mediator, which today carries only log envelopes, on its one request `POST /workloads/<id>/stream`. The mediator forwards its bytes unchanged to avirthostd. |
+| `/run/avirt/mediator.sock` | Mediator | The workload's HTTP/2 connection to its mediator, which today transports only log envelopes, on its one request `POST /workloads/<id>/stream`. The mediator forwards its bytes unchanged to avirthostd. |
 | `/run/avirt/proxy.sock` | Mediator | The CONNECT proxy (see [egress](./egress.md)) |
 
 To connect to avirthostd, the mediator dials its socket `hostd/hostd.sock` (directory 0700, socket 0600). Each connection starts with a one-line connection header naming its kind, the workload and the mediator's secret (see [identity](./identity.md)), read within 5 s:
@@ -73,14 +73,14 @@ SNI routing in avirthostd excludes direct routes between mediators. Only avirted
 | TLS 1.3 (mutual, SPIFFE) | Server | Client |
 | HTTP/2 | Server | Client |
 
-One HTTP/2 connection per mediator generation carries each stream. avirtnetd opens each stream, and avirtmedproxyd's Envoy routes each one:
+One HTTP/2 connection per mediator generation transports each stream. avirtnetd opens each stream, and avirtmedproxyd's Envoy routes each one:
 
 | Stream | Request | Opened for | Routed to |
 | --- | --- | --- | --- |
 | control | `POST /control`, always the first stream | avirtnetd | avirtmediatord, NDJSON messages in both directions for the life of the connection |
-| envelopes | `POST /envelopes` with `avirt-resume-seq: N` | Envelopes from avirtinitd, the main workload process and avirtnetd, each carrying a `seq` | avirthostd, `POST /workload/envelopes` |
+| envelopes | `POST /envelopes` with `avirt-resume-seq: N` | Envelopes from avirtinitd, the main workload process and avirtnetd, each containing a `seq` | avirthostd, `POST /workload/envelopes` |
 | egress | `CONNECT host:port`, one per agent connection | avirtnetd's forward proxy | The egress pipeline (see [egress](./egress.md#avirtmedproxyd-pipeline)) |
-| <!-- Project glossary term. --><!-- vale project.WordList = NO -->guest CLI<!-- vale project.WordList = YES --> | `POST /guest-cli` | avirtguest's gRPC, through `guest.sock` | avirtedgeproxyd, then avirtapid, under the `guest-cli` principal (see [identity](./identity.md#trust-domain-and-ids)) |
+| guest CLI | `POST /guest-cli` | avirtguest's gRPC, through `guest.sock` | avirtedgeproxyd, then avirtapid, under the `guest-cli` principal (see [identity](./identity.md#trust-domain-and-ids)) |
 | MCP | `POST /mcp` | avirtmcp, through `mcp.sock` | avirtmcpgwd |
 | DNS | `POST /dns`, long-lived | avirtnetd's stub resolver, with length-prefixed DNS messages in both directions | libavirtenvoy's DNS policy, then avirtdnsd for avirt names or avirtedgeproxyd's DNS proxy for public names (see [egress](./egress.md#workload-dns)) |
 | OTLP | `POST /otlp` | avirtnetd and the main workload process | avirtoteld, with `x-avirt-src: workload` (see [observability](./observability.md#opentelemetry-logs)) |
@@ -112,7 +112,7 @@ avirtnetd distinguishes three transitions of its connection to the mediator:
 - **Reconnect.** When a connection fails, avirtnetd reconnects to the same generation in the same way. Until attachment to a connection of the current or a higher generation, avirtnetd reports the disconnected state to avirtinitd. avirtinitd adds a `connection` freeze reason.
 - **Replacement.** A mediator with a higher generation completes the handshake, `attach` and `confirm`, and supersedes the older generation.
 
-While any freeze reason exists, avirtinitd writes `1` to the agent cgroup's `cgroup.freeze` and waits until `cgroup.events` shows `frozen 1`. The freeze covers each process in the agent cgroup, including tools that left the agent's process group, and leaves avirtnetd, the main workload process, and avirtguestd running. If attachment and confirmation of a connection to the same or a higher generation complete within 30 s, avirtinitd removes the `connection` freeze reason. Missing the 30 s deadline makes avirtinitd write `1` to `cgroup.kill` and exit 2 with `error: mediator lost`. After removing the reason, avirtinitd writes `0` and the agent resumes only when no freeze reason remains. Egress connections open through the lost connection end. Clients retry them.
+While any freeze reason exists, avirtinitd writes `1` to the agent cgroup's `cgroup.freeze` and waits until `cgroup.events` shows `frozen 1`. The freeze covers each process in the agent cgroup, including tools that left the agent's process group, and leaves avirtnetd, the main workload process, and avirtguestd running. If attachment and confirmation of a connection to the same or a higher generation complete within 30 s, avirtinitd removes the `connection` freeze reason. Missing the 30 s deadline makes avirtinitd write `1` to `cgroup.kill` and exit 2 with `error: mediator lost`. After removing the reason, avirtinitd checks for other freeze reasons. Only when none remain does it write `0` to `cgroup.freeze` and resume the agent. Egress connections open through the lost connection end. Clients retry them.
 
 A workload container whose guest lacks a writable cgroup v2 hierarchy with `cgroup.freeze` and `cgroup.kill` doesn't start its agent.
 
@@ -141,7 +141,7 @@ The destination avirtmedproxyd receives each inbound connection from its own hos
 - **Peered host.** The source avirtmedproxyd sends the stream to its own avirtedgeproxyd, which forwards it to the peer's avirtedgeproxyd over mutual TLS with federated bundles (see [peering](./peering.md#workload-traffic)). The peer's avirtedgeproxyd evaluates its own host policy snapshot and connects to the destination as in the same-host path. The source avirtedgeproxyd connects to the peer's peer listener and sets `x-avirt-caller` to the originating workload's identity, in its own trust domain. The receiving avirtedgeproxyd accepts it only if that identity is in the trust domain of the peer's avirtedgeproxyd SVID that authenticated its connection, and otherwise refuses the stream with 403. Each avirtedgeproxyd sets `x-avirt-caller` itself on the stream it originates.
 - **avirtapid.** avirtapid reaches services through avirtedgeproxyd in the same way.
 
-The <!-- Project glossary term. --><!-- vale project.WordList = NO -->guest CLI<!-- vale project.WordList = YES --> stream takes the same first hop the other way round: avirtmedproxyd sends it to avirtedgeproxyd, which authorizes the `guest-cli` principal against the host policy snapshot and forwards it to avirtapid.
+The guest CLI stream takes the same first hop the other way round: avirtmedproxyd sends it to avirtedgeproxyd, which authorizes the `guest-cli` principal against the host policy snapshot and forwards it to avirtapid.
 
 The destination avirtmedproxyd accepts ingress connections only from `/service/avirtedgeproxyd`. It then:
 

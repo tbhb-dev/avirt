@@ -1,17 +1,17 @@
 ---
 type: CLI Reference
-title: Admin commands
+title: Admin CLI
 description: The avirtadmin tool connects directly to avirthostd over a local Unix socket with peer-credential authentication. Its commands cover host status, daemon health and draining, namespaces, workloads, policy through avirtpolicyd, peers and enrollment, the trust domain and CA, secrets providers and bindings, audit, and break-glass. Includes flags, output formats, exit codes, and the API call and Cedar action for each command.
 tags: [avirt, cli, avirtadmin, administration]
 implementation: planned
-generated: { by: codex/gpt-6, at: 2026-10-18T03:05:39Z }
+generated: { by: codex/gpt-6, at: 2026-10-18T04:29:26Z }
 ---
 
 # Status: planned
 
-`avirtadmin` is the host's local <!-- Project glossary term. --><!-- vale project.WordList = NO -->admin CLI<!-- vale project.WordList = YES -->, from `crates/avirtadmin`. All state belongs to other components (see [components](./components.md#host-services)). Running on the host as avirthostd's own UID or as root, it talks gRPC directly to avirthostd on `admin.sock`. This path bypasses avirtapid and avirtedgeproxyd. The operations on this page remain inaccessible to peers, workloads, and web UI users.
+`avirtadmin` is the host's local admin CLI, from `crates/avirtadmin`. All state belongs to other components (see [components](./components.md#host-services)). Running on the host as avirthostd's own UID or as root, it talks gRPC directly to avirthostd on `admin.sock`. This path bypasses avirtapid and avirtedgeproxyd. The operations on this page remain inaccessible to peers, workloads, and web UI users.
 
-[avirt](./operator-cli.md) is the <!-- Project glossary term. --><!-- vale project.WordList = NO -->operator CLI<!-- vale project.WordList = YES -->, and [avirtguest](./guest-cli.md) is the command-line tool inside a workload container. Where the three overlap they share command names, flags, output formats, and exit codes.
+[avirt](./operator-cli.md) is the operator CLI, and [avirtguest](./guest-cli.md) is the guest CLI inside a workload container. Where the three overlap they share command names, flags, output formats, and exit codes.
 
 ## Connection and authentication
 
@@ -28,7 +28,7 @@ flowchart LR
     hostd -->|"lifecycle, namespaces, peers, CA"| state[("avirthostd state")]
 ```
 
-The default host policy set holds the built-in policy `avirt-admin`, which permits `Admin` each action. Only avirthostd's <!-- Project glossary term. --><!-- vale project.WordList = NO -->admin socket<!-- vale project.WordList = YES --> produces an `Admin` principal. A host policy can narrow it with `forbid` policies, such as forbidding policy writes as root.
+The default host policy set holds the built-in policy `avirt-admin`, which permits `Admin` each action. Only avirthostd's admin socket produces an `Admin` principal. A host policy can narrow it with `forbid` policies, such as forbidding policy writes as root.
 
 ```cedar
 @id("avirt-admin")
@@ -107,7 +107,7 @@ avirtadmin
 
 | Flag | Default | Meaning |
 | --- | --- | --- |
-| `--socket PATH` | `AVIRTADMIN_SOCKET`, else `$TMPDIR/avirt-<uid>/admin.sock` for the caller's own UID | avirthostd's <!-- Project glossary term. --><!-- vale project.WordList = NO -->admin socket<!-- vale project.WordList = YES -->. When running as root, specify the socket in avirthostd's runtime directory. |
+| `--socket PATH` | `AVIRTADMIN_SOCKET`, else `$TMPDIR/avirt-<uid>/admin.sock` for the caller's own UID | avirthostd's admin socket. When running as root, specify the socket in avirthostd's runtime directory. |
 | `--namespace NS`, `-n NS` | `default` | The namespace for namespaced commands |
 | `--output FORMAT`, `-o FORMAT` | `text` | `text` or `json`, as in [output formats](./operator-cli.md#output-formats) |
 | `--yes`, `-y` | Off | Skip the confirmation prompt on `namespace rm`, `peer revoke`, `ca rotate` and the break-glass commands. Without a terminal, those commands require it. |
@@ -145,7 +145,7 @@ avirtadmin has no `--context` and no `--host`. It administers only the host it r
 
 ## Workloads
 
-`avirtadmin workload list`, `inspect`, `stop` and `rm` behave as the [`avirt workload`](./operator-cli.md#workloads) commands of the same name, over the same `Workloads` service on the <!-- Project glossary term. --><!-- vale project.WordList = NO -->admin socket<!-- vale project.WordList = YES -->, with `Admin` as principal. `--all-namespaces` lists each namespace's workloads. avirtadmin omits launch commands. Use avirt, avirtwebd, or avirtguest to create workloads.
+`avirtadmin workload list`, `inspect`, `stop` and `rm` behave as the [`avirt workload`](./operator-cli.md#workloads) commands of the same name, over the same `Workloads` service on the admin socket, with `Admin` as principal. `--all-namespaces` lists each namespace's workloads. avirtadmin omits launch commands. Use avirt, avirtwebd, or avirtguest to create workloads.
 
 ## Policy
 

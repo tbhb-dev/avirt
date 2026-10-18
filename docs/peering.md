@@ -4,7 +4,7 @@ title: Peering
 description: How two avirt hosts peer, with peer host names as fully qualified DNS names, out-of-band enrollment with enrollment files and fingerprints, trust bundle exchange, root rotation, revocation and removal, discovery and transport over avirtedgeproxyd's peer listener, what crosses a peering and what never does, policy on both sides with cross-host delegation chain and the keepalive that bounds a workload created from a peer, pairwise topology, failure modes, observability and audit, and the avirtadmin and avirt commands.
 tags: [avirt, peering, federation, spiffe, edge-proxy, policy, security]
 implementation: planned
-generated: { by: codex/gpt-6, at: 2026-10-18T03:05:39Z }
+generated: { by: codex/gpt-6, at: 2026-10-18T05:20:59Z }
 ---
 
 # Status: planned
@@ -189,7 +189,7 @@ avirtedgeproxyd refuses any other identity with 403. This host lacks records of 
 
 Each host's avirtedgeproxyd keeps a pool of h2 connections to each peer it dials, and multiplexes each stream bound for that peer onto them, whoever the caller is. A connection authenticates only the two hosts' avirtedgeproxyd identities. Each stream includes its own caller.
 
-- **Workload streams.** h2 `CONNECT`, carrying opaque bytes. The source avirtedgeproxyd rewrites `:authority` from the peered form to the peer's own local form, so `7e759259.team-a.workload.mac-studio.example.com:8080` reaches the peer as `7e759259.team-a.workload.host.avirt.internal:8080`.
+- **Workload streams.** h2 `CONNECT`, transporting opaque bytes. The source avirtedgeproxyd rewrites `:authority` from the peered form to the peer's own local form, so `7e759259.team-a.workload.mac-studio.example.com:8080` reaches the peer as `7e759259.team-a.workload.host.avirt.internal:8080`.
 - **Control-plane calls.** gRPC over h2, for the routes in [control-plane calls](#control-plane-calls).
 - **Bundle fetches.** `GET /avirt/peer/v1/bundle`.
 - **Headers.** Each stream includes `x-avirt-caller`, `x-request-id` (a UUIDv7 that the source avirtedgeproxyd draws per stream, used only to correlate both hosts' events), `traceparent` unless the host configuration turns it off (see [propagation](./observability.md#propagation)), and for a workload management call `x-avirt-delegation` (see [workload management across hosts](#workload-management-across-hosts)). The source avirtedgeproxyd removes each other `x-avirt-*` header.
@@ -250,7 +250,7 @@ flowchart LR
 
 ### Control-plane calls
 
-`avirt --host <host>`, a context with `host` set (see [<!-- Project glossary term. --><!-- vale project.WordList = NO -->operator CLI<!-- vale project.WordList = YES -->](./operator-cli.md#contexts-and-authentication)), and avirtguest with `--host` all send their call to the local avirtapid, which forwards it through the local avirtedgeproxyd to the peer's avirtapid.
+`avirt --host <host>`, a context with `host` set (see [operator CLI](./operator-cli.md#contexts-and-authentication)), and avirtguest with `--host` all send their call to the local avirtapid, which forwards it through the local avirtedgeproxyd to the peer's avirtapid.
 
 1. Locally, avirtedgeproxyd evaluates the host policy snapshot's `connect` for avirtapid and for the originating principal, with `Peer::"<host>"` as the resource, `port` 0 and the originating `via`.
 2. The peer's avirtedgeproxyd accepts the call only if its gRPC service or RPC is in the enrollment's `routes`, and refuses any other with 403 before it reaches avirtapid.
@@ -267,7 +267,7 @@ avirt workspace import peer:<host>/<ns>/<name>[:<tag>|@<digest>] [REPOSITORY[:TA
 ```
 
 1. avirtregistryd evaluates `import_workspace` for the caller, with `registry` set to `peer:<host>`.
-2. It calls the peer's `WorkspaceRegistry` through avirtedgeproxyd, carrying the caller in `x-avirt-caller`. The peer evaluates `pull_workspace` with `purpose` set to `peer-import`, for the caller, qualified by its peer host name.
+2. It calls the peer's `WorkspaceRegistry` through avirtedgeproxyd, identifying the caller in `x-avirt-caller`. The peer evaluates `pull_workspace` with `purpose` set to `peer-import`, for the caller, qualified by its peer host name.
 3. It pulls the manifest, the config and each layer, verifying each digest against the manifest, and stores the image with producer `import`, its source recorded as `peer:<host>/<repository>@<digest>`, and the peer's own producer recorded as `peer_producer`.
 
 `peer_producer` records only the peer's assertion, and `launch_workspace` policies can read it. A launch on a peer with `--host` resolves the reference at the peer, in the peer's registry, under the peer's policy.
@@ -385,7 +385,7 @@ Each host records its own side of each peered flow. A host never sends these eve
 
 ### avirtadmin
 
-Each `avirtadmin peer` command performs host administration on avirthostd's <!-- Project glossary term. --><!-- vale project.WordList = NO -->admin socket<!-- vale project.WordList = YES -->, as `Admin::"uid:<uid>"` (see [<!-- Project glossary term. --><!-- vale project.WordList = NO -->admin CLI<!-- vale project.WordList = YES -->](./admin-cli.md#peers-and-enrollment)).
+Each `avirtadmin peer` command performs host administration on avirthostd's admin socket, as `Admin::"uid:<uid>"` (see [admin CLI](./admin-cli.md#peers-and-enrollment)).
 
 | Command | Does | Cedar action |
 | --- | --- | --- |

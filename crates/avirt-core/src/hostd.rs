@@ -644,7 +644,7 @@ impl Hostd {
         if let Some(cwd) = cwd {
             cmd.arg("-v").arg(mount(cwd, "/workspace"));
         }
-        // `-e NAME` with no value makes the container command-line interface read it from its own environment, so
+        // `-e NAME` with no value makes the `container` command read it from its own environment, so
         // the prompt never appears on argv.
         cmd.args(["-e", "AVIRT_PROMPT", "-e", "AVIRT_CWD", "-e", "AVIRT_CONNECTION_TOKEN"])
             .arg("-e")
@@ -746,7 +746,7 @@ async fn container_cmd(args: &[&str], limit: Duration) -> bool {
 
 /// Stops the container and waits for the `container run` command-line interface to exit. A stop that arrives before
 /// the container exists fails fast, so this function retries it at a short interval. As a last resort,
-/// it kills and deletes the container by name before killing the command-line interface client. The flag
+/// it kills and deletes the container by name before killing the `container` process. The flag
 /// confirms whether the container no longer exists. Without that confirmation, the caller must not change
 /// what the agent could still be using.
 async fn stop_and_wait(id: &str, child: &mut Child) -> (std::io::Result<ExitStatus>, bool) {

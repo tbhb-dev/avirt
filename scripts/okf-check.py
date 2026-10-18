@@ -4,7 +4,7 @@ Usage: uv run --no-project --with pyyaml python scripts/okf-check.py docs
        uv run --no-project --with pyyaml python scripts/okf-check.py --repo .
 
 Checks: every non-reserved .md file has a parseable YAML frontmatter block with a non-empty
-`type`; `index.md` carries no frontmatter except `okf_version` at the bundle root, and its
+`type`; `index.md` has no frontmatter except `okf_version` at the bundle root, and its
 entries have the `* [Title](link) - description` form; concept id segments are valid; a
 `status` is draft, stable or deprecated; `generated` has `by`; relative links resolve.
 
@@ -145,7 +145,7 @@ def main() -> int:
         for e in errors:
             print(e)
         if not errors:
-            print(f"OK: {len(repo_markdown(root))} files outside docs/ carry OKF frontmatter")
+            print(f"OK: {len(repo_markdown(root))} files outside docs/ have OKF frontmatter")
         return 1 if errors else 0
     root = Path(sys.argv[1] if len(sys.argv) > 1 else "docs")
     errors = check(root)

@@ -1,10 +1,10 @@
 ---
 type: Component Design
 title: Workspaces
-description: Workspace images as OCI artifacts composed onto a harness base image, the image format with its base image reference and content rules, the workspace TOML config with its sources, includes, lockfile, secret exclusion and zero-config defaults, local provenance, the dev.avirt annotation set, workspace references and resolution, root filesystem composition per runtime, the avirt workspace commands, and the Cedar entities and launch action.
+description: Workspace images as OCI artifacts composed onto a harness base image, the image format with its base image reference and content rules, `.avirt-workspace.toml` with its sources, includes, lockfile, secret exclusion and zero-config defaults, local provenance, the dev.avirt annotation set, workspace references and resolution, root filesystem composition per runtime, the avirt workspace commands, and the Cedar entities and launch action.
 tags: [avirt, workspaces, oci, cel, policy]
 implementation: planned
-generated: { by: codex/gpt-6, at: 2026-10-18T02:37:39Z }
+generated: { by: codex/gpt-6, at: 2026-10-18T04:29:26Z }
 ---
 
 # Status: planned
@@ -373,7 +373,7 @@ At launch avirthostd pulls the resolved workspace image's manifest, config and l
 | --- | --- |
 | Containerization | avirthostd keeps an unpacked ext4 root filesystem per harness base in its content-addressed cache, and a composed root filesystem per pair of harness base and workspace image in `cache/rootfs/`. It builds a composed one by cloning the harness base's with APFS `clonefile` and unpacking the workspace layers into the clone. Each workload container gets its own `clonefile` copy of the composed root filesystem as its writable root block device, with the configuration layer unpacked into it, so a launch from a cached pair copies only the configuration layer's file data. |
 | Docker Desktop | avirthostd writes an image manifest whose layers are the harness base's layers followed by the workspace layers and the configuration layer, and whose config is the harness base's config with those layers' `diff_ids` appended. It loads it through the Docker API as an OCI archive that contains only the blobs the store lacks, tagged `avirt.internal/composed:<hex>` with the hex of the composed manifest's SHA-256, and the containerd image store reuses the harness base's layers by digest. The container's writable layer is per workload, as for any container. |
-| <!-- Preserve the exact term from the glossary. --><!-- vale project.WordList = NO -->Apple container CLI<!-- vale project.WordList = YES --> | avirthostd refuses a workspace launch on this runtime with 400. |
+| Apple container CLI | avirthostd refuses a workspace launch on this runtime with 400. |
 
 Composed root filesystems and composed images are cache entries. avirthostd garbage-collects them with their source workspace images. Startup cleanup keeps them along with the other caches in [lifecycle](./lifecycle.md#startup-cleanup).
 
@@ -381,7 +381,7 @@ avirtguestd's workspace roots for the workload are the image's `roots`, so its w
 
 ## Commands
 
-The `avirt workspace` commands, and `avirt launch --workspace`, are in <!-- Preserve the exact term from the glossary. --><!-- vale project.WordList = NO -->[operator CLI workspaces](./operator-cli.md#workspaces)<!-- vale project.WordList = YES -->.
+The `avirt workspace` commands, and `avirt launch --workspace`, are in [operator CLI workspaces](./operator-cli.md#workspaces).
 
 ## Policy
 
@@ -412,5 +412,5 @@ when { context.namespace == Namespace::"prod" && resource.provenance == "local" 
 
 1. **Snapshots to workspace images.** Whether to convert an avirtguestd workspace snapshot of a running workload container into a new workspace image remains open. The producer for such images also remains open.
 2. **Zero-config in a repository with a remote.** The zero-config git source fetches the local `HEAD` commit from `origin`, so unpushed commits fail with `commit not on remote` and the source never reads the working tree. Whether zero-config should use a local git source instead remains open. That choice would give the build local provenance.
-3. **The <!-- Preserve the exact term from the glossary. --><!-- vale project.WordList = NO -->guest CLI<!-- vale project.WordList = YES -->.** Whether `guest-cli` may search workspaces or start builds from inside a workload container is open (see <!-- Preserve the exact term from the glossary. --><!-- vale project.WordList = NO -->[guest CLI](./guest-cli.md#open-questions)<!-- vale project.WordList = YES -->).
+3. **The guest CLI.** Whether `guest-cli` may search workspaces or start builds from inside a workload container is open (see [guest CLI](./guest-cli.md#open-questions)).
 4. **`github` and `git` sources.** With ref selection in prebuild policies, a `github` source is a remote `git` source with GitHub authentication and annotations. Whether to represent it as `git` with a provider key is open.

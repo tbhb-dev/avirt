@@ -4,7 +4,7 @@ title: Egress policies
 description: The Cedar policy model for egress, ingress and the control plane, with the avirt Cedar schema and its entities, actions, context and tags, the enforcement points in avirtmedproxyd, avirtedgeproxyd and avirthostd, name resolution and canonicalization with the restrictions on like, the connect, intercept, passthrough, resolve and request semantics, audit and enforce modes and their exemptions, policy snapshot building, distribution, versioning and expiry, revocation of open flows, the policy prover and the MITM CA name constraints it derives, failure behavior, and worked examples.
 tags: [avirt, egress, policy, cedar, prover, policy snapshots, security]
 implementation: planned
-generated: { by: codex/gpt-6, at: 2026-10-18T02:56:34Z }
+generated: { by: codex/gpt-6, at: 2026-10-18T05:20:59Z }
 ---
 
 # Status: planned
@@ -19,12 +19,12 @@ Egress, ingress, and control-plane policy uses Cedar. avirtpolicyd stores polici
 | --- | --- | --- | --- |
 | avirtmedproxyd's Envoy (libavirtenvoy) | Workload policy snapshot | `resolve`, `connect`, `intercept`, `passthrough` and `request` for its workload's egress, and `ingress` for connections to its workload's published ports | Its own `Workload` for egress, the caller in `x-avirt-caller` for `ingress` |
 | avirtedgeproxyd's Envoy (libavirtenvoy) | Host policy snapshot | `resolve` for its DNS proxy, and `connect` for every stream on its egress and peer listeners: workload-to-workload, services, host-local services, external endpoints, the `/guest-cli` stream, peered names, and every host service's off-host connection | Caller's SVID, identifying a local or peer `Workload` or a `HostService`. For a gateway or avirtapid call on behalf of a caller, also the originating principal |
-| avirthostd | Host policy snapshot | Workloads, labels, bindings, ports, services, namespaces, peers, sessions, logs and `launch_workspace`, and host administration (see [actions](#actions)) | Caller: a `Workload` through `guest-cli`, a `User` through avirtapid, `Admin` on the <!-- vale project.WordList = NO -->admin socket<!-- vale project.WordList = YES -->, or a `HostService` |
+| avirthostd | Host policy snapshot | Workloads, labels, bindings, ports, services, namespaces, peers, sessions, logs and `launch_workspace`, and host administration (see [actions](#actions)) | Caller: a `Workload` through `guest-cli`, a `User` through avirtapid, `Admin` on the admin socket, or a `HostService` |
 | avirtsecretsd | Host policy snapshot | `read_secret`, `manage_secret`, `manage_provider` and `manage_binding` (see [secrets](./secrets.md#cedar)) | avirtmedproxyd's `Workload`, a gateway's or host service's `HostService`, or `Admin` |
 | avirtbuilderd | Host policy snapshot | `build_workspace`, `watch_workspace`, `inspect_build`, `cancel_build`, `inspect_watch` and `unwatch_workspace` (see [workspace builds](./workspace-build.md#policy)) | The caller avirtapid forwards, or `HostService::"avirtbuilderd"` |
 | avirtregistryd | Host policy snapshot | `push_workspace`, `pull_workspace`, `import_workspace`, `export_workspace` and `delete_workspace` (see [workspace registry](./workspace-registry.md#policy)) | The caller avirtapid forwards, a `HostService`, or a build job's `Workload` |
 
-The command-to-action maps are in [<!-- vale project.WordList = NO -->operator CLI<!-- vale project.WordList = YES -->](./operator-cli.md#api-and-policy-map), [<!-- vale project.WordList = NO -->admin CLI<!-- vale project.WordList = YES -->](./admin-cli.md#api-and-policy-map), and [<!-- vale project.WordList = NO -->guest CLI<!-- vale project.WordList = YES -->](./guest-cli.md#api-and-policy-map).
+The command-to-action maps are in [operator CLI](./operator-cli.md#api-and-policy-map), [admin CLI](./admin-cli.md#api-and-policy-map), and [guest CLI](./guest-cli.md#api-and-policy-map).
 
 A connection between two workloads needs permission at three points. The source avirtmedproxyd checks `connect` against the source workload's policy snapshot. avirtedgeproxyd checks `connect` against the host policy snapshot, and the destination avirtmedproxyd checks `ingress` against the destination workload's policy snapshot. Between hosts, each host's avirtedgeproxyd checks its own host policy snapshot. All these checks must permit the connection.
 
@@ -88,7 +88,7 @@ A label isn't a trust boundary by itself: a policy that keys on a label trusts w
 
 ### Actions
 
-Every control-plane action carries `via` in its context, except avirtsecretsd's administration actions, which avirtadmin alone reaches through avirthostd. An action that specifies a session takes the ACP session id in `session`, and one that omits it applies to every session of the workload.
+Every control-plane action includes `via` in its context, except avirtsecretsd's administration actions, which avirtadmin alone reaches through avirthostd. An action that specifies a session takes the ACP session id in `session`, and one that omits it applies to every session of the workload.
 
 | Action | Evaluated by | Principal | Resource | Context |
 | --- | --- | --- | --- | --- |
@@ -142,7 +142,7 @@ Every control-plane action carries `via` in its context, except avirtsecretsd's 
 | `gateway` | An upstream connection that avirtmodelgwd or avirtmcpgwd makes for a workload. Policy checks both the gateway and the workload. |
 | `service` | A host service's own connection |
 | `client` | A `User`, through avirtapid |
-| `admin` | avirtadmin, on avirthostd's <!-- vale project.WordList = NO -->admin socket<!-- vale project.WordList = YES --> |
+| `admin` | avirtadmin, on avirthostd's admin socket |
 | `mediator` | avirtmedproxyd's Envoy reading its workload's binding values, for `read_secret` |
 
 ### Schema text
@@ -583,7 +583,7 @@ These non-policy checks aren't policy and apply in both modes: authority parsing
 
 ### Contents
 
-A policy snapshot has a scope, one workload or the host, and carries:
+A policy snapshot has a scope, one workload or the host, and contains:
 
 - `scope`, `workload:<uuid>` or `host`.
 - `version`, increasing within its scope and never reused, including across avirtpolicyd restarts, because avirtpolicyd keeps the last version per scope in its state directory.
@@ -592,7 +592,7 @@ A policy snapshot has a scope, one workload or the host, and carries:
 - `issued` and `lifetime`.
 - the compiled policy set and its sha256.
 - the entity revision used to build it, and the entities it contains.
-- the peer table, which maps each enrolled peer's trust domain to its peer host name, so that a caller's SPIFFE ID in `x-avirt-caller` resolves to a qualified entity. Every workload policy snapshot and the host policy snapshot carry it.
+- the peer table, which maps each enrolled peer's trust domain to its peer host name, so that a caller's SPIFFE ID in `x-avirt-caller` resolves to a qualified entity. Every workload policy snapshot and the host policy snapshot include it.
 
 ### Building
 
@@ -825,7 +825,7 @@ when { resource has ip && resource.ip.isInRange(ip("203.0.113.0/24")) && resourc
 
 ### Workload management, labels, and bindings
 
-A `ci` workload in `team-a` manages workloads in `team-a` through the <!-- vale project.WordList = NO -->guest CLI<!-- vale project.WordList = YES -->, at most two levels deep. It may set only `project` labels and attach only the GitHub binding. avirthostd still applies the constraints in [workload management](./components.md#workload-management): the child can receive only bindings the creator has.
+A `ci` workload in `team-a` manages workloads in `team-a` through the guest CLI, at most two levels deep. It may set only `project` labels and attach only the GitHub binding. avirthostd still applies the constraints in [workload management](./components.md#workload-management): the child can receive only bindings the creator has.
 
 ```cedar
 @id("team-a-ci-manages-team-a")

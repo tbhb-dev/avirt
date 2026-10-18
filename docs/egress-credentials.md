@@ -4,7 +4,7 @@ title: Egress credentials
 description: Where Claude and Codex credentials live and how they reach the agent today, with the Codex auth.json seed and write-back, and the planned credential injection at egress, covering bindings and credential injectors, the avirtsecretsd broker and SDS, placeholders and placeholder misuse checks, libavirtenvoy HTTP and gRPC injection, the model and MCP gateways, Claude Code, Codex and Codex refresh, generation fencing, rotation and revocation, what the workload can and can't see, and credentials for build jobs and for workloads that create workloads.
 tags: [avirt, credentials, egress, oauth, claude, codex, security]
 implementation: partial
-generated: { by: codex/gpt-6, at: 2026-10-18T02:37:39Z }
+generated: { by: codex/gpt-6, at: 2026-10-18T05:21:55Z }
 ---
 
 # Status: implemented
@@ -58,7 +58,7 @@ avirthostd logs the outcome as an `auth_writeback` meta event containing a fixed
 - `no auth.json in workload home`
 - a `refused: ...` or `failed: ...` reason
 
-After write-back, avirthostd always removes the temp home. This covers normal exit and workload container stops, spawn errors, setup failures, and avirthostd shutdown. If graceful stop, forced stop, and deletion attempts fail to confirm removal, avirthostd skips cleanup and write-back. It leaves the temp home for the next startup cleanup and records a `container_error`.
+After write-back, avirthostd always removes the temp home. This covers normal exit, workload container stop or termination, spawn errors, setup failures, and avirthostd shutdown. If `stop`, `kill`, and `delete` attempts fail to confirm removal, avirthostd skips cleanup and write-back. It leaves the temp home for the next startup cleanup and records a `container_error`.
 
 Constraint: two concurrent workloads that start from the same stale refresh token can't both refresh, so the second one's refresh fails. Logs contain the account label, email, and plan. With auto-approve, the agent can copy `/codex-home/auth.json` into the log.
 
@@ -317,7 +317,7 @@ A build job is a workload with the build security context (see [workspace builds
 
 ## Workloads that create workloads
 
-A workload that creates another workload through the <!-- Preserve the exact term from the glossary. --><!-- vale project.WordList = NO -->guest CLI<!-- vale project.WordList = YES --> (see [workload management](./components.md#workload-management)) can attach to it only bindings it holds itself, and avirthostd still authorizes `attach_binding` for each one with the creator as the principal.
+A workload that creates another workload through the guest CLI (see [workload management](./components.md#workload-management)) can attach to it only bindings it holds itself, and avirthostd still authorizes `attach_binding` for each one with the creator as the principal.
 
 - **Separate placeholders.** The child gets its own placeholders for each binding, issued to its own workload. The creator never sees them, and a creator's placeholder used in the child's requests is unknown to the child's avirtmedproxyd and meets the placeholder misuse check.
 - **Delegation chain.** avirtsecretsd records each child binding's creator. Withdrawing a workload's binding also withdraws it from every descendant that obtained it through that workload.

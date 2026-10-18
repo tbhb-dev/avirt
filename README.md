@@ -3,7 +3,7 @@ type: README
 title: avirt
 description: "`avirt` runs ACP agents in isolated containers on an Apple silicon Mac."
 tags: [avirt, readme]
-generated: { by: codex/gpt-6, at: 2026-10-18T03:13:20Z }
+generated: { by: codex/gpt-6, at: 2026-10-18T04:57:34Z }
 ---
 
 # avirt
@@ -15,13 +15,13 @@ Agents working in this repository should read [AGENTS.md](AGENTS.md). See [docs/
 ## Layout
 
 - `crates/avirthostd/` contains the `avirthostd` binary (running it starts the server) and the per-agent launch profiles. It also handles Codex's credentials.
-- `crates/avirt/` contains the `avirt` <!-- Preserve the exact term from the glossary. --><!-- vale project.WordList = NO -->operator CLI<!-- vale project.WordList = YES --> (`avirt launch`).
+- `crates/avirt/` contains the `avirt` operator CLI (`avirt launch`).
 - `crates/avirtmediatord/` contains the `avirtmediatord` binary, the per-workload egress proxy. Pingora is the default, with an opt-in Envoy engine.
 - `crates/avirtmedproxyd/` contains the `avirtmedproxyd` binary, the mediator proxy: supervises the mediator's Envoy with libavirtenvoy and serves it local xDS and SDS (not implemented).
 - `crates/avirtinitd/` contains the `avirtinitd` binary, which runs in the workload (`AVIRT_AGENT=claude|codex`).
 - `crates/avirt-connect/` contains the `avirt-connect` library, the CONNECT authority parsing and destination checks that both of avirtmediatord's engines share.
 - `crates/avirt-core/` contains the shared library. It contains the control API types (`api`) and log envelope, along with the h2c client and the client for the workload's HTTP/2 connection to its mediator. It includes the `avirthostd` server and workload registry, plus the `avirtinitd` harness and runtime directory.
-- `crates/avirtadmin/` contains the `avirtadmin` binary, the local <!-- Preserve the exact term from the glossary. --><!-- vale project.WordList = NO -->admin CLI<!-- vale project.WordList = YES --> (not implemented).
+- `crates/avirtadmin/` contains the `avirtadmin` binary, the local admin CLI (not implemented).
 - `crates/avirtwebd/` contains the `avirtwebd` binary, the backend for the avirt web UI (not implemented).
 - `crates/avirtapid/` contains the `avirtapid` binary, the REST and gRPC proxy to the local avirthostd and to peers' avirtapid (not implemented).
 - `crates/avirtdnsd/` contains the `avirtdnsd` binary, the DNS resolver for `<name>.<ns>.svc.host.avirt.internal` and `<name>.<ns>.workload.host.avirt.internal`, which answers with the local avirtedgeproxyd or, for peered names, their host's avirtedgeproxyd (not implemented).
@@ -41,7 +41,7 @@ Agents working in this repository should read [AGENTS.md](AGENTS.md). See [docs/
 - `crates/avirtnetd/` contains the `avirtnetd` binary, the guest networking daemon. It provides the client end of the workload's HTTP/2 connection to its mediator and the forward and reverse proxies, plus the stub DNS resolver and guest control API (not implemented).
 - `crates/avirtguestd/` contains the `avirtguestd` binary, the workload services daemon. It provides a file server and snapshots, plus the guest MCP tool surface (not implemented).
 - `crates/avirtmcp/` contains the `avirtmcp` binary, the MCP stdio proxy to avirtmcpgwd, launched on demand by the agent (not implemented).
-- `crates/avirtguest/` contains the `avirtguest` binary, the <!-- Preserve the exact term from the glossary. --><!-- vale project.WordList = NO -->guest CLI<!-- vale project.WordList = YES --> that's in the image and connects to avirtapid through the mediator (not implemented).
+- `crates/avirtguest/` contains the `avirtguest` binary, the guest CLI that's in the image and connects to avirtapid through the mediator (not implemented).
 - `workloads/claude/` and `workloads/codex/` contain the image build directories, each with a Containerfile and `image/` holding the pinned adapter. The images are `avirt-workload-claude:dev` and `avirt-workload-codex:dev`.
 
 ## Prerequisites

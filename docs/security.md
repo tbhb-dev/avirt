@@ -4,7 +4,7 @@ title: Security principles
 description: avirt's security thesis and scope, expectations of external layers, extension points, and core security principles. Each concrete property has a status of Met, In Progress, Future, or Out of Scope against the current code.
 tags: [avirt, security, principles, threat-model]
 implementation: partial
-generated: { by: codex/gpt-6, at: 2026-10-18T03:05:39Z }
+generated: { by: codex/gpt-6, at: 2026-10-18T05:20:59Z }
 ---
 
 # Overview
@@ -97,10 +97,10 @@ Each connection across a container or host boundary authenticates with a short-l
 
 Independent layers confine the agent. Escaping one leaves the others in place.
 
-- **Met.** Each workload container runs in its own VM under the <!-- Project glossary term. --><!-- vale project.WordList = NO -->Apple container CLI runtime<!-- vale project.WordList = YES --> ([compute runtimes](./compute-runtimes.md#apple-container-cli-runtime)).
+- **Met.** Each workload container runs in its own VM under the Apple container CLI runtime ([compute runtimes](./compute-runtimes.md#apple-container-cli-runtime)).
 - **Met.** The agent runs as uid 1000 with each capability set empty and `no_new_privs`, and its environment excludes the workload ID, prompt, and connection token ([agent process](./workload-hardening.md#agent-process)).
 - **Met.** Seccomp denies `AF_VSOCK`, `AF_NETLINK` and `AF_PACKET` sockets and io_uring, to avirtinitd and everything it starts, before the agent starts ([seccomp](./workload-hardening.md#seccomp)).
-- **Met.** `proxy.sock` and `mediator.sock` are `root:root 0600`, and the agent can't read `/proc/1/fd`, `/proc/1/mem` or `/proc/1/environ` or signal PID 1 ([what the agent can still do](./workload-hardening.md#agent-capabilities)).
+- **Met.** `proxy.sock` and `mediator.sock` are `root:root 0600`, and the agent can't read `/proc/1/fd`, `/proc/1/mem` or `/proc/1/environ` or signal PID 1 ([what the agent can still do](./workload-hardening.md#residual-agent-access)).
 - **Future.** `socket()` allows only `AF_UNIX`, `AF_INET` and `AF_INET6`, and the denylist blocks fileless exec, cross-process memory access, kernel exploit primitives, mounts and user namespaces ([denylist](./workload-hardening.md#denylist)).
 - **Future.** Landlock confines the agent's filesystem writes to `/workspace`, `/home/agent` and `/tmp`, and the agent doesn't start without it ([sandbox](./sandbox.md)).
 - **Future.** Each workload helper runs under its own UID and profile, and avirtinitd mounts `/proc` with `hidepid=invisible` ([security contexts](./workload-hardening.md#security-contexts)).
@@ -127,7 +127,7 @@ Each host service limits its state, secrets, and callers to those it needs. Loca
 
 - **Met.** avirthostd starts each workload container and each mediator from a cleared environment, adding only the variables the launch needs ([egress credentials](./egress-credentials.md#status-implemented)).
 - **Met.** The runtime directory, workload directories and logs directory are 0700 and owned by the user, and each log file is 0600 ([log files](./hostd-api.md#log-files)).
-- **Future.** Local clients authenticate before they act: avirtedgeproxyd's local client listener is a user-owned 0600 socket, and avirthostd's <!-- Project glossary term. --><!-- vale project.WordList = NO -->admin socket<!-- vale project.WordList = YES --> checks peer credentials. Today the control API has no authentication, and any local process can launch workloads ([control API](./hostd-api.md#control-api), [listeners](./trust-boundaries.md#listeners)).
+- **Future.** Local clients authenticate before they act: avirtedgeproxyd's local client listener is a user-owned 0600 socket, and avirthostd's admin socket checks peer credentials. Today the control API has no authentication, and any local process can launch workloads ([control API](./hostd-api.md#control-api), [listeners](./trust-boundaries.md#listeners)).
 - **Future.** Each host service manages only its own state, accepts only the callers it lists, and in the all-in-one server image runs under its own UID and reads only its own secrets ([all-in-one server image](./components.md#all-in-one-server-image)).
 - **Future.** avirtbuilderd lacks signing keys and host control API access. Each build of untrusted content runs in a disposable build job ([builds](./workspace-build.md#builds)).
 - **Future.** zot accepts only avirtregistryd, over mutual TLS with a private CA held in memory ([workspace registry](./workspace-registry.md#trust-boundaries)).
@@ -141,7 +141,7 @@ A workload can manage other workloads only as policy permits, and never gains mo
 - **Future.** A workload creates workloads only in namespaces where it may, with bindings it holds, from workspace images it may launch, and with its own or an assignable policy reference ([workload management](./components.md#workload-management)).
 - **Future.** Only avirthostd sets `avirt.internal/` labels, and a workload can't change its own namespace, labels, bindings or policy reference ([workload management](./components.md#workload-management)).
 - **Future.** avirthostd records each workload's creator and root, and refuses a create past the delegation chain depth cap ([workload management](./components.md#workload-management)).
-- **Future.** Host administration is never available to workload principals, and avirtadmin reaches avirthostd only on its local <!-- Project glossary term. --><!-- vale project.WordList = NO -->admin socket<!-- vale project.WordList = YES --> ([listeners](./trust-boundaries.md#listeners)).
+- **Future.** Host administration is never available to workload principals, and avirtadmin reaches avirthostd only on its `admin.sock` ([listeners](./trust-boundaries.md#listeners)).
 - **Future.** Audit mode never widens control-plane authority ([modes](./egress-policies.md#modes)).
 - **Future.** A build job has no `guest-cli` access ([build jobs](./workspace-build.md#build-jobs)).
 
@@ -151,7 +151,7 @@ avirt denies or ends the workload if a check can't run, a dependency is missing,
 
 - **Met.** Starting the agent requires avirthostd to accept the workload's HTTP/2 connection to its mediator and avirtinitd to apply the seccomp filters. Failure to apply a filter ends the workload ([connection to the mediator](./workload-topology.md#connection-to-the-mediator), [seccomp](./workload-hardening.md#seccomp)).
 - **Met.** A stream POST with a missing or wrong token gets 403 before the workload's state changes, and avirthostd closes a mediator connection whose header lacks the right secret ([identity](./identity.md#status-implemented)).
-- **Met.** Losing its mediator leaves a workload without an outbound path. A mediator always exits by the time avirthostd exits ([mediator process](./egress.md#mediator-process)).
+- **Met.** Losing its mediator leaves a workload without an outbound path. A mediator shuts down on stdin EOF when avirthostd exits ([mediator process](./egress.md#mediator-process)).
 - **Met.** Codex write-back replaces the host `auth.json` only with a strictly newer copy of the same login. avirthostd skips write-back unless it confirms that the workload has ended ([Codex](./egress-credentials.md#codex)).
 - **Future.** No agent starts before the workload identity, the MITM CA, the placeholders and a valid policy snapshot are in place ([launch handshake](./workload-topology.md#launch-handshake)).
 - **Future.** A missing or expired policy snapshot, a Cedar evaluation error and an avirt name that resolves to no entity each deny, in both modes ([policy failure behavior](./egress-policies.md#policy-failure-behavior)).

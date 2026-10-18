@@ -4,7 +4,7 @@ title: Observability
 description: How avirt records and exposes its behavior through logs, audit, metrics, and traces. Covers workload and host logs, stdout and stderr per runtime, severity and fields, content and access, OCSF delivery, integrity and retention, metric attributes and cardinality, Envoy metrics, trace propagation and spans, sampling and trace context privacy, avirtoteld delivery and backpressure, and bundled dashboards and alerts.
 tags: [avirt, observability, logging, audit, ocsf, metrics, tracing, opentelemetry, dashboards]
 implementation: partial
-generated: { by: codex/gpt-6, at: 2026-10-18T03:04:57Z }
+generated: { by: codex/gpt-6, at: 2026-10-18T05:20:59Z }
 ---
 
 # Overview
@@ -40,7 +40,7 @@ The workload ID is 8 random hexadecimal characters. A launch never reuses an ID 
 
 The envelope has fields `{ts, dir, msg}` in that order, with `ts` an RFC 3339 UTC time in milliseconds and `dir` one of `client->agent`, `agent->client`, `meta` and `egress` (see [envelope](./hostd-api.md#envelope) and [meta events](./hostd-api.md#meta-events)). Log lines come from these sources:
 
-- **Workload lines.** avirtinitd builds each envelope and stamps `ts` from the workload container's clock. It sends the envelope in the body of `POST /workloads/<id>/stream`, the one request on the workload's HTTP/2 connection to its mediator (on `mediator.sock`), which today carries only log envelopes. avirthostd splits the request body into lines and writes each line as it arrived. It replaces a line longer than 16 MiB with its own `line_truncated` event.
+- **Workload lines.** avirtinitd builds each envelope and stamps `ts` from the workload container's clock. It sends the envelope in the body of `POST /workloads/<id>/stream`, the one request on the workload's HTTP/2 connection to its mediator (on `mediator.sock`), which today transports only log envelopes. avirthostd splits the request body into lines and writes each line as it arrived. It replaces a line longer than 16 MiB with its own `line_truncated` event.
 - **Egress lines.** The mediator sends one NDJSON `conn` event per proxied connection on its `EGRESS` connection (see [events](./egress.md#events)). avirthostd wraps each in an envelope with `dir: "egress"` and its own `ts`.
 - **avirthostd's events.** avirthostd writes `line_truncated`, `auth_writeback`, `container_error` and `container_exit` itself, with its own `ts`, and holds the errors, the cleanup outcome and `container_exit` until the stream has drained, so `container_exit` is the last line.
 
@@ -74,7 +74,7 @@ avirtlogd acquires the workload containers' output from files the host side writ
 
 - **Containerization.** Containerization doesn't persist container stdio. avirthostd supplies one writer per stream (`LinuxProcessConfiguration.stdout` and `.stderr`), so stdout and stderr arrive separately in avirthostd's process through the Swift dylib. Workloads run with `terminal = false`, because terminal mode merges the streams and rejects a stderr writer. The writers frame the output into `logs/<workload-id>.stdio.ndjson`, as described below.
 - **Docker Desktop.** avirthostd creates each container with the `json-file` log driver and a `max-size` and `max-file` cap. avirtlogd reads those files, and takes each record's identity from avirthostd's record of the container, never from the file (see [components](./components.md#open-questions) for how to access the files).
-- **The <!-- Project glossary runtime name. --><!-- vale project.WordList = NO -->Apple container CLI runtime<!-- vale project.WordList = YES -->.** That runtime writes a merged raw `stdio.log` (without stream tags, timestamps, or rotation) and a `vminitd.log` under `~/Library/Application Support/com.apple.container/containers/<id>/`. avirtlogd doesn't read them. The implemented `container.log` is the only copy of that runtime's output.
+- **The Apple container CLI runtime.** That runtime writes a merged raw `stdio.log` (without stream tags, timestamps, or rotation) and a `vminitd.log` under `~/Library/Application Support/com.apple.container/containers/<id>/`. avirtlogd doesn't read them. The implemented `container.log` is the only copy of that runtime's output.
 
 On the Containerization runtime, avirthostd's writer is on the read path of the workload container's output. Blocking would stall the workload container through vsock, vminitd, and pipe backpressure. A write that throws silently drops the output. The writer must never block:
 
@@ -83,7 +83,7 @@ On the Containerization runtime, avirthostd's writer is on the read path of the 
 3. It frames lines and marks partial lines. It flushes on a timer or a size threshold and caps line length. It encodes invalid UTF-8 as base64.
 4. It flushes on `close()`.
 
-A dedicated writer thread behind the ring writes the per-workload NDJSON file `logs/<workload-id>.stdio.ndjson` (0640, group readable only by avirtlogd's UID), one record per line as `{ts, workload, ns, short_id, stream, partial, text|b64}`. Rotate files and cap their total disk usage. Rotation never removes a segment that avirtlogd hasn't checkpointed past. At the disk cap the writer stops writing and its ring fills. The writer drops further chunks and counts them in a `dropped_bytes` record without stalling the workload. avirtlogd needs only read access to that directory. The VMs, vsock and the virtualization entitlement stay in avirthostd.
+A dedicated writer thread behind the ring writes the per-workload NDJSON file `logs/<workload-id>.stdio.ndjson` (0640, group readable only by avirtlogd's UID), one record per line as `{ts, workload, ns, short_id, stream, partial, text|b64}`. The writer rotates files and caps their total disk usage. Rotation never removes a segment that avirtlogd hasn't checkpointed past. At the disk cap the writer stops writing and its ring fills. The writer drops further chunks and counts them in a `dropped_bytes` record without stalling the workload. avirtlogd needs only read access to that directory. The VMs, vsock and the virtualization entitlement stay in avirthostd.
 
 The VM console, the guest kernel's console plus vminitd's own logs, comes from Containerization's `bootLog` as a file or file handle. avirtlogd reads it as a separate source with `stream=console`.
 
@@ -148,13 +148,13 @@ Workload logs, workload stdio and ACP content are secret. They can contain promp
 
 - **Never logged.** Secret values, placeholder values, header values, request and response bodies, query strings and the contents of `auth.json` never appear in an avirt event, a host service log, a span or a metric (see [events](./egress.md#events-1)). avirt's own events about credentials record fixed reason strings and binding names.
 - **Redaction.** Before export, avirtlogd and avirtoteld replace each match of the placeholder misuse check's patterns (see [placeholders](./egress-credentials.md#placeholders)) and of known credential formats, such as provider API key prefixes, JWTs and PEM private keys, with `[redacted:<kind>]`, and count each replacement in `avirt.log.redactions`. Redaction narrows exposure. It doesn't make content safe to share.
-- **Content off by default.** By default, avirt never records the `gen_ai.input.messages`, `gen_ai.output.messages`, `gen_ai.tool.call.arguments`, and `gen_ai.tool.call.result` attributes, which the semantic conventions mark Opt-In. A namespace can opt in to content in local telemetry, and remote export carries content only for a namespace that opts in to it separately.
+- **Content off by default.** By default, avirt never records the `gen_ai.input.messages`, `gen_ai.output.messages`, `gen_ai.tool.call.arguments`, and `gen_ai.tool.call.result` attributes, which the semantic conventions mark Opt-In. A namespace can opt in to content in local telemetry, and remote export sends content only for a namespace that opts in to it separately.
 - **Remote export.** Export workload stdio log bodies only for namespaces the host configuration specifies. Export only the metadata of each other telemetry record.
 
 | Reader | What | How |
 | --- | --- | --- |
 | A local user, a web UI user, or a workload | One workload's log, by source | `Logs/ReadLog` through avirtapid, authorized by `read_log` with `source` (`acp`, `egress`, `meta` or `stdio`) in the context (see [logs](./operator-cli.md#logs)). The default denies all actions, and a workload caller must follow [workload management](./components.md#workload-management). |
-| avirtadmin | Any workload's log | avirthostd's <!-- Preserve the admin socket interface name. --><!-- vale project.WordList = NO -->admin socket<!-- vale project.WordList = YES -->, as `Admin::"uid:<uid>"` |
+| avirtadmin | Any workload's log | avirthostd's admin socket, as `Admin::"uid:<uid>"` |
 | avirtauditd | Each workload log and audit log, read-only | Group read on the files, by offset |
 | avirtlogd | Workload stdio files, read-only | Group read on `logs/*.stdio.ndjson` (see [listeners](./trust-boundaries.md#listeners)) |
 
@@ -219,7 +219,7 @@ ACP lines aren't audit events. avirtauditd maps the `start` event without its `p
 ### Integrity
 
 - Each audit log line and each workload log line includes `prev`, the SHA-256 of the previous line's bytes in the same file.
-- Each 1000 lines and each 60 s, the writer appends a `checkpoint` record with the `seq` and the hash of the chain's head, signed with its current SVID key and carrying the SVID chain.
+- After every 1000 lines and every 60 s, the writer appends a `checkpoint` record with the `seq` and the hash of the chain's head, signed with its current SVID key and including the SVID chain.
 - avirtauditd verifies `seq` continuity, each `prev` and each checkpoint signature against the SPIFFE bundle, and delivers the checkpoints to each sink with the records they cover.
 - A break is itself an audit event, at `ERROR`, naming the file, the `seq` and the expected and found hashes, and avirtauditd raises the `AuditChainBroken` alert.
 
@@ -229,7 +229,7 @@ A compromised writer can rewrite what it hasn't yet delivered. The chain proves 
 
 - avirthostd and each audit log writer keep a file until each sink has acknowledged it and the local retention period has passed, 30 days by default. They never delete unacknowledged records.
 - At the audit disk cap, avirthostd refuses new launches with 503 and each audit log writer refuses the operations it would record.
-- avirthostd retains an ended workload's log for the same period, then removes it with the workload's record (see [<!-- Project glossary term. --><!-- vale project.WordList = NO -->operator CLI<!-- vale project.WordList = YES -->](./operator-cli.md#open-questions)).
+- avirthostd retains an ended workload's log for the same period, then removes it with the workload's record (see [operator CLI](./operator-cli.md#open-questions)).
 - Workload stdio logs are kept 7 days by default after the workload ends, and aren't audit records.
 
 ## Metrics
@@ -257,8 +257,8 @@ A compromised writer can rewrite what it hasn't yet delivered. The chain proves 
 Metric attributes must exclude the workload's UUIDv7 and short ID, alias, and generated name. They must exclude external hosts, DNS names, paths, conversation or tool call IDs, trace IDs, and user names. These belong on spans, log records, and exemplars.
 
 - **The workload ID.** Host-level instruments don't include workload IDs. An exemplar on a histogram point includes the trace and span IDs of a measurement, and the trace's resource includes `avirt.workload.id`. A dashboard can move from a slow bucket to the workload through its trace.
-- **Per-workload instruments.** `mem.workload`, `mem.mediator`, `cpu.workload`, `cpu.mediator`, `disk.workload` and `connection.frozen_total` describe one workload each, and carry `avirt.workload.id`. Their series end with the workload, and the host's live workload limit bounds them.
-- **Enforcement.** Each SDK instrument has a cardinality limit of 2000 series, past which points go to the `otel.metric.overflow` series. avirtoteld removes each metric attribute outside the table preceding, and `avirt.workload.id` from each instrument except the per-workload ones.
+- **Per-workload instruments.** `mem.workload`, `mem.mediator`, `cpu.workload`, `cpu.mediator`, `disk.workload` and `connection.frozen_total` describe one workload each, and include `avirt.workload.id`. Their series end with the workload, and the host's live workload limit bounds them.
+- **Enforcement.** Each SDK instrument has a cardinality limit of 2000 series, past which points go to the `otel.metric.overflow` series. avirtoteld removes each metric attribute outside the preceding table, and `avirt.workload.id` from each instrument except the per-workload ones.
 
 ### Without a collector
 
@@ -315,7 +315,7 @@ flowchart LR
 - **Control plane.** avirt starts a trace for each command and sends `traceparent` to avirtapid through avirtedgeproxyd, whose span joins it. avirtapid and avirthostd continue it.
 - **Into the workload.** avirthostd puts the launch span's `traceparent` into each container's bootstrap material and into `GET /workload`, so avirtmediatord's and avirtnetd's start spans join the launch trace.
 - **Across the workload's connection to its mediator.** avirtnetd sets `traceparent` on each HTTP/2 stream it opens. On an egress stream it uses the main workload process's current turn span, and outside a turn it starts a new trace.
-- **Trust.** Accept a context from a workload, mediator, or peer as a parent, and drop each `tracestate` and `baggage` it includes. Spans that follow it carry the identity attributes avirtoteld stamps from the caller's SVID, so a forged context can misplace spans only within the caller's own workload.
+- **Trust.** Accept a context from a workload, mediator, or peer as a parent, and drop each `tracestate` and `baggage` it includes. Spans that follow it include the identity attributes avirtoteld stamps from the caller's SVID, so a forged context can misplace spans only within the caller's own workload.
 
 ### External endpoints
 
@@ -338,7 +338,7 @@ Trace context excludes avirt identifiers. `traceparent` contains only random tra
 | `avirt.launch.connection_attached` | Internal | avirtnetd | At `attached` |
 | `avirt.launch.agent_started` | Internal | avirthostd | At `started` |
 
-Control-plane spans follow the RPC conventions, with `rpc.system.name` `grpc`, `rpc.method` and `rpc.status_code`, and carry the Cedar decision as `avirt.decision` and `avirt.rule`. The spans after the response stay in the launch trace as children of avirthostd's `Workloads/CreateWorkload` span, so one trace covers the launch from the command to `started`. Teardown is its own trace with a span link to the launch.
+Control-plane spans follow the RPC conventions, with `rpc.system.name` `grpc`, `rpc.method` and `rpc.status_code`, and record the Cedar decision as `avirt.decision` and `avirt.rule`. The spans after the response stay in the launch trace as children of avirthostd's `Workloads/CreateWorkload` span, so one trace covers the launch from the command to `started`. Teardown is its own trace with a span link to the launch.
 
 ### ACP turns and tool calls
 
@@ -514,4 +514,4 @@ avirt includes Grafana alert rules with its dashboards, provisioned from files, 
 6. **The agent's own telemetry.** Claude Code and Codex can export their own OpenTelemetry. Whether avirt accepts it on an agent socket, labelled `avirt.src` `workload` and off by default, is open.
 7. **libavirtenvoy span attributes.** Whether the <!-- Envoy feature name. --><!-- vale ai-tells.OverusedVocabulary = NO -->dynamic module<!-- vale ai-tells.OverusedVocabulary = YES --> interface lets libavirtenvoy set attributes on Envoy's active span, which the egress spans need, is open.
 8. **Checkpoint verification over time.** Verifying an old checkpoint needs the SPIFFE roots that were in the bundle at the time of signing. Where avirtauditd keeps past bundles is open.
-9. **Ended-workload retention.** Retention for an ended workload's log also forms part of the <!-- Project glossary term. --><!-- vale project.WordList = NO -->operator CLI<!-- vale project.WordList = YES -->'s open question on ended workloads.
+9. **Ended-workload retention.** Retention for an ended workload's log also forms part of the operator CLI's open question on ended workloads.

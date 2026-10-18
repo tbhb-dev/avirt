@@ -4,7 +4,7 @@ title: Glossary
 description: One definition for every avirt term and every standard term the avirt docs rely on, from workload, mediator, avirtedgeproxyd and the control plane to SPIFFE, SDS and OCI referrers, each with the document section that specifies it.
 tags: [avirt, glossary, terminology, reference]
 implementation: partial
-generated: { by: codex/gpt-6, at: 2026-10-18T02:37:39Z }
+generated: { by: codex/gpt-6, at: 2026-10-18T05:20:59Z }
 ---
 
 # Overview
@@ -15,7 +15,7 @@ Each entry gives one definition, what the term isn't where another term is close
 
 ## ACP
 
-The Agent Client Protocol: newline-delimited JSON-RPC 2.0 between an ACP client and an ACP agent, carried over the agent's stdin and stdout. avirt is always the client. A harness's adapter is always the agent. See [ACP roles](./acp.md#roles).
+The Agent Client Protocol: newline-delimited JSON-RPC 2.0 between an ACP client and an ACP agent, sent over the agent's stdin and stdout. avirt is always the client. A harness's adapter is always the agent. See [ACP roles](./acp.md#roles).
 
 ## ACP session
 
@@ -42,11 +42,10 @@ An optional DNS label that a workload or a service contains beside its ID or nam
 The deployment mode that runs every host service in one container, started in order by avirtinitd in server mode. Status: planned. See [all-in-one server image](./components.md#all-in-one-server-image).
 
 <!-- The glossary defines Apple container CLI runtime verbatim. -->
-<!-- vale project.WordList = NO -->
-## Apple container CLI runtime
-<!-- vale project.WordList = YES -->
 
-The compute runtime the implemented system uses, which drives Apple's `container` command. It's removed once the Containerization runtime matches its behavior. See [<!-- vale project.WordList = NO -->Apple container CLI runtime<!-- vale project.WordList = YES -->](./compute-runtimes.md#apple-container-cli-runtime).
+## Apple container CLI runtime
+
+The compute runtime the implemented system uses, which drives Apple's `container` command. It's removed once the Containerization runtime matches its behavior. See [Apple container CLI runtime](./compute-runtimes.md#apple-container-cli-runtime).
 
 ## Approval policy
 
@@ -58,7 +57,7 @@ An append-only NDJSON file of audit events that one component alone writes, in i
 
 ## avirt
 
-The project, always written in lowercase, and its <!-- vale project.WordList = NO -->operator CLI<!-- vale project.WordList = YES -->, the `avirt` binary. See [<!-- vale project.WordList = NO -->operator CLI<!-- vale project.WordList = YES -->](./operator-cli.md).
+The project, always written in lowercase, and its operator CLI, the `avirt` binary. See [operator CLI](./operator-cli.md).
 
 ## avirt base image
 
@@ -74,7 +73,7 @@ The main workload process that drives an ACP adapter, taps every JSON-RPC line a
 
 ## avirtadmin
 
-The local <!-- vale project.WordList = NO -->admin CLI<!-- vale project.WordList = YES -->, which talks to avirthostd only over its <!-- vale project.WordList = NO -->admin socket<!-- vale project.WordList = YES -->. It authenticates with peer credentials and uses the `Admin` principal. Status: planned. See [<!-- vale project.WordList = NO -->admin CLI<!-- vale project.WordList = YES -->](./admin-cli.md).
+The local admin CLI, which talks to avirthostd only over its admin socket. It authenticates with peer credentials and uses the `Admin` principal. Status: planned. See [admin CLI](./admin-cli.md).
 
 ## avirtagent
 
@@ -106,7 +105,7 @@ The main workload process for generic execution, which also runs as the build ru
 
 ## avirtguest
 
-The <!-- vale project.WordList = NO -->guest CLI<!-- vale project.WordList = YES -->, run on demand as uid 1000 inside the workload container, which reaches avirtapid under the `guest-cli` principal. Status: planned. See [<!-- vale project.WordList = NO -->guest CLI<!-- vale project.WordList = YES -->](./guest-cli.md).
+The guest CLI, run on demand as uid 1000 inside the workload container, which reaches avirtapid under the `guest-cli` principal. Status: planned. See [guest CLI](./guest-cli.md).
 
 ## avirtguestd
 
@@ -214,7 +213,7 @@ A cached root filesystem, or on Docker Desktop a composed image, made of a harne
 
 ## Compute runtime
 
-The backend that creates and removes a workload's container and mediator and provides their Unix sockets to the host. The implementations are the Containerization runtime, the Docker Desktop runtime, or the <!-- vale project.WordList = NO -->Apple container CLI runtime<!-- vale project.WordList = YES -->. See [runtime interface](./compute-runtimes.md#runtime-interface).
+The backend that creates and removes a workload's container and mediator and provides their Unix sockets to the host. The implementations are the Containerization runtime, the Docker Desktop runtime, or the Apple container CLI runtime. See [runtime interface](./compute-runtimes.md#runtime-interface).
 
 ## Configuration layer
 
@@ -222,7 +221,7 @@ The read-only OCI layer that avirthostd builds for each launch with the harness'
 
 ## `confirm`
 
-The control message with which avirtmediatord releases a workload container to start its agent, carrying the MITM CA certificate, the placeholders, the placeholder copies of files, the policy mode, and the port publications. Status: planned. See [launch handshake](./workload-topology.md#launch-handshake).
+The control message with which avirtmediatord releases a workload container to start its agent, including the MITM CA certificate, the placeholders, the placeholder copies of files, the policy mode, and the port publications. Status: planned. See [launch handshake](./workload-topology.md#launch-handshake).
 
 ## CONNECT
 
@@ -238,7 +237,7 @@ The first line the implemented mediator writes on each connection to avirthostd'
 
 ## Connection token
 
-The random 128-bit token avirthostd gives only avirtinitd as `AVIRT_CONNECTION_TOKEN`, which the implemented `POST /workloads/<id>/stream` request must carry in `x-avirt-token`. Mutual TLS replaces it in the planned design. See [connection token](./identity.md#connection-token).
+The random 128-bit token avirthostd gives only avirtinitd as `AVIRT_CONNECTION_TOKEN`, which the implemented `POST /workloads/<id>/stream` request must include in `x-avirt-token`. Mutual TLS replaces it in the planned design. See [connection token](./identity.md#connection-token).
 
 ## Containerization runtime
 
@@ -334,7 +333,7 @@ The `<adverb>-<adjective>-<noun>` name, such as `quietly-brave-otter`, that avir
 
 ## Generation
 
-The number of one mediator instance of a workload, starting at 1 and incremented on each mediator restart, carried in the mediator's SVIDs as `<gen>` and in events as `gen`. Status: planned. See [freeze and reconnect](./workload-topology.md#freeze-and-reconnect).
+The number of one mediator instance of a workload, starting at 1 and incremented on each mediator restart, included in the mediator's SVIDs as `<gen>` and in events as `gen`. Status: planned. See [freeze and reconnect](./workload-topology.md#freeze-and-reconnect).
 
 ## Generation fencing
 
@@ -342,7 +341,7 @@ Each host listener that accepts mediator SVIDs refuses connections from a supers
 
 ## `guest-cli` principal
 
-The principal `spiffe://<td>/ns/<ns>/workload/<uuid>/guest-cli` under which avirtnetd forwards avirtguest's calls. It's never issued as an SVID, and the agent receives every permission granted to this principal. Status: planned. See [trust domain and IDs](./identity.md#trust-domain-and-ids).
+The principal `spiffe://<td>/ns/<ns>/workload/<uuid>/guest-cli` under which avirtnetd forwards avirtguest's calls. It's never issued as an SVID, and any permission granted to this principal is also available to the agent. Status: planned. See [trust domain and IDs](./identity.md#trust-domain-and-ids).
 
 ## Guest root
 
@@ -374,7 +373,7 @@ A service running on the host outside avirt, such as one bound to the host's `12
 
 ## Host policy set
 
-The policy set that applies to every decision on the host, beside the policy sets with names that apply only to the workloads that reference them. Status: planned. See [building snapshots](./egress-policies.md#building).
+The policy set that applies to every decision on the host, beside the policy sets identified by name that apply only to the workloads that reference them. Status: planned. See [building snapshots](./egress-policies.md#building).
 
 ## Host service
 
@@ -538,7 +537,7 @@ The `audit` or `enforce` setting in every policy snapshot, chosen per namespace.
 
 ## Policy reference
 
-The policy set name that a workload's configuration references, immutable for the workload's life. Status: planned. See [building snapshots](./egress-policies.md#building).
+The reference in a workload's configuration to a policy set by name, immutable for the workload's life. Status: planned. See [building snapshots](./egress-policies.md#building).
 
 ## Policy set
 
@@ -626,7 +625,7 @@ The <!-- vale write-good.TooWordy = NO -->Server Name Indication<!-- vale write-
 
 ## SNI routing
 
-avirthostd reading only the TLS SNI of each connection on a mediator's outbound socket. It forwards the connection's bytes unchanged to the host service or avirtedgeproxyd the SNI names, without acting as a TLS endpoint. It never connects one mediator to another. Status: planned. See [SNI routing](./workload-topology.md#sni-routing).
+avirthostd reading only the TLS SNI of each connection on a mediator's outbound socket. It forwards the connection's bytes unchanged to the host service or avirtedgeproxyd the SNI names, without decrypting TLS. It never connects one mediator to another. Status: planned. See [SNI routing](./workload-topology.md#sni-routing).
 
 ## SPIFFE
 

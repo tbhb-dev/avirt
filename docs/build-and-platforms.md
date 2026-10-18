@@ -4,7 +4,7 @@ title: Build and platforms
 description: Build targets for the guest and host binaries, how the Swift Containerization shim is gated and linked, Envoy delivery and the libavirtenvoy build, signing, the CI matrix, the toolchain, host privileges per runtime and guest artifact pins.
 tags: [avirt, build, ci, platforms, signing, swift]
 implementation: partial
-generated: { by: codex/gpt-6, at: 2026-10-18T02:37:39Z }
+generated: { by: codex/gpt-6, at: 2026-10-18T05:10:25Z }
 ---
 
 # Status: implemented
@@ -41,7 +41,7 @@ The guest binaries don't depend on the host OS. Each host build produces `avirth
 | --- | --- |
 | `crates/avirt-connect` | CONNECT authority parsing and destination checks shared by both CONNECT engines |
 | `crates/avirt-core` | The shared library, including the `Runtime` trait (see [compute runtimes](./compute-runtimes.md)) and the `api` module shared by `avirthostd` and the command-line tool |
-| `crates/avirt` | The `avirt` <!-- Preserve the exact term from the glossary. --><!-- vale project.WordList = NO -->operator CLI<!-- vale project.WordList = YES --> |
+| `crates/avirt` | The `avirt` operator CLI |
 | `crates/avirthostd` | The host daemon |
 | `crates/avirtmediatord` | The mediator |
 | `crates/avirtinitd` | The workload container entrypoint |
@@ -107,13 +107,13 @@ avirthostd loads the shim dylib through an `@executable_path` rpath. The distrib
 
 ## Containerization source
 
-Apple doesn't publish a prebuilt Containerization artifact. Build the library from source with SwiftPM at the pinned tag (0.47.0). `build.rs` uses a prebuilt shim dylib when `AVIRT_SWIFTSHIM_DIR` points at one, and builds from source otherwise. CI publishes the dylib as a checksummed artifact.
+Apple doesn't publish a prebuilt Containerization artifact. The build compiles the library from source with SwiftPM at the pinned tag (0.47.0). `build.rs` uses a prebuilt shim dylib when `AVIRT_SWIFTSHIM_DIR` points at one, and builds from source otherwise. CI publishes the dylib as a checksummed artifact.
 
 ## Signing
 
 - **Development.** macOS avirthostd builds use an ad-hoc signature with the `com.apple.security.virtualization` entitlement. `cargo run` and `cargo test` go through a signing runner configured in `.cargo/config.toml`, so test and run binaries contain the entitlement.
-- **Distribution.** Sign `avirthostd` with Developer ID and notarize it.
-- **Secrets broker.** Sign `avirtsecretsd` and `avirtsecrets-1password` with Developer ID and notarize them. Each has a stable signing identifier that keeps its designated requirements unchanged across releases (see [macOS Keychain](./secrets-keychain.md#code-signing-and-entitlements)).
+- **Distribution.** Distribution builds sign `avirthostd` with Developer ID and notarize it.
+- **Secrets broker.** Distribution builds sign `avirtsecretsd` and `avirtsecrets-1password` with Developer ID and notarize them. Each has a stable signing identifier that keeps its designated requirements unchanged across releases (see [macOS Keychain](./secrets-keychain.md#code-signing-and-entitlements)).
 
 ## CI matrix
 

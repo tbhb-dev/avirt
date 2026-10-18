@@ -4,15 +4,12 @@ title: Compute runtimes
 description: The runtime interface avirthostd uses for its per-workload primitives, the Containerization runtime that hosts Apple VMs inside avirthostd, the Docker Desktop runtime, and the implemented backend that invokes Apple container commands.
 tags: [avirt, runtime, containerization, docker, apple-container]
 implementation: partial
-generated: { by: codex/gpt-6, at: 2026-10-18T02:37:39Z }
+generated: { by: codex/gpt-6, at: 2026-10-18T05:10:25Z }
 ---
 
 <!-- Preserve the exact runtime name from the glossary. -->
-<!-- vale project.WordList = NO -->
 
 # Apple container CLI runtime
-
-<!-- vale project.WordList = YES -->
 
 Status: implemented. Remove this runtime once the Containerization runtime matches current behavior.
 

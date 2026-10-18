@@ -3,7 +3,7 @@ type: Agent Instructions
 title: "Agent instructions: avirt-core"
 description: "Guidance for AI coding agents working in the `avirt-core` crate."
 tags: [avirt, crate, avirt-core]
-generated: { by: codex/gpt-6, at: 2026-10-18T02:56:30Z }
+generated: { by: codex/gpt-6, at: 2026-10-18T04:29:26Z }
 ---
 
 # Agent instructions: avirt-core
@@ -21,7 +21,7 @@ The shared library. The avirthostd server and the avirtinitd harness both live h
 | `harness` | The avirtinitd harness starts the workload's HTTP/2 connection to its mediator first. It provides the TCP proxy to `proxy.sock` and seccomp (Linux only), plus the scrubbed agent environment and `setpriv` |
 | `connection` | The workload's HTTP/2 connection to its mediator, whose one long-lived POST sends NDJSON envelopes with `x-avirt-token` |
 | `envelope` | `Dir`, `Envelope`, `parse_line`, `MAX_LINE` (16 MiB) and `LineSplitter` |
-| `h2c` | HTTP/2 without encryption client helpers |
+| `h2c` | Cleartext HTTP/2 client helpers |
 
 ## Invariants
 

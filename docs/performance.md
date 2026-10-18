@@ -4,7 +4,7 @@ title: Performance metrics
 description: The metrics avirt measures, grouped by area, with each metric's exact start and end points, unit, measuring component, collection method, applicable runtimes and its classification as an SLO candidate or a diagnostic.
 tags: [avirt, performance, metrics, observability]
 implementation: planned
-generated: { by: codex/gpt-6, at: 2026-10-18T03:05:39Z }
+generated: { by: codex/gpt-6, at: 2026-10-18T05:14:22Z }
 ---
 
 # Status: planned
@@ -16,7 +16,7 @@ Each table lists metrics with these columns:
 | Definition | The exact start and end points |
 | Where | The component that records the metric |
 | How | Span, histogram, counter, gauge, log event, or external benchmark |
-| Runtimes | Containerization, the <!-- Project glossary term. --><!-- vale project.WordList = NO -->Apple container CLI<!-- vale project.WordList = YES -->, Docker Desktop, or all three |
+| Runtimes | Containerization, the Apple container CLI, Docker Desktop, or all three |
 | Class | **SLO** for a candidate <!-- Required SLO term. --><!-- vale write-good.TooWordy = NO -->service-level objective<!-- vale write-good.TooWordy = YES -->, **diag** for a diagnostic |
 
 Stages that exist only in the planned design (launch handshake, the workload's HTTP/2 connection to its mediator, SVIDs, TLS termination) apply to Containerization and Docker.
@@ -29,7 +29,7 @@ Stages that exist only in the planned design (launch handshake, the workload's H
 | `launch.workload_boot` | `run_workload` called → the workload container's init process running | ms | avirthostd | Span | All | diag |
 | `launch.mediator_ready` | `run_mediator` called → the mediator's first `GET /workload` | ms | avirthostd | Span | Containerization, Docker | diag |
 | `launch.connection_attached` | Mediator ready → `attached` received by avirtinitd | ms | avirtinitd | Span | Containerization, Docker | diag |
-| `launch.agent_started` | `POST /launch` received → `started` sent by avirtinitd (adapter spawned, on the <!-- Project glossary term. --><!-- vale project.WordList = NO -->Apple container CLI runtime<!-- vale project.WordList = YES -->) | ms | avirthostd | Span using the workload log's timestamps | All | SLO |
+| `launch.agent_started` | `POST /launch` received → `started` sent by avirtinitd (adapter spawned, on the Apple container CLI runtime) | ms | avirthostd | Span using the workload log's timestamps | All | SLO |
 | `teardown.duration` | Workload container exit observed → `container_exit` written | ms | avirthostd | Span | All | diag |
 | `teardown.release` | `runtime.release` called → returned | ms | avirthostd | Span | All | diag |
 | `sweep.duration` | Startup cleanup started → avirthostd listening | ms | avirthostd | Span | All | diag |
@@ -61,10 +61,10 @@ flowchart LR
 | --- | --- | --- | --- | --- | --- | --- |
 | `connection.rtt` | Echo round trip of a small payload across the workload's connection to its mediator, including avirthostd's vsock forwarding where present | µs | Bench harness | External benchmark | Containerization, Docker | diag |
 | `connection.throughput` | Sustained bytes per second per direction on one CONNECT stream across that connection | MB/s | Bench harness | External benchmark | Containerization, Docker | diag |
-| `connection.stream_setup` | CONNECT stream opened by avirtinitd → response headers received. On the <!-- Project glossary term. --><!-- vale project.WordList = NO -->Apple container CLI runtime<!-- vale project.WordList = YES -->: `proxy.sock` connect → `200` read. | ms | avirtinitd | Histogram | All | diag |
+| `connection.stream_setup` | CONNECT stream opened by avirtinitd → response headers received. On the Apple container CLI runtime: `proxy.sock` connect → `200` read. | ms | avirtinitd | Histogram | All | diag |
 | `connection.mtls_handshake` | Transport connected → TLS 1.3 handshake complete with the peer ID authorized, per side | ms | avirtinitd, mediator, avirthostd | Histogram | Containerization, Docker | diag |
 | `svid.issue` | CSR sent → SVID received, end to end, plus avirthostd's signing time | ms | Mediator, avirtinitd, avirthostd | Histogram | Containerization, Docker | diag |
-| `svid.rotation` | `rotate` pushed → new connection carrying the new SVID in use and GOAWAY sent on the old one | ms | avirthostd, mediator | Span | Containerization, Docker | diag |
+| `svid.rotation` | `rotate` pushed → new connection in use with the new SVID and GOAWAY sent on the old one | ms | avirthostd, mediator | Span | Containerization, Docker | diag |
 | `connection.reconnect` | Mediator loss detected by avirtinitd (freeze) → the agent resumed after the new generation's `confirm` | ms | avirtinitd | Histogram | Containerization, Docker | SLO |
 | `connection.frozen_total` | Total time the agent spent frozen during one workload | ms | avirtinitd | Counter | Containerization, Docker | diag |
 

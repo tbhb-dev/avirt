@@ -4,7 +4,7 @@ title: Sandbox and Landlock
 description: How avirt uses Landlock inside the workload container and the mediator, covering the ABI each runtime's kernel provides, the mandatory and best-effort rights, the landlock crate and the launcher's pre-exec step, the ruleset of each security context with its paths, port rules and scopes, how rulesets are generated from `harness.toml`, workspace destinations, the configuration layer and policy, the limits on widening, how rulesets are recorded, logged and verified, which layer enforces each guarantee, denial reporting, and the regression checks.
 tags: [avirt, workload, landlock, seccomp, sandbox, security]
 implementation: partial
-generated: { by: codex/gpt-6, at: 2026-10-18T03:04:57Z }
+generated: { by: codex/gpt-6, at: 2026-10-18T04:56:05Z }
 ---
 
 # Status: implemented
@@ -33,7 +33,7 @@ Landlock is the filesystem, port and scope layer of the workload sandbox. avirti
 | 6 | 6.12 | Scopes: `SCOPE_ABSTRACT_UNIX_SOCKET` and `SCOPE_SIGNAL` | Mandatory |
 | 7 | 6.15 | Audit logging of denials, with the `LOG_SAME_EXEC_OFF`, `LOG_NEW_EXEC_ON` and `LOG_SUBDOMAINS_OFF` flags to `landlock_restrict_self` | Best effort |
 | 8 | 7.0 | `RESTRICT_SELF_TSYNC`: enforce on each thread of the process | Not used |
-| 9 | 7.1 | `RESOLVE_UNIX`: connecting or sending to path Unix sockets created outside the domain | Best effort |
+| 9 | 7.1 | `RESOLVE_UNIX`: connecting or sending to pathname Unix sockets created outside the domain | Best effort |
 | 10 | 7.2 | `NET_BIND_UDP` and `NET_CONNECT_SEND_UDP` port rules, and quiet-logging controls | Not used until the `landlock` crate supports it |
 | 11 | After 7.2 | `RESTRICT_SELF_NO_NEW_PRIVS`: set `no_new_privs` only if enforcement succeeds | Not used |
 
@@ -45,7 +45,7 @@ Landlock trace events (`/sys/kernel/tracing/events/landlock/`) aren't in either 
 | --- | --- | --- | --- | --- |
 | Containerization | Kata Containers 3.32.0 arm64 `vmlinux`, Linux 6.18.35, pinned by sha256 (see [compute runtimes](./compute-runtimes.md#guest-artifacts)) | `CONFIG_SECURITY_LANDLOCK=y` from Kata's `landlock.conf` fragment, and `CONFIG_AUDIT=y` and `CONFIG_AUDITSYSCALL=y` from its `lsm.conf` fragment. No fragment sets `CONFIG_LSM`, so the kernel's default list applies, and that list includes `landlock`. | 7 | Available to guest root, one VM per workload |
 | Docker Desktop | LinuxKit 7.0.14, shared by each container (see [Docker Desktop runtime](./compute-runtimes.md#docker-desktop-runtime)) | Landlock enabled and usable unprivileged with `no_new_privs`. Docker's default seccomp profile allows `landlock_create_ruleset`, `landlock_add_rule` and `landlock_restrict_self`. | 8 | Not available to the workload container (see [denials](#denials)) |
-| <!-- Abbreviated project glossary runtime name. --><!-- vale project.WordList = NO -->Apple container CLI<!-- vale project.WordList = YES --> | The same Kata kernel as Containerization | As Containerization | 7 | Not used: avirt removes the <!-- Abbreviated reference to the Apple container CLI runtime. --><!-- vale project.WordList = NO -->CLI runtime<!-- vale project.WordList = YES --> before adding Landlock |
+| Apple container CLI | The same Kata kernel as Containerization | As Containerization | 7 | Not used: avirt removes the Apple container CLI runtime before adding Landlock |
 
 Constraint: the configured ABI is what the running kernel reports, not what its build configuration implies. A kernel command line `lsm=` that omits `landlock` gives ABI 0. avirtinitd probes the ABI in each workload container at boot with `landlock_create_ruleset(NULL, 0, LANDLOCK_CREATE_RULESET_VERSION)`.
 
@@ -163,7 +163,7 @@ The agent's security context covers the adapter and each tool it starts, as uid 
 | Each workspace layer destination outside `/usr`, `/opt`, `/etc` and the writable roots | `rx` | Workspace config blob |
 | Each approved extra sandbox path | As approved | Policy (see [extra sandbox paths](#extra-sandbox-paths)) |
 
-Outside those entries, the ruleset denies access. The agent can't access `/run` beyond the four entries preceding, `/var`, `/root`, `/srv`, `/mnt`, `/boot`, the rest of `/sys` and `/dev`. It can't write anywhere under `/usr`, `/opt`, `/etc` or `/proc`.
+Outside those entries, the ruleset denies access. The agent can't access `/run` beyond the four preceding entries, `/var`, `/root`, `/srv`, `/mnt`, `/boot`, the rest of `/sys` and `/dev`. It can't write anywhere under `/usr`, `/opt`, `/etc` or `/proc`.
 
 For the reserved paths in [workload hardening](./workload-hardening.md#reserved-paths), these rules give the following access:
 
@@ -173,10 +173,10 @@ For the reserved paths in [workload hardening](./workload-hardening.md#reserved-
 | `/etc/passwd`, `/etc/group`, `/etc/shadow`, `/etc/gshadow`, `/etc/resolv.conf`, `/etc/hosts`, the system CA bundle | `ro`, and file modes keep `/etc/shadow` and `/etc/gshadow` unreadable |
 | `/opt/agent` | `rx` |
 | `/etc/avirt` and the managed configuration paths | `ro` |
-| `/run` | Only the CA files and the agent sockets preceding |
+| `/run` | Only the preceding CA files and agent sockets |
 | `/proc` | `ro` |
 | `/sys` | `ro` on `/sys/fs/cgroup` and `/sys/devices/system/cpu` only |
-| `/dev` | Only the device nodes preceding |
+| `/dev` | Only the preceding device nodes |
 
 ### Harness additions
 
@@ -208,7 +208,7 @@ avirtacp, avirtagent or avirtexec, as `avirt-run`. The runner doesn't execute an
 
 | Path | Rights |
 | --- | --- |
-| The paths each helper needs | As preceding |
+| The paths each helper needs | Same as the preceding table |
 | `/etc/avirt/launch.toml` | `file-r` |
 | `/run/avirt/streams/run.sock`, `/run/avirt/init/run.sock` | `unix` |
 
@@ -218,7 +218,7 @@ As `avirt-net`.
 
 | Path | Rights |
 | --- | --- |
-| The paths each helper needs | As preceding |
+| The paths each helper needs | Same as the preceding table |
 | `/run/avirt/streams` | `sock-dir` |
 | `/run/avirt/agent` | `sock-dir` |
 | `/run/avirt/mediator.sock`, `/run/avirt/init/net.sock` | `unix` |
@@ -231,7 +231,7 @@ As `avirt-guest`, in the `avirt-ws` group.
 
 | Path | Rights |
 | --- | --- |
-| The paths each helper needs | As preceding |
+| The paths each helper needs | Same as the preceding table |
 | Each workspace root from the workspace image's `roots` (`/workspace` and each directory destination under `/home/agent`) | `rw`, without `EXECUTE`, `MAKE_SOCK` or `MAKE_FIFO` |
 | Its workspace snapshot directory | `rw` |
 | `/run/avirt/streams` | `sock-dir`, for its listener `/run/avirt/streams/guestd.sock` |
@@ -372,7 +372,7 @@ avirtinitd writes one `sandbox` meta event for each process it launches, before 
 | `rules` | Each path rule as `{path, access, source}`, and each port rule |
 | `omitted` | The best-effort rights left out because the ABI lacks them |
 | `logging` | Whether denial logging is on (target ABI 7 or later, on a runtime that delivers audit records) |
-| `digest` | The SHA-256 of the canonical JSON of the fields preceding |
+| `digest` | The SHA-256 of the canonical JSON of the preceding fields |
 
 The `start` meta event includes the digest of `sandbox.toml`. To reproduce a launch's rulesets, use the workload configuration (the configuration layer digest) and the image digests together with the probed ABI.
 

@@ -4,7 +4,7 @@ title: Secrets management
 description: How avirtsecretsd brokers secrets, with the secret model of references, providers, versions and scopes, the provider plugin interface, in-memory caching and refresh, write-back, per-caller authorization under Cedar, the SDS, broker, registration, service and administration APIs and their identities, rotation and revocation, audit events, failure behavior, storage at rest, bootstrapping, and the all-in-one image versus the Mac host.
 tags: [avirt, secrets, avirtsecretsd, credentials, sds, providers, security]
 implementation: partial
-generated: { by: codex/gpt-6, at: 2026-10-18T02:37:39Z }
+generated: { by: codex/gpt-6, at: 2026-10-18T05:21:55Z }
 ---
 
 # Overview
@@ -181,7 +181,7 @@ avirtsecretsd authorizes every call in three steps, and a call must pass all thr
 | avirtmcpgwd | `/service/avirtmcpgwd` | The upstream credential for one of a workload's MCP bindings | Broker API |
 | avirtregistryd | `/service/avirtregistryd` | The secrets its configuration names, such as off-host registry logins | Service API |
 | avirtbuilderd | `/service/avirtbuilderd` | The secrets its configuration names, such as a token for watching a private repository, outside any build job | Service API |
-| avirthostd, for avirtadmin | `/service/avirthostd`, carrying `Admin::"uid:<uid>"` | Secret and provider administration, never a value | Admin API |
+| avirthostd, for avirtadmin | `/service/avirthostd`, forwarding `Admin::"uid:<uid>"` | Secret and provider administration, never a value | Admin API |
 
 A build job's avirtmedproxyd is like any other: its source credential is a mediator-injected binding for the fetch step (see [workspace builds](./workspace-build.md#build-jobs)).
 
@@ -220,7 +220,7 @@ Every API is on avirtsecretsd's host service listener, `services/avirtsecretsd.s
 | Service | `/service/avirtregistryd`, `/service/avirtbuilderd` | `GetCredential` for a secret reference the component's configuration names, returning a lease, and never for a workload's binding |
 | Admin | `/service/avirthostd`, for avirtadmin | `DefineSecret`, `UpdateSecret`, `RotateSecret`, `RevokeSecret`, `ImportSecret` (a value written into a provider that has `write`), `Login` (clears `needs-login` after a new login), `ListSecrets`, `DefineProvider`, `RemoveProvider`, `ProviderStatus`, `DefineBinding`, `ListBindings` and `RemoveBinding`. No operation returns a value. |
 
-avirtadmin reaches the Admin API only through avirthostd's <!-- Preserve the exact term from the glossary. --><!-- vale project.WordList = NO -->admin socket<!-- vale project.WordList = YES -->, where avirthostd authenticates it by peer credentials and forwards the `Admin::"uid:<uid>"` principal (see [components](./components.md#host-services)). The commands are in [avirtadmin](./admin-cli.md#secrets-providers-and-bindings).
+avirtadmin reaches the Admin API only through avirthostd's admin socket, where avirthostd authenticates it by peer credentials and forwards the `Admin::"uid:<uid>"` principal (see [components](./components.md#host-services)). The commands are in [avirtadmin](./admin-cli.md#secrets-providers-and-bindings).
 
 ### SDS
 
@@ -280,7 +280,7 @@ avirtsecretsd is ready once it holds its SVID, has loaded its configuration and 
 
 ## Persistent state
 
-avirtsecretsd excludes secret values from persistent storage, including sealed values. Values exist only in their providers and avirtsecretsd's memory. <!-- Preserve minted as the credential category distinct from fetched or leased values. --><!-- vale ai-tells.FigurativeMints = NO -->Minted credentials<!-- vale ai-tells.FigurativeMints = YES --> exist only in memory for their lifetime. Its state directory (`secretsd/` under avirt's state directory, see [lifecycle](./lifecycle.md#durable-state), 0700) holds:
+avirtsecretsd excludes secret values from persistent storage, including sealed values. Values exist only in their providers and avirtsecretsd's memory. Issued credentials exist only in memory for their lifetime. Its state directory (`secretsd/` under avirt's state directory, see [lifecycle](./lifecycle.md#durable-state), 0700) holds:
 
 | Path | Holds |
 | --- | --- |

@@ -4,7 +4,7 @@ title: Workload hardening
 description: How avirtinitd confines the agent inside the workload container, covering its user, capabilities, environment and seccomp filters, the reserved paths, the security contexts of the workload helpers with links to their Landlock rulesets, and what runs as root.
 tags: [avirt, workload, seccomp, landlock, capabilities, security]
 implementation: partial
-generated: { by: codex/gpt-6, at: 2026-10-18T02:37:39Z }
+generated: { by: codex/gpt-6, at: 2026-10-18T04:29:26Z }
 ---
 
 # Status: implemented
@@ -42,9 +42,9 @@ The workload container shares the VM's network namespace with the runtime's vsoc
 
 Claude Code, Codex, Node, npm, and git work under these filters (Node falls back from io_uring to its thread pool). On x86_64 builds the filter also covers the x32 syscall numbers (the `0x4000_0000` bit).
 
-## Agent capabilities
+## Residual agent access
 
-The agent can spend CPU and use the proxy. Its visible files include its own filesystem and the mounted `/workspace` or `CODEX_HOME`. It can't open a socket other than AF_UNIX, AF_INET or AF_INET6, and it has no route anywhere except loopback. It can't open `proxy.sock` or `mediator.sock` (they're `root:root 0600`), read `/proc/1/fd`, `/proc/1/mem` or `/proc/1/environ`, or force PID 1 to exit. avirtinitd automatically approves permission requests (see [permission requests](./acp.md#permission-requests)). The agent can run any tool inside the workload without human approval.
+The agent can spend CPU and use the proxy. Its visible files include its own filesystem and the mounted `/workspace` or `CODEX_HOME`. It can't open a socket other than AF_UNIX, AF_INET or AF_INET6, and it has no route anywhere except loopback. It can't open `proxy.sock` or `mediator.sock` (they're `root:root 0600`), read `/proc/1/fd`, `/proc/1/mem` or `/proc/1/environ`, or send a fatal signal to PID 1. avirtinitd automatically approves permission requests (see [permission requests](./acp.md#permission-requests)). The agent can run any tool inside the workload without human approval.
 
 # Status: planned
 
@@ -113,7 +113,7 @@ avirtinitd mounts `/proc` with `hidepid=invisible` before it starts any child, s
 avirtinitd is the only process running as root. It needs root to:
 
 - start the other workload processes under their own UIDs,
-- create the agent cgroup, and freeze it or force it to stop,
+- create the agent cgroup, with access to both `cgroup.freeze` and `cgroup.kill`,
 - write the system CA bundle and `/etc/resolv.conf`,
 - bind the DNS stub resolver's port 53 sockets on `127.0.0.53`, which it hands to avirtnetd.
 

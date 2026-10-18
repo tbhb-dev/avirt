@@ -4,7 +4,7 @@ title: Networking
 description: avirt's whole network model in one place, with the topology, avirt names and IDs, each connection type end to end with its hops, enforcement points and identities, the transports on each runtime, the supported protocols, the listener inventory, how the off-host rule is enforced on the host, and failure behavior and observability, linking out to the documents that specify each part.
 tags: [avirt, networking, topology, egress, ingress, dns, mtls]
 implementation: partial
-generated: { by: codex/gpt-6, at: 2026-10-18T03:04:57Z }
+generated: { by: codex/gpt-6, at: 2026-10-18T05:21:55Z }
 ---
 
 # Overview
@@ -16,20 +16,20 @@ The model rests on four rules:
 - The workload container and the mediator have no network interface other than loopback. Each connection either one makes runs on a Unix socket the compute runtime provides, backed by vsock, a bind mount or a Docker named volume (see [workload topology](./workload-topology.md#runtime-provided-sockets)).
 - The workload container's only connection is its HTTP/2 connection to its own mediator, and the agent can use that connection only through avirtnetd's forward proxy and DNS stub.
 - avirtedgeproxyd is the only global PEP for workload-to-workload, service, host-local service and external connections, and the only host service that opens connections off the host. It runs with its Envoy in the edge VM, the only avirt VM with a network interface (see [edge VM](./components.md#edge-vm)).
-- Each hop that crosses a container or host boundary carries mutual TLS with SPIFFE identities from the first byte, and each intermediate hop where avirthostd routes by SNI or forwards the bytes unchanged transmits ciphertext only (see [identity](./identity.md)).
+- Each hop that crosses a container or host boundary uses mutual TLS with SPIFFE identities from the first byte, and each intermediate hop where avirthostd routes by SNI or forwards the bytes unchanged transmits ciphertext only (see [identity](./identity.md)).
 
 # Status: implemented
 
-The current code runs on the <!-- Project glossary runtime name. --><!-- vale project.WordList = NO -->Apple container CLI runtime<!-- vale project.WordList = YES --> (see [compute runtimes](./compute-runtimes.md#apple-container-cli-runtime)). Its topology diagram is in [architecture](./architecture.md#status-implemented).
+The current code runs on the Apple container CLI runtime (see [compute runtimes](./compute-runtimes.md#apple-container-cli-runtime)). Its topology diagram is in [architecture](./architecture.md#status-implemented).
 
 ## Paths
 
 | Path | Hops | Enforcement | Authentication |
 | --- | --- | --- | --- |
 | Agent to external | Agent, `HTTPS_PROXY` to avirtinitd's TCP proxy to `proxy.sock` on an ephemeral `127.0.0.1` port, `/run/avirt/proxy.sock`, avirtmediatord's CONNECT app on the host, upstream | The CONNECT app: authority parsing and the private-address block (see [CONNECT app](./egress.md#pingora-connect-app)). Rule `allow-all` permits each destination that passes. | None on avirtinitd's TCP proxy. Only root in the workload container can open `proxy.sock` (0600). |
-| The workload's HTTP/2 connection to its mediator, which today carries only log envelopes | avirtinitd, `/run/avirt/mediator.sock`, avirtmediatord, `hostd/hostd.sock`, avirthostd | avirthostd's `POST /workloads/<id>/stream` route (see [connection to the mediator](./workload-topology.md#connection-to-the-mediator)) | The `WORKLOAD <id> <secret>` connection header with the mediator secret, then `x-avirt-token` on `POST /workloads/<id>/stream` (see [identity](./identity.md#status-implemented)) |
+| The workload's HTTP/2 connection to its mediator, which today transports only log envelopes | avirtinitd, `/run/avirt/mediator.sock`, avirtmediatord, `hostd/hostd.sock`, avirthostd | avirthostd's `POST /workloads/<id>/stream` route (see [connection to the mediator](./workload-topology.md#connection-to-the-mediator)) | The `WORKLOAD <id> <secret>` connection header with the mediator secret, then `x-avirt-token` on `POST /workloads/<id>/stream` (see [identity](./identity.md#status-implemented)) |
 | Egress events | avirtmediatord, `hostd/hostd.sock`, avirthostd | One event connection per workload | The `EGRESS <id> <secret>` connection header |
-| command-line tool to avirthostd | `avirt`, cleartext HTTP/2 on `127.0.0.1:8787` (or `AVIRT_HOSTD_URL`), avirthostd | None | None: any local process can call the control API (see [control API](./hostd-api.md#control-api)) |
+| Operator CLI to avirthostd | `avirt`, cleartext HTTP/2 on `127.0.0.1:8787` (or `AVIRT_HOSTD_URL`), avirthostd | None | None: any local process can call the control API (see [control API](./hostd-api.md#control-api)) |
 
 - **Workload network.** The workload container runs with `--network none`. TCP, UDP, DNS and IPv6 to anything but loopback fail inside it. avirtinitd sets `HTTPS_PROXY`, `https_proxy`, `HTTP_PROXY`, `http_proxy`, `ALL_PROXY`, `npm_config_proxy` and `npm_config_https_proxy` to avirtinitd's TCP proxy, `NO_PROXY` and `no_proxy` to `localhost,127.0.0.1`, and `NODE_USE_ENV_PROXY=1` (see [egress path](./egress.md#path)).
 - **Off-host path.** avirtmediatord is a host process, and it resolves names with the host resolver and dials upstreams itself. If any resolved address fails the private-address block, avirtmediatord refuses the whole CONNECT with 403 `private-dest`.
@@ -162,7 +162,7 @@ Connections between two workloads require checks at three points: the source avi
 | Host services off-host | The host service, an h2 CONNECT stream to avirtedgeproxyd's egress listener, upstream from the edge VM's network interface | avirtedgeproxyd checks `connect` against the host policy snapshot for the host service. For a call made on a caller's behalf, it also checks the originating principal. It applies the private-address block | `/service/<name>`, with `x-avirt-caller` from avirtapid, avirtmodelgwd, and avirtmcpgwd only. Child processes connect to the network only through their parent daemon. Secret provider plugins use avirtsecretsd's local egress socket, and the Collector uses avirtoteld. zot never opens an off-host connection. |
 | Build jobs | The build runner's registry socket, avirtmedproxyd, SNI routing by `avirtregistryd.svc.<td>`, avirtregistryd. Each other connection: avirtnetd's forward proxy, avirtmedproxyd, avirtedgeproxyd. | avirtregistryd: the job's grant (inputs, cache scopes, `staging/<build-id>`). avirtmedproxyd and avirtedgeproxyd: the job's workload policy snapshot and the host policy snapshot. avirthostd refuses a build job's `/guest-cli` stream. | The job's workload SVID only. BuildKit's containers use the build VM's loopback, so they reach only avirtnetd's forward proxy. |
 
-See the specifications for each path. [avirtmedproxyd pipeline](./egress.md#avirtmedproxyd-pipeline) and [edge proxy egress](./egress.md#edge-proxy-egress) for egress, [ingress](./workload-topology.md#ingress) for inbound connections, [avirtedgeproxyd](./components.md#avirtedgeproxyd) for services and host-local services, [peering](./peering.md) and [federation](./identity.md#federation) for peers, [<!-- Project glossary term. --><!-- vale project.WordList = NO -->guest CLI<!-- vale project.WordList = YES --> path](./guest-cli.md#path), [<!-- Project glossary term. --><!-- vale project.WordList = NO -->operator CLI<!-- vale project.WordList = YES --> contexts](./operator-cli.md#contexts-and-authentication), [<!-- Project glossary term. --><!-- vale project.WordList = NO -->admin CLI<!-- vale project.WordList = YES --> connection](./admin-cli.md#connection-and-authentication), [provider plugins](./secrets.md#provider-plugin-interface), [avirtoteld](./observability.md#avirtoteld), and [build jobs](./workspace-build.md#build-jobs).
+See the specifications for each path. [avirtmedproxyd pipeline](./egress.md#avirtmedproxyd-pipeline) and [edge proxy egress](./egress.md#edge-proxy-egress) for egress, [ingress](./workload-topology.md#ingress) for inbound connections, [avirtedgeproxyd](./components.md#avirtedgeproxyd) for services and host-local services, [peering](./peering.md) and [federation](./identity.md#federation) for peers, [guest CLI path](./guest-cli.md#path), [operator CLI contexts](./operator-cli.md#contexts-and-authentication), [admin CLI connection](./admin-cli.md#connection-and-authentication), [provider plugins](./secrets.md#provider-plugin-interface), [avirtoteld](./observability.md#avirtoteld), and [build jobs](./workspace-build.md#build-jobs).
 
 ### Workload to external
 
@@ -215,7 +215,7 @@ sequenceDiagram
 
 Each runtime presents the same Unix sockets inside the containers under `/run/avirt/`. The dialing side never changes TLS roles. Each runtime relay and each hop where avirthostd forwards bytes unchanged transmits ciphertext only, as does each shared volume.
 
-| Socket | Today, <!-- Abbreviated project glossary runtime name. --><!-- vale project.WordList = NO -->Apple container CLI<!-- vale project.WordList = YES --> | Containerization | Docker Desktop |
+| Socket | Today, Apple container CLI | Containerization | Docker Desktop |
 | --- | --- | --- | --- |
 | Agent egress | `proxy.sock`, a host socket file relayed by the runtime, plaintext CONNECT | An h2 CONNECT stream on the workload's HTTP/2 connection to its mediator | The same as Containerization |
 | Log envelopes | `mediator.sock`, a host socket file, whose bytes avirtmediatord forwards unchanged to `hostd.sock` | The `/envelopes` HTTP/2 stream, which avirtmedproxyd forwards on the mediator's connection to avirthostd | The same as Containerization |
@@ -245,7 +245,7 @@ On every runtime, the `AF_VSOCK` denial applies to every workload process. Only 
 | TLS passthrough | avirtmedproxyd's Envoy reads the first bytes before forwarding any. They must be a ClientHello whose SNI equals the canonical CONNECT host. An allowed host on a shared address can't supply another name. The proxy closes a connection that doesn't start with TLS unless the `passthrough` permit has `context.plaintext` true. Credential injection remains off for these connections. Each avirt name takes TLS passthrough, authorized at avirtedgeproxyd. |
 | gRPC | Under TLS passthrough, as bytes. Under TLS interception, the proxy offers agent-facing h2 only for a destination that one of the workload's gRPC bindings specifies (see [gRPC credentials](./egress-credentials.md#grpc)). |
 | Websockets | An `Upgrade` request forces h1 upstream. The upgrade request passes the request checks and the placeholder misuse check, and the proxy relays frames without scanning after `101` (see [websockets](./egress.md#websockets)). |
-| DNS | UDP and TCP on `127.0.0.53:53` inside the workload container, carried as length-prefixed messages on the long-lived `/dns` HTTP/2 stream (see [workload DNS](./egress.md#workload-dns)) |
+| DNS | UDP and TCP on `127.0.0.53:53` inside the workload container, sent as length-prefixed messages on the long-lived `/dns` HTTP/2 stream (see [workload DNS](./egress.md#workload-dns)) |
 | UDP, QUIC and HTTP/3 | Unsupported. UDP may leave the workload container only for DNS to the stub. A client that tries HTTP/3 falls back to TCP through the proxy. Transparent TCP and UDP are separate planned features with their own security design (see [transport scope](./egress.md#transport-scope)). |
 | `git://`, `ssh://` and other clients that ignore the proxy variables | Unsupported. They fail, because the workload has no network. |
 | IPv6 | The workload has no IPv6 route. A CONNECT may specify a bracketed IPv6 literal, which only a policy naming that `resource.ip` can permit. The private-address block covers the IPv6 non-global ranges, and the proxy refuses IPv4-mapped and IPv4-compatible literals (see [external host canonicalization](./egress-policies.md#external-host-canonicalization)). avirtedgeproxyd's Envoy dials IPv6 upstreams where the edge VM's network has an IPv6 route. |

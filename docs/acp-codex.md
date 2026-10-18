@@ -4,7 +4,7 @@ title: Codex harness
 description: How avirt runs Codex through codex-acp, with the pinned adapter and its bundled Codex, how avirtinitd launches it over ACP v1, the auth.json seed, refresh and write-back and its planned placeholders, Codex modes, the configuration sources and managed configuration paths Codex reads, quirks and the egress destinations the harness needs.
 tags: [avirt, acp, codex, harness, codex-acp]
 implementation: partial
-generated: { by: codex/gpt-6, at: 2026-10-18T02:37:39Z }
+generated: { by: codex/gpt-6, at: 2026-10-18T04:29:26Z }
 ---
 
 # Status: implemented
@@ -131,7 +131,7 @@ The requirements' `mcp_servers` table is an allowlist, so Codex starts only avir
 The overlay limits a workspace's Codex configuration:
 
 - Codex ignores `/workspace/.codex/config.toml`, because it treats the project as untrusted.
-- `/home/agent/.codex` is a user path in `harness.toml`, so avirthostd refuses a workspace layer that writes it at launch. This includes a layer with a `config.toml` marking `/workspace` trusted.
+- `/home/agent/.codex` is a user path in `harness.toml`, so at launch avirthostd refuses a workspace layer that writes it. This includes a layer with a `config.toml` marking `/workspace` trusted.
 - Codex reads `AGENTS.md` files as instructions.
 
 ## Egress destinations
