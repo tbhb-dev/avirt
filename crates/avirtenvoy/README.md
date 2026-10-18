@@ -11,7 +11,7 @@ generated: { by: codex/gpt-6, at: 2026-10-18T04:32:07Z }
 
 ## Status: implemented
 
-The crate provides the Envoy HTTP filter module for avirtmediatord's optional Envoy engine. Shared destination policy is in `avirt-connect`. Build with `cargo build --locked --manifest-path crates/avirtenvoy/Cargo.toml --target-dir target/envoy-module`. On a Linux host the output is `target/envoy-module/debug/libavirtenvoy.so`. Distribution is only as a glibc Linux cdylib (see [Envoy delivery](../../docs/build-and-platforms.md#envoy-delivery)). The root workspace excludes this module.
+The crate provides the Envoy HTTP filter module for avirtmediatord's optional Envoy engine. Shared destination policy is in `avirt-connect`. Build with `cargo build --locked --manifest-path crates/avirtenvoy/Cargo.toml --target-dir target/envoy-module`. On a Linux host the output is `target/envoy-module/debug/libavirtenvoy.so`. Distribution is only as a glibc Linux cdylib (see [experimental host mediator mode](../../docs/egress.md#experimental-host-envoy-mode)). The root workspace excludes this module.
 
 `avirtenvoy` uses `envoy-proxy-dynamic-modules-rust-sdk` from [Envoy v1.40.0](https://github.com/envoyproxy/envoy/tree/v1.40.0/source/extensions/dynamic_modules/sdk/rust), pinned to commit `9e5580933739775e8bce696a57a2e1bc99368f23`. The SDK is a git dependency. Building it requires libclang. Xcode supplies it on macOS. The module’s own `Cargo.lock` pins prettyplease 0.2.37, compatible with bindgen 0.73.2's syn 2 dependency.
 

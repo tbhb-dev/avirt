@@ -245,13 +245,22 @@ The build runner (avirtexec in build mode) runs as root in the build VM under th
 
 ### Mediator
 
-avirtinitd in mediator mode launches avirtmediatord and avirtmedproxyd with rulesets in the same way, on the mediator VM's kernel (the same Kata kernel on Containerization) or the shared LinuxKit kernel on Docker Desktop. avirtmedproxyd starts its Envoy under its own UID, and between fork and exec applies the Envoy's ruleset as a nested domain inside its own. avirtmcp and avirtguest restrict themselves the same way. avirtmedproxyd's ruleset covers its Envoy's paths as well as its own.
+avirtinitd starts avirtmediatord as `avirt-med` under one Landlock ruleset. The process has zero capabilities and `no_new_privs`. Its seccomp filter denies cross-process memory access and tracing, including access through file descriptors. `/proc` uses `hidepid=invisible`.
 
-| Process | Paths | TCP |
-| --- | --- | --- |
-| avirtmediatord (`avirt-med`) | The paths each helper needs, `sock-dir` on the directory holding its status socket and the socket on which it hands the Envoy's SVID to avirtmedproxyd, `unix` on `/run/avirt/hostd.sock` and `/run/avirt/svc.sock` | Bind and connect handled, no rules |
-| avirtmedproxyd (`avirt-envoy`) | The paths each helper needs, `exec` on the Envoy binary, `ro` on the Envoy's bootstrap file and on `libavirtenvoy`'s shared object, `sock-dir` on the directory of its xDS and SDS socket and on the directories of `/run/avirt/workload.sock` and `/run/avirt/ingress.sock`, `unix` on avirtmediatord's sockets, `/run/avirt/hostd.sock` and `/run/avirt/svc.sock` | Bind and connect handled, no rules |
-| avirtmedproxyd's Envoy (`avirt-envoy`, nested) | The paths each helper needs, `ro` on its bootstrap file and on `libavirtenvoy`'s shared object, `sock-dir` on the directories of `/run/avirt/workload.sock` and `/run/avirt/ingress.sock`, `unix` on the xDS and SDS socket, `/run/avirt/hostd.sock` and `/run/avirt/svc.sock` | Bind and connect handled, no rules |
+| Path or resource | Access |
+| --- | --- |
+| `/usr/lib`, `/proc`, `/sys/fs/cgroup` | `ro` |
+| `/etc/ld.so.cache`, `/dev/urandom` | `file-r` |
+| `/dev/null` | `file-rw` |
+| avirtmediatord's binary and `/usr/lib/ld-linux-aarch64.so.1` | `exec` |
+| `/run/avirt/hostd.sock`, `/run/avirt/svc.sock` | `unix` |
+| `/run/avirt/workload.sock`, `/run/avirt/ingress.sock` | Listening file descriptors inherited from avirtinitd |
+| TCP bind and connect | Handled, with no allow rules |
+| Signals and abstract Unix sockets | Scoped to this Landlock domain |
+
+avirtinitd creates the listeners before applying the ruleset. avirtmediatord has no directory creation or removal rights under `/run/avirt`. Landlock adds `RESOLVE_UNIX` at ABI 9. File modes enforce socket access on lower ABI versions.
+
+avirtmediatord stores its SVID's private key and the workload's MITM CA key in memory, along with leases. These keys and credentials never enter files or process environments. The same process handles the workload's traffic and calls `GET /workload`, `GET /workload/control`, and `POST /workload/svid` on avirthostd. Workload rotation requests keep the workload's signature (see [identity](./identity.md#rotation)).
 
 ## Network rules
 
@@ -263,7 +272,7 @@ Landlock port rules match the port only, never the address. The workload contain
 | avirtnetd | Handled, no rules | Not handled |
 | Main workload process, avirtguestd | Handled, no rules | Handled, no rules |
 | avirtmcp, avirtguest (nested) | Handled, no rules | Handled, no rules |
-| avirtmediatord, avirtmedproxyd, and its Envoy | Handled, no rules | Handled, no rules |
+| avirtmediatord | Handled, no rules | Handled, no rules |
 
 - **Agent.** The agent binds and connects to its own servers on loopback for development and for published ports. The only other loopback listeners are avirtnetd's forward proxy and DNS stub, which serve the agent.
 - **avirtnetd.** avirtinitd binds avirtnetd's forward proxy listener and the DNS stub's port 53 sockets and hands them over, so avirtnetd binds nothing itself. Its reverse proxy connects to the agent's published ports, which change while the workload runs. A domain can't change after exec, so the ruleset doesn't handle connect.
@@ -360,11 +369,11 @@ The helpers' security contexts have no keys: they come only from avirtinitd's bu
 
 ### Recording and logging
 
-avirtinitd writes one `sandbox` meta event for each process it launches, before the process execs. avirtmcp, avirtguest, and avirtmedproxyd's Envoy define their nested rulesets in their binaries and don't log them.
+avirtinitd writes one `sandbox` meta event for each process it launches, before the process execs. avirtmcp and avirtguest define their nested rulesets in their binaries and don't log them.
 
 | Field | Value |
 | --- | --- |
-| `process` | The security context name: `agent`, `main_process`, `netd`, `guestd`, `mediatord` or `medproxyd` |
+| `process` | The security context name: `agent`, `main_process`, `netd`, `guestd`, `mediatord` |
 | `uid` | The UID it runs as |
 | `abi` | The probed ABI |
 | `target_abi` | The ABI used to build the ruleset |

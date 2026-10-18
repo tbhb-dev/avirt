@@ -41,7 +41,7 @@ Read-only means that writes inside the workload container leave the layer's stor
 
 Launches without a workspace or with a `cwd` host directory omit layer 3. A `cwd` directory mounts at `/workspace`. `/proc`, `/sys`, `/dev` and `/run/avirt` are absent from layers. During boot the runtime and avirtinitd mount or create them. Content rules exclude them from layers 3 and 4.
 
-The mediator image isn't part of this stack. It's a separate image with avirtinitd, avirtmediatord, avirtmedproxyd, Envoy, and libavirtenvoy. The avirt builder image (see [workspaces](./workspace-build.md#build-jobs)) derives from the avirt base like a harness base, with `git`, avirt's layer tool and BuildKit in place of a harness.
+The mediator image isn't part of this stack. It's a separate image with avirtinitd and avirtmediatord. The avirt builder image (see [workspaces](./workspace-build.md#build-jobs)) derives from the avirt base like a harness base, with `git`, avirt's layer tool and BuildKit in place of a harness.
 
 ## Base images
 

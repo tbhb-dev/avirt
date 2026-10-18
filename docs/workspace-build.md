@@ -31,8 +31,8 @@ A build job is a workload that avirthostd creates for avirtbuilderd: a workload 
 
 - **Image.** The workload container runs the avirt builder image, which holds avirtinitd, avirtnetd, avirtexec in build mode, `git`, avirt's layer tool and BuildKit. The build's base image and the input layers are inputs to the build, never the job's own root filesystem.
 - **Identity.** The job's only SVID is its workload SVID in avirtnetd. It has no connection to avirthostd of its own beyond its mediator's, and no access to avirtapid: avirthostd refuses any `guest-cli` stream for a build job.
-- **Inputs.** avirtnetd serves a registry socket to the build runner, and avirtmedproxyd forwards it to avirtregistryd through avirthostd's SNI routing under the job's identity. avirtregistryd grants the job read access to exactly the base image, the source bundle and the include digests of its build, read access to the cache scopes in [caching](#caching), and write access to `staging/<build-id>` only.
-- **Network.** Each other connection goes through avirtnetd's forward proxy, the job's avirtmedproxyd and avirtedgeproxyd, under the job's workload policy snapshot. The build policy for the job permits the sources' hosts for the fetch and the package registries the host policy names for commands.
+- **Inputs.** avirtnetd serves a registry socket to the build runner, and avirtmediatord forwards it to avirtregistryd through avirthostd's SNI routing under the job's identity. avirtregistryd grants the job read access to exactly the base image, the source bundle and the include digests of its build, read access to the cache scopes in [caching](#caching), and write access to `staging/<build-id>` only.
+- **Network.** Each other connection goes through avirtnetd's forward proxy, the build job's avirtmediatord and avirtedgeproxyd, under the job's workload policy snapshot. The build policy for the job permits the sources' hosts for the fetch and the package registries the host policy names for commands.
 - **Credentials.** A private source's credential, such as a short-lived GitHub installation token, is a mediator-injected credential binding for the source's host. The real credential remains outside the job. The mediator intercepts only the fetch step's connections for injection. Build commands use connections without interception or injected credentials. Their environment trusts only the base image's CA bundle.
 - **Security context.** avirtinitd runs the build runner as root inside the build VM with the build security context, which permits the namespaces and mounts BuildKit's OCI worker needs, without applying a Landlock ruleset to it (see [build jobs in sandbox](./sandbox.md#build-jobs)). Build commands run in BuildKit containers with the VM's loopback network, so they reach only avirtnetd's proxy.
 - **Limits.** avirthostd admits the job against the host's resource budgets like any workload, with a wall-clock deadline, and tears it down when it ends. Only the job's logs and its pushes to `staging/<build-id>` persist.
@@ -62,7 +62,7 @@ sequenceDiagram
     R->>F: off-host registries
     B->>H: create a build job (fetch or command)
     J->>R: read inputs (registry socket, SNI routing)
-    J->>F: fetch sources, install dependencies (avirtmedproxyd)
+    J->>F: fetch sources, install dependencies (avirtmediatord)
     J->>R: push the result to staging/BUILD-ID
     H-->>B: job exited
     B->>R: read the staged manifest and layers

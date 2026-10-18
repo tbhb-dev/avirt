@@ -94,7 +94,7 @@ flowchart LR
 
 ## Contexts and authentication
 
-`avirt` reaches avirtedgeproxyd's local client listener in the edge VM through `edgeproxy.sock` in the host's runtime directory, a Unix socket backed by vsock, 0600 and owned by the user (see [trust boundaries](./trust-boundaries.md#listeners)).
+`avirt` reaches avirtedgeproxyd's local client listener through `edgeproxy.sock` in the runtime directory, a Unix socket, 0600 and owned by the user (see [trust boundaries](./trust-boundaries.md#listeners)).
 
 The socket's mode authenticates the caller. `avirt` lacks a token, key, or certificate. avirtedgeproxyd identifies the caller as the local user principal (see [components](./components.md#open-questions)). Calls made this way include `via: "client"` in their Cedar context.
 

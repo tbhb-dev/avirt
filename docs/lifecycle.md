@@ -105,7 +105,7 @@ The Containerization runtime adds these to the runtime directory:
 | `cache/rootfs/` | Composed root filesystems, one per pair of harness base and workspace image (see [workspaces](./workspaces.md#composing-the-root-filesystem)) |
 | `images/` | avirthostd's content-addressed cache with the unpacked avirt base, harness base and mediator images, and the configuration layers (see [workload lifecycle](./workload-lifecycle.md#assembly-per-runtime)) |
 | `admin.sock` | avirthostd's admin socket for avirtadmin, 0600 and owned by avirthostd's UID (see [admin CLI](./admin-cli.md)) |
-| `edgeproxy.sock` | A Unix socket backed by vsock to avirtedgeproxyd's local client listener in the edge VM, 0600 and user-owned (see [trust boundaries](./trust-boundaries.md#listeners)) |
+| `edgeproxy.sock` | avirtedgeproxyd's `edgeproxy.sock`, 0600 and user-owned (see [trust boundaries](./trust-boundaries.md#listeners)) |
 
 Every planned runtime adds `services/`, which holds the host services' listener sockets (`services/<name>.sock`, 0660 with a group containing only the UIDs allowed to connect, see [trust boundaries](./trust-boundaries.md#listeners)) and avirthostd's issuer socket.
 

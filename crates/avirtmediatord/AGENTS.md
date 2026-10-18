@@ -8,7 +8,7 @@ generated: { by: codex/gpt-6, at: 2026-10-18T05:11:39Z }
 
 # Agent instructions: avirtmediatord
 
-The mediator binary. It runs one Pingora `Server` with two Unix-socket services in the workload's directory. Pingora is the default CONNECT engine. `--proxy-engine envoy` relays proxy streams to a supervised Envoy child while keeping the TCP proxy on `mediator.sock`. See [egress](../../docs/egress.md#experimental-host-envoy-mode) for Envoy mode's unverified parity and event limitations. Plans assign supervision of the mediator's Envoy to avirtmedproxyd.
+The mediator binary. It runs one Pingora `Server` with two Unix-socket services in the workload's directory. Pingora is the default CONNECT engine. `--proxy-engine envoy` relays proxy streams to a supervised Envoy child while keeping the TCP proxy on `mediator.sock`. See [egress](../../docs/egress.md#experimental-host-envoy-mode) for Envoy mode's unverified parity and event limitations. In the planned mediator container, `avirtmediatord` handles workload traffic and lifecycle in one process.
 
 ## Layout
 

@@ -1,7 +1,7 @@
 ---
 type: CLI Reference
 title: Guest CLI
-description: The avirtguest guest CLI runs as uid 1000 inside a workload container and connects to avirtapid through avirtnetd, avirtmedproxyd, and avirtedgeproxyd as the guest-cli principal. Its commands manage other workloads, sessions, logs, and ports under authorization and escalation constraints. Includes a comparison with avirt, output formats, exit codes, and the API call and Cedar action for each command.
+description: The avirtguest guest CLI runs as uid 1000 inside a workload container and connects to avirtapid through avirtnetd, avirtmediatord, and avirtedgeproxyd as the guest-cli principal. Its commands manage other workloads, sessions, logs, and ports under authorization and escalation constraints. Includes a comparison with avirt, output formats, exit codes, and the API call and Cedar action for each command.
 tags: [avirt, cli, avirtguest, workload-management]
 implementation: planned
 generated: { by: codex/gpt-6, at: 2026-10-18T04:29:26Z }
@@ -18,16 +18,16 @@ generated: { by: codex/gpt-6, at: 2026-10-18T04:29:26Z }
 avirtguest speaks gRPC to avirtapid. Its identity comes solely from the socket it connects on, without an SVID, key, or token.
 
 1. avirtguest connects to `/run/avirt/agent/guest.sock`, which avirtnetd restricts to uid 1000 using `SO_PEERCRED`.
-2. avirtnetd opens a `guest-cli` HTTP/2 stream, `POST /guest-cli`, to avirtmedproxyd on the workload's HTTP/2 connection to its mediator (see [HTTP/2 streams](./workload-topology.md#http2-streams)).
-3. avirtmedproxyd removes any `x-avirt-caller` supplied on the request, then sets `x-avirt-caller` to `spiffe://<td>/ns/<ns>/workload/<uuid>/guest-cli`. It sends the stream to avirtedgeproxyd on the mediator's outbound socket to avirthostd, which routes it by SNI without decrypting TLS.
-4. avirtedgeproxyd accepts that principal only from an avirtmedproxyd SVID of the same workload at its current generation. It evaluates `connect` for the workload and `HostService::"avirtapid"` with `via: "guest-cli"` against the host policy snapshot. It then sets `x-avirt-caller` itself and forwards the stream to avirtapid.
+2. avirtnetd opens a `guest-cli` HTTP/2 stream, `POST /guest-cli`, to avirtmediatord on the workload's HTTP/2 connection to its mediator (see [HTTP/2 streams](./workload-topology.md#http2-streams)).
+3. avirtmediatord removes any `x-avirt-caller` supplied on the request, then sets `x-avirt-caller` to `spiffe://<td>/ns/<ns>/workload/<uuid>/guest-cli`. It sends the stream to avirtedgeproxyd on the mediator's outbound socket to avirthostd, which routes it by SNI without decrypting TLS.
+4. avirtedgeproxyd accepts that principal only from an avirtmediatord SVID of the same workload at its current generation. It evaluates `connect` for the workload and `HostService::"avirtapid"` with `via: "guest-cli"` against the host policy snapshot. It then sets `x-avirt-caller` itself and forwards the stream to avirtapid.
 5. avirtapid accepts `x-avirt-caller` only from `/service/avirtedgeproxyd`, and forwards the call to avirthostd, or with `--host` to an enrolled peer's avirtapid.
 6. avirthostd evaluates the command's action against the host policy snapshot, with `Workload::"<ns>/<uuid>"` as principal and `via: "guest-cli"`, and applies the workload management constraints.
 
 ```mermaid
 flowchart LR
     guest["avirtguest (uid 1000)"] -->|"guest.sock, SO_PEERCRED"| net["avirtnetd"]
-    net -->|"POST /guest-cli stream"| me["avirtmedproxyd: sets x-avirt-caller"]
+    net -->|"POST /guest-cli stream"| me["avirtmediatord: sets x-avirt-caller"]
     me -->|"SNI routing by avirthostd"| fd["avirtedgeproxyd: connect to avirtapid"]
     fd --> proxyd["avirtapid"]
     proxyd --> hostd["avirthostd: action and constraints"]

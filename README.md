@@ -8,7 +8,7 @@ generated: { by: codex/gpt-6, at: 2026-10-18T04:57:34Z }
 
 # avirt
 
-`avirt` runs ACP agents in isolated containers on an Apple silicon Mac. The supported agents are Claude, through [claude-agent-acp](https://github.com/agentclientprotocol/claude-agent-acp), and Codex, through [codex-acp](https://github.com/agentclientprotocol/codex-acp). `avirthostd`, the host daemon, launches one workload per request. A workload is a workload container plus its egress mediator (`avirtmediatord`). Inside the workload container, `avirtinitd` drives the agent over ACP and streams every JSON-RPC message to `avirthostd`, which writes it to `logs/<workload-id>.ndjson`. Without a workload network, the agent's only way out is the mediator's logged CONNECT proxy. All code is Rust and uses the official [`agent-client-protocol`](https://github.com/agentclientprotocol/rust-sdk) crate.
+`avirt` runs ACP agents in isolated containers on an Apple silicon Mac. The supported agents are Claude, through [claude-agent-acp](https://github.com/agentclientprotocol/claude-agent-acp), and Codex, through [codex-acp](https://github.com/agentclientprotocol/codex-acp). `avirthostd`, the host daemon, launches one workload per request. A workload is a workload container plus its egress mediator (`avirtmediatord`). Inside the workload container, `avirtinitd` drives the agent over ACP and streams every JSON-RPC message to `avirthostd`, which writes it to `logs/<workload-id>.ndjson`. In the implemented system, the agent's only way out is the mediator's logged CONNECT proxy. All code is Rust and uses the official [`agent-client-protocol`](https://github.com/agentclientprotocol/rust-sdk) crate.
 
 Agents working in this repository should read [AGENTS.md](AGENTS.md). See [docs/architecture.md](docs/architecture.md) for the architecture, both the implemented system and the planned design, and [docs/build-and-platforms.md](docs/build-and-platforms.md) for build targets and platforms.
 
@@ -17,7 +17,6 @@ Agents working in this repository should read [AGENTS.md](AGENTS.md). See [docs/
 - `crates/avirthostd/` contains the `avirthostd` binary (running it starts the server) and the per-agent launch profiles. It also handles Codex's credentials.
 - `crates/avirt/` contains the `avirt` operator CLI (`avirt launch`).
 - `crates/avirtmediatord/` contains the `avirtmediatord` binary, the per-workload egress proxy. Pingora is the default, with an opt-in Envoy engine.
-- `crates/avirtmedproxyd/` contains the `avirtmedproxyd` binary, the mediator proxy: supervises the mediator's Envoy with libavirtenvoy and serves it local xDS and SDS (not implemented).
 - `crates/avirtinitd/` contains the `avirtinitd` binary, which runs in the workload (`AVIRT_AGENT=claude|codex`).
 - `crates/avirt-connect/` contains the `avirt-connect` library, the CONNECT authority parsing and destination checks that both of avirtmediatord's engines share.
 - `crates/avirt-core/` contains the shared library. It contains the control API types (`api`) and log envelope, along with the h2c client and the client for the workload's HTTP/2 connection to its mediator. It includes the `avirthostd` server and workload registry, plus the `avirtinitd` harness and runtime directory.
@@ -30,7 +29,7 @@ Agents working in this repository should read [AGENTS.md](AGENTS.md). See [docs/
 - `crates/avirtbuilderd/` contains the `avirtbuilderd` binary. The builder watches VCS and builds repository OCI artifacts for fast workload startup (not implemented).
 - `crates/avirtpolicyd/` contains the `avirtpolicyd` binary. The policy service stores, compiles, proves, and distributes Cedar policy snapshots (not implemented).
 - `crates/avirtregistryd/` contains the `avirtregistryd` binary. The workspace image registry wraps an OCI registry and adds avirt's index and search API for workspace images (not implemented).
-- `crates/avirtsecretsd/` contains the `avirtsecretsd` binary. The secrets broker fetches secrets from providers and serves the credential broker API. It serves mediator-injected bindings over the Envoy secret discovery service (not implemented).
+- `crates/avirtsecretsd/` contains the `avirtsecretsd` binary. The secrets broker fetches secrets from providers and serves the credential broker API. It serves leases for mediator-injected bindings through the broker API (not implemented).
 - `crates/avirtlogd/` contains the `avirtlogd` binary. The log collector gathers workload stdout and stderr, transforms it and sends it to avirtoteld as OpenTelemetry Logs (not implemented).
 - `crates/avirtauditd/` contains the `avirtauditd` binary. The audit logger delivers audit events as OCSF (not implemented).
 - `crates/avirtoteld/` contains the `avirtoteld` binary, the OpenTelemetry Collector for the host (not implemented).

@@ -3,7 +3,7 @@ name = "avirtdnsd"
 version = "0.1.0"
 edition.workspace = true
 rust-version.workspace = true
-description = "The DNS resolver for `<name>.<ns>.svc.host.avirt.internal` and `<name>.<ns>.workload.host.avirt.internal`, which answers with the local front-door Envoy and, for peered names, with their host's front-door Envoy."
+description = "The DNS resolver for `<name>.<ns>.svc.host.avirt.internal` and `<name>.<ns>.workload.host.avirt.internal`, which answers with the local avirtedgeproxyd or, for peered names, their host's avirtedgeproxyd."
 publish.workspace = true
 
 [lints]

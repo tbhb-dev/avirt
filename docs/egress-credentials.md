@@ -1,7 +1,7 @@
 ---
 type: Security Design
 title: Egress credentials
-description: Where Claude and Codex credentials live and how they reach the agent today, with the Codex auth.json seed and write-back, and the planned credential injection at egress, covering bindings and credential injectors, the avirtsecretsd broker and SDS, placeholders and placeholder misuse checks, libavirtenvoy HTTP and gRPC injection, the model and MCP gateways, Claude Code, Codex and Codex refresh, generation fencing, rotation and revocation, what the workload can and can't see, and credentials for build jobs and for workloads that create workloads.
+description: Where Claude and Codex credentials live and how they reach the agent today, with the Codex auth.json seed and write-back, and the planned credential injection at egress, covering bindings and credential injectors, the avirtsecretsd broker, placeholders and placeholder misuse checks, avirtmediatord HTTP and gRPC injection, the model and MCP gateways, Claude Code, Codex and Codex refresh, generation fencing, rotation and revocation, what the workload can and can't see, and credentials for build jobs and for workloads that create workloads.
 tags: [avirt, credentials, egress, oauth, claude, codex, security]
 implementation: partial
 generated: { by: codex/gpt-6, at: 2026-10-18T05:21:55Z }
@@ -111,11 +111,11 @@ Constraints:
 | Codex access and id tokens | avirtmodelgwd | Placeholders only |
 | Codex refresh token | Never injected. avirtsecretsd uses it to refresh. | The refresh placeholder only |
 | MCP upstream credentials | avirtmcpgwd | Nothing |
-| Other bindings requiring injection at the mediator, such as a git host token | avirtmedproxyd | A short-lived, workload-scoped credential for that binding, in memory |
+| Other bindings requiring injection at the mediator, such as a git host token | avirtmediatord | A short-lived, workload-scoped credential for that binding, in memory |
 
 ```mermaid
 flowchart LR
-    agent["agent (placeholders only)"] -->|"CONNECT, HTTP/2 to the mediator"| me["avirtmedproxyd: placeholder misuse check, refresh intercept"]
+    agent["agent (placeholders only)"] -->|"CONNECT, HTTP/2 to the mediator"| me["avirtmediatord: placeholder misuse check, refresh intercept"]
     me -->|"model API hosts, mTLS"| mg["avirtmodelgwd: model credentials"]
     me -->|"/mcp stream"| mcp["avirtmcpgwd: MCP credentials"]
     me -->|"mediator-injected bindings, own TLS to the upstream"| fd["avirtedgeproxyd (no credentials)"]
@@ -124,34 +124,32 @@ flowchart LR
     fd --> up(("upstreams"))
     sec["avirtsecretsd"] -->|"resolve_placeholder"| mg
     sec -->|"mcp_credential"| mcp
-    sec -->|"SDS binding secrets, placeholders"| me
+    sec -->|"leases, placeholders"| me
 ```
 
 ## avirtsecretsd
 
 avirtsecretsd's side is in [secrets](./secrets.md): secrets and their references, providers, versions and leases, the registration of each live workload's namespace, generation, binding ids and credential injectors by avirthostd (see [APIs](./secrets.md#apis)), write-back of credentials whose `owner` is `avirtsecretsd`, and its storage at rest. Its `bindings.d/` stores binding records, which only its Admin API can write. Registration returns the binding's issued placeholders to avirthostd.
 
-## Credential broker API and SDS
+## Credential broker API
 
-avirtsecretsd serves the credential injectors through two interfaces (see [secrets](./secrets.md#apis) for its other APIs).
-
-- **SDS** delivers only to each avirtmedproxyd Envoy one `generic_secret` per mediator-injected binding of its own workload, named `binding/<binding id>` (see [SDS](./secrets.md#sds)). avirtsecretsd accepts an SDS stream from avirtmedproxyd's Envoy only for a live workload at its current generation. avirtsecretsd never serves TLS identities: avirtmedproxyd's Envoy gets its SVID from avirtmedproxyd's local SDS, and avirtedgeproxyd's Envoy gets its SVID and trust bundles from avirtedgeproxyd's local SDS, which never receives bearer credentials, placeholders, or refresh tokens.
-- **The credential broker API** is workload-scoped, on avirtsecretsd's host service listener (see [trust boundaries](./trust-boundaries.md#listeners)).
+avirtsecretsd serves credential injectors through its workload-scoped broker API on its host service listener (see [secrets](./secrets.md#apis)). The broker authenticates the caller's SVID and authorizes the workload, generation, binding, and injector for every lease. TLS identities and trust bundles come from avirthostd.
 
 | Operation | Caller | Returns |
 | --- | --- | --- |
-| `placeholders` | avirtmediatord, avirtmedproxyd's Envoy | A stream of its workload's issued placeholders and placeholder copies of files, for `confirm` and for the placeholder misuse check |
+| `placeholders` | avirtmediatord | A stream of its workload's issued placeholders and placeholder copies of files, for `confirm` and for the placeholder misuse check |
 | `resolve_placeholder` | avirtmodelgwd | A lease on the credential value of one placeholder, for one request |
 | `mcp_credential` | avirtmcpgwd | A lease on the upstream credential for one of the workload's MCP bindings and one MCP server, with no placeholder involved |
 | `codex_refresh` | avirtmodelgwd, presenting the workload's refresh placeholder | Codex tokens with placeholders after a refresh (see [Codex refresh](#codex-refresh)) |
-| `revocations` | avirtmodelgwd, avirtmcpgwd | A stream of the cached values the gateway must drop (see [rotation and revocation](#rotation-and-revocation)) |
+| `binding_credential` | avirtmediatord | A lease for the real, short-lived credential behind its own workload's mediator-injected binding |
+| `revocations` | avirtmediatord, avirtmodelgwd, avirtmcpgwd | A stream of the cached values the gateway must drop (see [rotation and revocation](#rotation-and-revocation)) |
 
 Host services' own credentials, such as avirtregistryd's registry logins, come from avirtsecretsd's Service API (`GetCredential`, see [APIs](./secrets.md#apis)), never from the broker, and never for a workload's binding.
 
 avirtsecretsd checks each retrieval by workload, generation, service, and binding. It then checks `read_secret` against the host policy snapshot (see [authorization](./secrets.md#authorization)):
 
-- the caller's SVID names the service, or the workload and generation for avirtmediatord and avirtmedproxyd's Envoy.
-- a gateway specifies the workload and generation it acts for, which must equal those in the avirtmedproxyd SVID on the connection it's serving.
+- the caller's SVID names the service, or the workload and generation for avirtmediatord.
+- a gateway specifies the workload and generation it acts for, which must equal those in the avirtmediatord SVID on the connection it's serving.
 - the workload's configuration must include the binding. avirthostd registers it at launch after authorizing `attach_binding`. avirtsecretsd refuses a superseded generation and a binding used at the wrong credential injector.
 - `codex_refresh` must present the refresh placeholder issued to that workload for that binding.
 - a binding attached to a workload that another workload created must be one the creator holds itself (see [workloads that create workloads](#workloads-that-create-workloads)).
@@ -167,35 +165,35 @@ A gateway keeps a resolved value in memory only, and no longer than its lease's 
 - **Delivery.** avirtmediatord fetches the workload's placeholders and sends them in `confirm` (`env` and `files`, see [launch handshake](./workload-topology.md#launch-handshake)). avirtinitd puts each value at the environment variable or path that the configuration layer names (see [workload lifecycle](./workload-lifecycle.md#configuration-layer)).
 - **Substitution.** It happens only inside the one bound header of a request whose host, port and path match the credential's binding, at the credential injector the binding names.
 - **TLS passthrough.** Credential injectors never inject credentials under TLS passthrough.
-- **Placeholder misuse check.** avirtmedproxyd rejects, with `403 credential-misplaced` in both policy modes, any issued placeholder, or the bare `avirtph` marker, found anywhere else in a request. That covers other headers, the request target before and after percent-decoding, the first 1 MiB of the body, and any host: the CONNECT authority, the SNI and `Host`. avirtmedproxyd checks the Codex refresh intercept's exact match before scanning.
-- **DNS.** A DNS query whose name holds the `avirtph` marker gets `NXDOMAIN` and a `dns` event with `rcode` `NXDOMAIN` and `rule: "credential-misplaced"`. avirtmedproxyd compares host and DNS names without case distinctions, converting both to lowercase before the check.
+- **Placeholder misuse check.** avirtmediatord rejects, with `403 credential-misplaced` in both policy modes, any issued placeholder, or the bare `avirtph` marker, found anywhere else in a request. That covers other headers, the request target before and after percent-decoding, the first 1 MiB of the body, and any host: the CONNECT authority, the SNI and `Host`. avirtmediatord checks the Codex refresh intercept's exact match before scanning.
+- **DNS.** A DNS query whose name holds the `avirtph` marker gets `NXDOMAIN` and a `dns` event with `rcode` `NXDOMAIN` and `rule: "credential-misplaced"`. avirtmediatord compares host and DNS names without case distinctions, converting both to lowercase before the check.
 - **Scope of the scan.** This check detects misuse within its scope. It can't prevent exfiltration through body content past 1 MiB, encoded placeholders, websocket frames, or passthrough connections.
 - **Control characters.** Credential injectors never substitute a credential value containing CR, LF, or NUL.
 - **No other locations.** Credential injectors support substitution only in headers, excluding bodies, queries, and paths.
 - **Logs.** avirt events exclude placeholder values. Log export redacts content matching the placeholder misuse check's patterns (see [content and redaction](./observability.md#content-and-redaction)).
 
-## libavirtenvoy injection
+## Mediator injection
 
-libavirtenvoy in avirtmedproxyd's Envoy injects only the bindings whose `injector` is `mediator`. It receives each value as the SDS resource `binding/<binding id>` and keeps it in memory only. It uses whatever version avirtsecretsd last pushed. While a binding's resource is absent, every matching request fails with 503 and a `cred` outcome of `rejected`.
+avirtmediatord injects only the bindings whose `injector` is `mediator`. It fetches each value with `binding_credential` from the broker API and holds the lease in memory only. It renews before `expires`, uses the current version on the next request and drops the value at expiry or revocation. Without an unexpired lease that avirtsecretsd hasn't revoked, each matching request fails with 503 and a `cred` outcome of `rejected`.
 
 ### HTTP injection
 
 On an intercepted request whose host, port and canonical path match a mediator-injected binding:
 
-- **With a placeholder** (the binding has `workload`): the bound header must contain exactly the binding's placeholder in the value template's position, and libavirtenvoy replaces it with the credential value. libavirtenvoy refuses any other value in the bound header with 403 `credential-rejected` and a `cred` outcome of `rejected`.
-- **Without a placeholder**: libavirtenvoy sets the bound header to the rendered template, replacing any value the request contained.
+- **With a placeholder** (the binding has `workload`): the bound header must contain exactly the binding's placeholder in the value template's position, and avirtmediatord replaces it with the credential value. avirtmediatord refuses any other value in the bound header with 403 `credential-rejected` and a `cred` outcome of `rejected`.
+- **Without a placeholder**: avirtmediatord sets the bound header to the rendered template, replacing any value the request contained.
 
-avirtmedproxyd then opens its own TLS connection to the upstream through avirtedgeproxyd (see [egress](./egress.md#avirtmedproxyd-pipeline)), and the `http` event records `cred: [{name, location, action}]`.
+avirtmediatord then opens its own TLS connection to the upstream through avirtedgeproxyd (see [egress](./egress.md#how-avirtmediatord-handles-egress)), and the `http` event records `cred: [{name, location, action}]`.
 
 ### gRPC
 
-A binding with `protocol: grpc` makes avirtmedproxyd offer ALPN `h2` and `http/1.1` downstream for its destination, so the agent's gRPC client can speak h2 on the intercepted connection. Injection works per call. Binding paths match the call's canonical `:path`. Bound headers appear as gRPC metadata on the call's HEADERS frame. Trailers remain unchanged. The placeholder misuse check covers the call's metadata, its `:path` and its first 1 MiB of messages. avirtmedproxyd offers only `http/1.1` to destinations without a gRPC binding. An h2 downstream connection doesn't support an h1 `Upgrade`.
+A binding with `protocol: grpc` makes avirtmediatord offer ALPN `h2` and `http/1.1` downstream for its destination, so the agent's gRPC client can speak h2 on the intercepted connection. Injection works per call. Binding paths match the call's canonical `:path`. Bound headers appear as gRPC metadata on the call's HEADERS frame. Trailers remain unchanged. The placeholder misuse check covers the call's metadata, its `:path` and its first 1 MiB of messages. avirtmediatord offers only `http/1.1` to destinations without a gRPC binding. An h2 downstream connection doesn't support an h1 `Upgrade`.
 
 ## avirtmodelgwd
 
-avirtmedproxyd sends every intercepted request for a model API host to avirtmodelgwd over a new mutual TLS connection, which avirthostd routes by SNI without decrypting TLS, with the original host as `:authority` (see [egress](./egress.md#avirtmedproxyd-pipeline)). For each request, avirtmodelgwd:
+avirtmediatord sends every intercepted request for a model API host to avirtmodelgwd over a new mutual TLS connection, which avirthostd routes by SNI without decrypting TLS, with the original host as `:authority` (see [egress](./egress.md#how-avirtmediatord-handles-egress)). For each request, avirtmodelgwd:
 
-1. takes the workload and generation from the avirtmedproxyd SVID on the connection, and refuses a superseded generation.
+1. takes the workload and generation from the avirtmediatord SVID on the connection, and refuses a superseded generation.
 2. finds the workload's binding whose destinations match the host, port, and path. avirtmodelgwd forwards requests without a match, omitting credential injection.
 3. reads the placeholder from the bound header, and calls `resolve_placeholder` with the workload, generation, binding, placeholder, host, port and path, unless its cache contains the value.
 4. substitutes the credential value, refusing one with CR, LF, or NUL.
@@ -210,7 +208,7 @@ avirtmodelgwd refuses a request with 403 `credential-rejected` if its bound head
 The agent's MCP configuration names only avirtmcp (see [workload lifecycle](./workload-lifecycle.md#configuration-layer)). avirtmcp relays MCP through avirtnetd's `mcp.sock` and the `/mcp` stream to avirtmcpgwd, and no MCP traffic passes through avirtnetd's forward proxy. MCP credentials lack placeholders. The workload never sees these credentials in any form.
 
 - An MCP binding specifies one upstream MCP server with its URL and credential. avirtmcpgwd limits each workload to the servers in its MCP bindings and the tools allowed by its per-workload tool scope.
-- avirtmcpgwd fetches each upstream credential with `mcp_credential`, for the workload and generation in the avirtmedproxyd SVID on the `/mcp` stream, and injects it into the upstream HTTP request's bound header.
+- avirtmcpgwd fetches each upstream credential with `mcp_credential`, for the workload and generation in the avirtmediatord SVID on the `/mcp` stream, and injects it into the upstream HTTP request's bound header.
 - An MCP server's OAuth tokens belong to avirtsecretsd, which refreshes them as an `oauth` secret (see [write-back](./secrets.md#write-back)).
 - Upstream connections go through avirtedgeproxyd with the workload in `x-avirt-caller`, so the host policy snapshot's `connect` applies to both avirtmcpgwd and the workload (see [egress policies](./egress-policies.md#enforcement-points)).
 - avirtmcpgwd never retries a mutating tool call automatically.
@@ -244,20 +242,20 @@ The workload and its logs reveal the account's email and plan, which the real JW
 
 Codex refreshes before expiry and on a 401. After a 401, it reloads `auth.json` from disk and tries to refresh before giving up. The refresh is a JSON POST to `https://auth.openai.com/oauth/token` with `{client_id, grant_type: "refresh_token", refresh_token}`. Every response field (`id_token`, `access_token`, `refresh_token`) is optional. Codex re-parses the `id_token` before saving the tokens and setting `last_refresh`. Refresh tokens rotate, and reusing an old one is a permanent failure, so exactly one owner, avirtsecretsd, holds the refresh token.
 
-avirtmedproxyd's refresh intercept matches exactly a `POST` to `auth.openai.com:443` path `/oauth/token` whose JSON body has `grant_type` equal to `refresh_token` and `refresh_token` equal to this workload's refresh placeholder. avirtmedproxyd sends the intercepted request only to avirtmodelgwd's refresh endpoint. That endpoint calls the broker's `codex_refresh`. Any other request that contains the refresh placeholder meets the placeholder misuse check. avirtsecretsd then refreshes through its write-back (see [write-back](./secrets.md#write-back)): under `auth.json.lock` it uses the host's tokens if another workload or the host command-line tool already refreshed, and otherwise performs one real refresh shared across workloads. With `auth.json.lock` still held, avirtsecretsd writes the host file atomically and marks the secret `needs-login` on any uncertain outcome. The broker then issues new id and access tokens with placeholders. It keeps old placeholders valid for 60 s and sends new placeholders on avirtmedproxyd's `placeholders` stream.
+avirtmediatord's refresh intercept matches exactly a `POST` to `auth.openai.com:443` path `/oauth/token` whose JSON body has `grant_type` equal to `refresh_token` and `refresh_token` equal to this workload's refresh placeholder. avirtmediatord sends the intercepted request only to avirtmodelgwd's refresh endpoint. That endpoint calls the broker's `codex_refresh`. Any other request that contains the refresh placeholder meets the placeholder misuse check. avirtsecretsd then refreshes through its write-back (see [write-back](./secrets.md#write-back)): under `auth.json.lock` it uses the host's tokens if another workload or the host command-line tool already refreshed, and otherwise performs one real refresh shared across workloads. With `auth.json.lock` still held, avirtsecretsd writes the host file atomically and marks the secret `needs-login` on any uncertain outcome. The broker then issues new id and access tokens with placeholders. It keeps old placeholders valid for 60 s and sends new placeholders on avirtmediatord's `placeholders` stream.
 
 avirtmodelgwd answers the agent with `{"id_token","access_token","refresh_token"}` (the refresh placeholder unchanged) plus `expires_in`. When two workloads refresh at once, both succeed. If interception fails for a client, `CODEX_REFRESH_TOKEN_URL_OVERRIDE` can point Codex at a mediator-served path instead.
 
 ```mermaid
 sequenceDiagram
     participant A as agent (Codex)
-    participant E as avirtmedproxyd
+    participant E as avirtmediatord
     participant G as avirtmodelgwd
     participant S as avirtsecretsd
     participant H as host ~/.codex/auth.json
     A->>E: POST auth.openai.com/oauth/token (refresh placeholder)
     E->>E: exact-match refresh intercept, before the placeholder misuse check
-    E->>G: refresh endpoint (mTLS, avirtmedproxyd SVID)
+    E->>G: refresh endpoint (mTLS, avirtmediatord SVID)
     G->>S: codex_refresh (workload, gen, binding, refresh placeholder)
     S->>H: flock auth.json.lock, re-read
     alt host already newer
@@ -276,19 +274,19 @@ sequenceDiagram
 Credential retrieval requires the workload's current mediator generation:
 
 - avirtsecretsd refuses every broker call from, or on behalf of, a superseded generation, and avirthostd reports every replacement with `SetGeneration` (see [APIs](./secrets.md#apis)).
-- A gateway acts for the generation in the avirtmedproxyd SVID on the connection it's serving, and refuses a superseded one. It drops its cached values for a workload when the workload's generation changes.
-- Only the avirtmedproxyd Envoy whose SDS stream received a mediator-injected value stores it, in memory. Once successor confirmation completes, avirtsecretsd closes the superseded generation's SDS streams and ends its leases.
+- A gateway acts for the generation in the avirtmediatord SVID on the connection it's serving, and refuses a superseded one. It drops its cached values for a workload when the workload's generation changes.
+- Only the avirtmediatord whose broker call received a mediator-injected value stores it, in memory. Once successor confirmation completes, avirtsecretsd refuses the superseded generation's calls and ends its leases.
 - Placeholders belong to the workload and remain unchanged across generations.
 
 ## Rotation and revocation
 
 avirtsecretsd's rotation and revocation of secrets are in [secrets](./secrets.md#rotation-and-revocation). At the credential injectors:
 
-- **Rotation.** A gateway resolves per request and uses a new version on its next request. avirtmedproxyd's Envoy receives a new version of `binding/<binding id>` over SDS. The workload's placeholders don't change.
-- **Revocation.** avirtsecretsd removes a revoked secret's SDS resources and notifies each gateway on its `revocations` stream. Each gateway then drops its cached value. Credential injectors refuse requests to the binding's destinations with 403 `credential-rejected`. The workload's placeholder can't grant access.
+- **Rotation.** A gateway resolves per request and uses a new version on its next request. avirtmediatord renews its lease and uses the new version on its next request. The workload's placeholders don't change.
+- **Revocation.** avirtsecretsd ends the revoked secret's leases and notifies each injector on its `revocations` stream. Each injector then drops its cached value. Credential injectors refuse requests to the binding's destinations with 403 `credential-rejected`. The workload's placeholder can't grant access.
 - **Policy change.** When a new host policy snapshot takes effect, avirthostd re-evaluates `attach_binding` for every live workload's bindings, and withdraws each binding the new policy snapshot denies from that workload's registration. The workload keeps running without it.
 - **Placeholder rotation.** Placeholders change only on a Codex refresh. The old ones remain valid for 60 s, and then meet the placeholder misuse check as any other unknown `avirtph` value does.
-- **Workload end.** Deregistration at teardown ends every lease and placeholder of the workload and closes its SDS streams.
+- **Workload end.** Deregistration at teardown ends every lease and placeholder of the workload and closes the streams of placeholders and revocation notices on the broker API for that workload.
 - **Login loss.** A secret in `needs-login` refuses every refresh and resolve until an operator logs in again.
 
 These changes leave open connections intact. Credential injectors check each request, so the next request on an open connection sees the change.
@@ -311,7 +309,7 @@ A build job is a workload with the build security context (see [workspace builds
 
 - avirtbuilderd names the job's bindings when it asks avirthostd to create the job, and avirthostd authorizes `attach_binding` for each one with `HostService::"avirtbuilderd"` as the principal. A job gets only the bindings for its own sources.
 - A private source's credential is a mediator-injected binding without a placeholder, for the source's host and repository paths only. For GitHub it's a short-lived installation token with read-only contents permission for that repository, injected as `authorization: Basic` with user `x-access-token`.
-- Injection happens only during the fetch step. The build runner reports the end of the fetch step to avirtinitd before any build command starts, and avirtmediatord passes it to libavirtenvoy, which then drops the credential and refuses the binding. libavirtenvoy checks every new connection as though policy forbade `intercept`. The report can only end the fetch step, never restart it.
+- Injection happens only during the fetch step. The build runner reports the end of the fetch step to avirtinitd before any build command starts, and avirtinitd passes it through avirtnetd to avirtmediatord, which then drops the credential and refuses the binding. avirtmediatord checks every new connection as though policy forbade `intercept`. The report can only end the fetch step, never restart it.
 - Build commands run without injected credentials or TLS termination. Their environment trusts only the CA bundle of the build's base image.
 - Off-host registry credentials belong to avirtregistryd, through avirtsecretsd's Service API, never to a build job: a job reaches its inputs and its staging repository only through avirtregistryd's grant (see [workspace builds](./workspace-build.md#build-jobs)).
 
@@ -319,7 +317,7 @@ A build job is a workload with the build security context (see [workspace builds
 
 A workload that creates another workload through the guest CLI (see [workload management](./components.md#workload-management)) can attach to it only bindings it holds itself, and avirthostd still authorizes `attach_binding` for each one with the creator as the principal.
 
-- **Separate placeholders.** The child gets its own placeholders for each binding, issued to its own workload. The creator never sees them, and a creator's placeholder used in the child's requests is unknown to the child's avirtmedproxyd and meets the placeholder misuse check.
+- **Separate placeholders.** The child gets its own placeholders for each binding, issued to its own workload. The creator never sees them, and a creator's placeholder used in the child's requests is unknown to the child's avirtmediatord and meets the placeholder misuse check.
 - **Delegation chain.** avirtsecretsd records each child binding's creator. Withdrawing a workload's binding also withdraws it from every descendant that obtained it through that workload.
 - **Lifetime.** avirthostd deregisters a child that ends with its creator like any workload. Detached children keep their bindings until workload completion or binding withdrawal.
 

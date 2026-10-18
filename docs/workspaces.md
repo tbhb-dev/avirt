@@ -29,7 +29,7 @@ flowchart LR
     builderd -->|"create build job"| hostd
     hostd --> job["build job (workload)"]
     job -->|"inputs and staging push, SNI routing"| registryd
-    job -->|"sources and dependencies, avirtmedproxyd"| fd["avirtedgeproxyd"]
+    job -->|"sources and dependencies, avirtmediatord"| fd["avirtedgeproxyd"]
     builderd -->|"promote"| registryd
     builderd -->|"repository watching"| fd
     registryd -->|"off-host registries"| fd

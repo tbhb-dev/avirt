@@ -72,19 +72,19 @@ flowchart LR
 
 | Metric | Definition | Unit | Where | How | Runtimes | Class |
 | --- | --- | --- | --- | --- | --- | --- |
-| `egress.connect_setup` | CONNECT head received by the mediator → `200` written | ms | Mediator | Histogram | All | SLO |
+| `egress.connect_setup` | CONNECT head received by the mediator → `200` written | ms | Mediator and edge proxy | Histogram | All | SLO |
 | `egress.dns` | Name lookup started → addresses returned | ms | Mediator, or avirtedgeproxyd where it resolves | Histogram | All | diag |
 | `egress.dial` | First upstream dial started → connected | ms | Mediator, or avirtedgeproxyd where it dials | Histogram | All | diag |
 | `egress.tls_accept` | `200` written → downstream TLS handshake complete | ms | Mediator | Histogram | Containerization, Docker | diag |
 | `egress.leaf` | Leaf certificate cache miss → leaf ready, plus the cache hit ratio | µs, ratio | Mediator | Histogram, counter | Containerization, Docker | diag |
 | `egress.tls_added_latency` | Request completion time through termination minus through TLS passthrough, for the same request | ms | Bench harness | External benchmark | Containerization, Docker | diag |
 | `egress.tls_added_throughput` | Throughput through termination relative to TLS passthrough, for the same transfer | ratio | Bench harness | External benchmark | Containerization, Docker | diag |
-| `egress.policy_eval` | Rule evaluation started → decision for each connection and each request | µs | Mediator | Histogram | All | diag |
+| `egress.policy_eval` | Rule evaluation started → decision for each connection and each request | µs | Mediator and edge proxy | Histogram | All | diag |
 | `egress.substitution` | Credential substitution and placeholder misuse check, per request, including body scanning | µs | Mediator | Histogram | Containerization, Docker | diag |
 | `egress.codex_refresh` | Intercepted refresh request received → synthesized response sent, plus avirtmodelgwd's and avirtsecretsd's refresh time | ms | Mediator, avirtmodelgwd, avirtsecretsd | Span | Containerization, Docker | diag |
-| `egress.decisions` | Connections and requests by `decision` (`allow`, `deny`, `would-deny`) and by `rule` | count | Mediator | Counter, from the egress events | All | diag |
-| `egress.errors` | Failures by kind: `bad-request`, `private-dest`, `plain-http`, DNS, dial, timeout, `shutdown`, `credential-misplaced` | count | Mediator | Counter, from the egress events | All | diag |
-| `egress.bytes` | `bytes_up` and `bytes_down` per connection and per workload | bytes | Mediator | Counter, from the egress events | All | diag |
+| `egress.decisions` | Connections and requests by `decision` (`allow`, `deny`, `would-deny`) and by `rule` | count | Mediator and edge proxy | Counter, from the egress events | All | diag |
+| `egress.errors` | Failures by kind: `bad-request`, `private-dest`, `plain-http`, DNS, dial, timeout, `shutdown`, `credential-misplaced` | count | Mediator and edge proxy | Counter, from the egress events | All | diag |
+| `egress.bytes` | `bytes_up` and `bytes_down` per connection and per workload | bytes | Mediator and edge proxy | Counter, from the egress events | All | diag |
 
 # Logging
 

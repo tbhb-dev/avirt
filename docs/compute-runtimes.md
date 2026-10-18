@@ -55,7 +55,7 @@ pub struct RuntimeProps {
 
 - **`Running`** holds the runtime handle plus the workload container's or mediator's stdout, stderr, and exit status.
 - **Specs** are runtime-neutral. They include the layer stack (the harness base plus workspace layers and the configuration layer, see [workload lifecycle](./workload-lifecycle.md#layer-stack)). They also include the environment, workspace mount, labels (`avirt=1`, `avirt.workload`, `avirt.role`), and extra capabilities the role needs. Neither spec has a network: the workload and the mediator have no interface other than loopback on every runtime.
-- **Unix sockets.** The runtime provides the sockets for the workload's HTTP/2 connection to its mediator, the mediator's connection to avirthostd, the mediator's outbound socket to avirthostd and avirtmedproxyd's ingress listener, each presented inside the container as a Unix socket under `/run/avirt/` (see [workload topology](./workload-topology.md#runtime-provided-sockets) and [networking](./networking.md)).
+- **Unix sockets.** The runtime provides the sockets for the workload's HTTP/2 connection to its mediator, the mediator's connection to avirthostd, the mediator's outbound socket to avirthostd and avirtmediatord's ingress listener, each presented inside the container as a Unix socket under `/run/avirt/` (see [workload topology](./workload-topology.md#runtime-provided-sockets) and [networking](./networking.md)).
 - **Hardening.** `avirtinitd` applies all agent hardening on every runtime, and the runtime adds only its native outer layer.
 - **Freeze and resume.** avirtinitd freezes and resumes the agent cgroup the same way on every runtime.
 - **Isolation.** The `start` meta event includes `isolation`.
@@ -82,7 +82,6 @@ Status: planned. This is the Apple runtime.
 
 - **Workload VM:** no network.
 - **Mediator VM:** no network. Its connections are the four Unix sockets below.
-- **Edge VM.** It has one vmnet NAT interface. avirthostd's start check asserts that this is the only avirt VM with a network device. It runs only avirtedgeproxyd and its Envoy, under avirtinitd. The runtime publishes the peer port into its peer listener with the port publishing that `container run --publish` exposes, and forwards a host loopback port into it for web UI users. `edgeproxy.sock` in the runtime directory is a Unix socket backed by vsock into it, and avirtedgeproxyd reaches avirtapid, avirthostd's control API and the other host services over vsock-backed Unix sockets, as the mediators do (see [edge VM](./components.md#edge-vm)).
 
 ## Unix sockets
 
@@ -93,7 +92,7 @@ Each socket has a backing vsock connection between avirthostd and a guest. Conta
 | Workload connection (`mediator.sock`, `workload.sock`) | The workload VM dials avirthostd's listener on its own vsock device, and avirthostd dials into the current mediator VM | avirthostd forwards the bytes unchanged between the two connections |
 | Connection to avirthostd (`hostd.sock`) | The mediator VM dials avirthostd's listener on its own vsock device | avirthostd |
 | Outbound socket to avirthostd (`svc.sock`) | The mediator VM dials avirthostd's listener on its own vsock device | avirthostd's SNI routing |
-| avirtmedproxyd's ingress listener (`ingress.sock`) | avirthostd dials into the mediator VM | avirthostd's SNI routing |
+| avirtmediatord's ingress listener (`ingress.sock`) | avirthostd dials into the mediator VM | avirthostd's SNI routing |
 
 TLS runs end to end between the guests and the destinations. avirthostd forwards only ciphertext. TLS roles remain the same regardless of who dials (see [workload topology](./workload-topology.md)).
 
@@ -126,23 +125,18 @@ flowchart LR
         net["avirtnetd: TLS client"]
     end
     subgraph svm["mediator VM (no network)"]
-        me["avirtmedproxyd's Envoy: workload and ingress listeners, TLS server"]
-        mp["avirtmedproxyd"]
-        med["avirtmediatord"]
-        mp -->|"local xDS and SDS"| me
+        me["avirtmediatord: workload and ingress listeners, TLS server"]
     end
     hs["host services"]
-    subgraph evm["edge VM (vmnet NAT)"]
-        fd["avirtedgeproxyd and its Envoy"]
-    end
+    fd["avirtedgeproxyd (host process)"]
     fwd <-->|"workload connection over vsock (ciphertext)"| net
     fwd <-->|"workload connection and ingress over vsock (ciphertext)"| me
-    core <-->|"connection to avirthostd over vsock, mTLS"| med
+    core <-->|"connection to avirthostd over vsock, mTLS"| me
     core <-->|"connection to avirthostd: /envelopes and events"| me
     me -->|"outbound socket over vsock"| fwd
     fwd -->|"by SNI (ciphertext)"| hs
-    fwd -->|"by SNI over vsock (ciphertext)"| fd
-    fd -->|"vsock-backed Unix sockets"| hs
+    fwd -->|"by SNI (ciphertext)"| fd
+    fd -->|"local Unix sockets"| hs
     fd -->|"external endpoints, peer hosts"| net2(("internet"))
 ```
 
@@ -153,17 +147,16 @@ Status: planned.
 | Primitive | Docker Desktop 4.95.0 |
 | --- | --- |
 | Isolation | One shared linuxkit kernel (7.0.14) and one rootful daemon. A kernel escape gives root access to every workload's container and mediator, including the MITM CA keys and short-lived credentials in mediator memory. |
-| Workload connection | A per-workload Docker named volume `avirt-<id8>-sock`, mounted in both containers, containing one socket that appears as `/run/avirt/workload.sock` in the mediator and as `/run/avirt/mediator.sock` in the workload container. avirtmedproxyd's Envoy listens on it and avirtnetd dials. The hop stays inside the VM. A 0600 socket gives uid 1000 `EACCES`. |
+| Workload connection | A per-workload Docker named volume `avirt-<id8>-sock`, mounted in both containers, containing one socket that appears as `/run/avirt/workload.sock` in the mediator and as `/run/avirt/mediator.sock` in the workload container. avirtmediatord listens on it and avirtnetd dials. The hop stays inside the VM. A 0600 socket gives uid 1000 `EACCES`. |
 | Connection to avirthostd | A single-file bind mount of the host `workloads/<id>/c.sock` at `/run/avirt/hostd.sock`, connected from the container. The mount appears as `root:root 0660` and reconnects after a listener restart. Neither directory mounts nor container-side listeners cross to the host. The mediator's dial retries, because a transient gRPC `Canceled` can occur on this mount. |
 | Outbound socket to avirthostd | A single-file bind mount of the host `workloads/<id>/s.sock` at `/run/avirt/svc.sock`, served by avirthostd's SNI routing, with the same properties as the connection to avirthostd |
-| avirtmedproxyd's ingress listener | Open, because container-side listeners don't cross to the host (see [components](./components.md#open-questions)) |
+| avirtmediatord's ingress listener | Open, because container-side listeners don't cross to the host (see [components](./components.md#open-questions)) |
 | Host socket paths | `c.sock` and `s.sock` (104-byte limit) |
 | Workload image | A composed image of the harness base's layers, the workspace layers and the configuration layer, loaded through the Docker API and tagged `avirt.internal/composed:<hex>` (see [workload lifecycle](./workload-lifecycle.md#assembly-per-runtime)). The container's writable layer is the per-workload writable layer. |
 | Mediator network | `--network none` (only `lo`) |
 | Workload network | `--network none` (only `lo`, without `docker.sock` or `/run/host-services`) |
-| Edge VM | A container running only avirtedgeproxyd and its Envoy under avirtinitd, with normal container networking, the only avirt container with a network. Docker publishes the peer port into it with `-p`. The container connects to the host sockets through single-file bind mounts, as the mediators do. How `edgeproxy.sock` and avirthostd's SNI routing reach its listeners is open (see [networking](./networking.md#open-questions)). |
 | Workload outer layer | `--cap-drop ALL --cap-add SETUID,SETGID,SETPCAP,KILL,NET_BIND_SERVICE --security-opt no-new-privileges`, with Docker's default seccomp profile left in place. The default profile blocks io_uring, bpf, userfaultfd, perf, mount, setns, unshare, `CLONE_NEWUSER`, keyctl and `AF_VSOCK`/`AF_PACKET`/`AF_ALG`. avirtinitd's filter adds ptrace, memfd_create, process_vm_* and `AF_NETLINK`. |
-| Mediator outer layer | `--cap-drop ALL --cap-add SETUID,SETGID --security-opt no-new-privileges`, retaining Docker's default seccomp profile. avirtinitd in mediator mode needs only `SETUID` and `SETGID` to start avirtmediatord and avirtmedproxyd, each under its own UID. |
+| Mediator outer layer | `--cap-drop ALL --cap-add SETUID,SETGID --security-opt no-new-privileges`, retaining Docker's default seccomp profile. avirtinitd in mediator mode needs only `SETUID` and `SETGID` to start avirtmediatord under its own UID. |
 | AF_VSOCK | No host surface, though the kernel has vsock. `avirtinitd` still denies it. |
 | Landlock | ABI v8, unprivileged with `no_new_privs` (see [sandbox](./sandbox.md#workload-kernels)) |
 | Logs | Docker's container log files, which avirtlogd reads (see [observability](./observability.md#workload-stdout-and-stderr)). Constraint: the containers use the `json-file` log driver with `max-size` and `max-file` set. |
@@ -177,25 +170,23 @@ flowchart LR
         hostd["avirthostd and SNI routing"]
         csock{{"workloads/ID/c.sock"}}
         ssock{{"workloads/ID/s.sock"}}
+        fd["avirtedgeproxyd"]
         hostd --- csock
         hostd --- ssock
     end
     subgraph vm["Docker Desktop VM (one shared kernel)"]
-        subgraph edge["edge VM's container (container networking)"]
-            fd["avirtedgeproxyd and its Envoy"]
-        end
         subgraph wl["workload container (--network none)"]
             net["avirtnetd"]
         end
         vol[("volume avirt-ID-sock")]
         subgraph med["mediator (--network none)"]
-            s["avirtmediatord, avirtmedproxyd"]
+            s["avirtmediatord"]
         end
         net ---|"dials mediator.sock"| vol
         s ---|"listens on workload.sock"| vol
     end
     s -.->|"file bind mount"| csock
     s -.->|"file bind mount"| ssock
-    fd -.->|"file bind mounts of host sockets"| hostd
+    fd -.->|"local Unix sockets"| hostd
     fd --> inet(("internet"))
 ```

@@ -1,15 +1,15 @@
 ---
 type: Component Design
 title: Secrets management
-description: How avirtsecretsd brokers secrets, with the secret model of references, providers, versions and scopes, the provider plugin interface, in-memory caching and refresh, write-back, per-caller authorization under Cedar, the SDS, broker, registration, service and administration APIs and their identities, rotation and revocation, audit events, failure behavior, storage at rest, bootstrapping, and the all-in-one image versus the Mac host.
-tags: [avirt, secrets, avirtsecretsd, credentials, sds, providers, security]
+description: How avirtsecretsd brokers secrets, with the secret model of references, providers, versions and scopes, the provider plugin interface, in-memory caching and refresh, write-back, per-caller authorization under Cedar, the broker, registration, service and administration APIs and their identities, rotation and revocation, audit events, failure behavior, storage at rest, bootstrapping, and the all-in-one image versus the Mac host.
+tags: [avirt, secrets, avirtsecretsd, credentials, providers, security]
 implementation: partial
 generated: { by: codex/gpt-6, at: 2026-10-18T05:21:55Z }
 ---
 
 # Overview
 
-avirtsecretsd is the host's secrets broker. Only avirtsecretsd reads secret providers and refreshes or writes back credentials. It gives callers only values allowed by their identities, the workload's registered bindings, and the host's policy snapshot. This document covers the broker and provider side. [Egress credentials](./egress-credentials.md) describes placeholders in the workload container and credential injection into requests at a gateway or avirtmedproxyd. The provider integrations are in [1Password](./secrets-1password.md) and [macOS Keychain](./secrets-keychain.md).
+avirtsecretsd is the host's secrets broker. Only avirtsecretsd reads secret providers and refreshes or writes back credentials. It gives callers only values allowed by their identities, the workload's registered bindings, and the host's policy snapshot. This document covers the broker and provider side. [Egress credentials](./egress-credentials.md) describes placeholders in the workload container and credential injection into requests at a gateway or avirtmediatord. The provider integrations are in [1Password](./secrets-1password.md) and [macOS Keychain](./secrets-keychain.md).
 
 # Status: implemented
 
@@ -65,7 +65,7 @@ Each value avirtsecretsd hands out is scoped four ways:
 | Namespace | The secret's `scope`. A binding backed by a namespace-scoped secret is attachable only to workloads in that namespace. |
 | Workload | avirtsecretsd issues each **lease** for one workload's UUIDv7. Placeholders belong to one workload and one binding (see [egress credentials](./egress-credentials.md#placeholders)). |
 | Binding | A lease and a placeholder specify exactly one binding. Only that binding's credential injector honors them |
-| Generation | A lease issued to avirtmedproxyd's Envoy or for a gateway serving it specifies the mediator generation. avirtsecretsd revokes a superseded generation's leases when successor confirmation completes. |
+| Generation | A lease issued to avirtmediatord or for a gateway serving it specifies the mediator generation. avirtsecretsd revokes a superseded generation's leases when successor confirmation completes. |
 
 A lease is `{lease_id, secret, version, workload, gen, binding, caller, expires}`. Its `expires` is at most the secret's `cache_ttl` remaining and the value's own expiry, so no caller holds a value longer than avirtsecretsd would cache it.
 
@@ -112,7 +112,7 @@ A plugin's protocol version must be one avirtsecretsd supports, or avirtsecretsd
 
 ```mermaid
 sequenceDiagram
-    participant C as caller (gateway, avirtmedproxyd's Envoy, host service)
+    participant C as caller (gateway, avirtmediatord, host service)
     participant S as avirtsecretsd
     participant P as provider
     C->>S: request (workload, gen, binding) over mTLS
@@ -169,27 +169,26 @@ For Codex, the `codex` provider writes `auth.json` with the current avirthostd w
 avirtsecretsd authorizes every call in three steps, and a call must pass all three to receive a value:
 
 1. **Identity.** The caller's SVID is one the API lists (see [APIs](#apis)), and a mediator SVID is of a live workload and its current generation, from the live generation set avirthostd publishes (see [identity](./identity.md#authorization)).
-2. **Registration.** For a workload-scoped call, the binding is one avirthostd registered for that workload, used at its registered credential injector. A gateway specifies the workload and generation it acts for, which must equal those in the avirtmedproxyd SVID on the connection it serves.
+2. **Registration.** For a workload-scoped call, the binding is one avirthostd registered for that workload, used at its registered credential injector. A gateway specifies the workload and generation it acts for, which must equal those in the avirtmediatord SVID on the connection it serves.
 3. **Policy.** avirtsecretsd evaluates `read_secret` against the host policy snapshot from avirtpolicyd using the caller as principal and secret as resource. The default is deny.
 
 | Caller | SVID | Obtains | Through |
 | --- | --- | --- | --- |
 | avirthostd | `/service/avirthostd` | Only non-secret data. It registers workloads with bindings and generations and validates secret and binding references. It receives each workload's placeholders | Registration API |
-| avirtmediatord | `/ns/<ns>/workload/<uuid>/mediator/<gen>` | Its own workload's placeholders and placeholder copies of files, for `confirm` | Broker API |
-| avirtmedproxyd's Envoy (libavirtenvoy) | `/ns/<ns>/workload/<uuid>/mediator/<gen>/medproxy` | Its own workload's placeholders, for the placeholder misuse check, and the short-lived values of its workload's mediator-injected bindings | Broker API, SDS |
+| avirtmediatord | `/ns/<ns>/workload/<uuid>/mediator/<gen>` | Its own workload's placeholders, for the placeholder misuse check, and the short-lived values of its workload's mediator-injected bindings | Broker API |
 | avirtmodelgwd | `/service/avirtmodelgwd` | The credential value behind a placeholder, for one request of a workload it's serving, and Codex refreshes | Broker API |
 | avirtmcpgwd | `/service/avirtmcpgwd` | The upstream credential for one of a workload's MCP bindings | Broker API |
 | avirtregistryd | `/service/avirtregistryd` | The secrets its configuration names, such as off-host registry logins | Service API |
 | avirtbuilderd | `/service/avirtbuilderd` | The secrets its configuration names, such as a token for watching a private repository, outside any build job | Service API |
 | avirthostd, for avirtadmin | `/service/avirthostd`, forwarding `Admin::"uid:<uid>"` | Secret and provider administration, never a value | Admin API |
 
-A build job's avirtmedproxyd is like any other: its source credential is a mediator-injected binding for the fetch step (see [workspace builds](./workspace-build.md#build-jobs)).
+A build job's avirtmediatord is like any other: its source credential is a mediator-injected binding for the fetch step (see [workspace builds](./workspace-build.md#build-jobs)).
 
 ### Cedar
 
 avirtsecretsd evaluates `read_secret`, `manage_secret`, `manage_provider` and `manage_binding` against the host policy snapshot. Their entities and actions are in the [egress policies schema](./egress-policies.md#schema-text).
 
-`read_secret` has `via` `mediator` for avirtmedproxyd's Envoy, whose principal is its own `Workload`, `gateway` for a gateway acting for a workload, whose principal is the gateway's `HostService` and whose context names the binding, and `service` for a host service's own credential. `manage_secret` has `operation` `define`, `update`, `rotate`, `revoke`, `import`, `login` or `list`. A host-scoped secret has no parent `Namespace`.
+`read_secret` has `via` `mediator` for avirtmediatord, whose principal is its own `Workload`, `gateway` for a gateway acting for a workload, whose principal is the gateway's `HostService` and whose context names the binding, and `service` for a host service's own credential. `manage_secret` has `operation` `define`, `update`, `rotate`, `revoke`, `import`, `login` or `list`. A host-scoped secret has no parent `Namespace`.
 
 ```cedar
 @id("modelgwd-model-secrets")
@@ -215,31 +214,24 @@ Every API is on avirtsecretsd's host service listener, `services/avirtsecretsd.s
 | API | Callers | Operations |
 | --- | --- | --- |
 | Registration | `/service/avirthostd` only | `RegisterWorkload` (namespace, UUIDv7, generation, binding ids and credential injectors, returning the issued placeholders), `SetGeneration`, `DeregisterWorkload`, `Resync` (the full set of live workloads with their placeholder sets, after either side restarts, after which avirtsecretsd removes every registration not in it), `ValidateReferences` (secret and binding references in a workload configuration or a component's configuration), and a stream on which avirtsecretsd sends its events |
-| Broker | avirtmediatord, avirtmedproxyd's Envoy, avirtmodelgwd, avirtmcpgwd | `placeholders`, `resolve_placeholder`, `mcp_credential`, `codex_refresh` and `revocations`, as defined in [egress credentials](./egress-credentials.md#credential-broker-api-and-sds). Each value it returns is a lease. |
-| SDS | avirtmedproxyd's Envoy | Envoy's secret discovery service over gRPC, below |
+| Broker | avirtmediatord, avirtmodelgwd, avirtmcpgwd | `placeholders`, `binding_credential`, `resolve_placeholder`, `mcp_credential`, `codex_refresh` and `revocations`, as defined in [egress credentials](./egress-credentials.md#credential-broker-api). Each value it returns is a lease. |
 | Service | `/service/avirtregistryd`, `/service/avirtbuilderd` | `GetCredential` for a secret reference the component's configuration names, returning a lease, and never for a workload's binding |
 | Admin | `/service/avirthostd`, for avirtadmin | `DefineSecret`, `UpdateSecret`, `RotateSecret`, `RevokeSecret`, `ImportSecret` (a value written into a provider that has `write`), `Login` (clears `needs-login` after a new login), `ListSecrets`, `DefineProvider`, `RemoveProvider`, `ProviderStatus`, `DefineBinding`, `ListBindings` and `RemoveBinding`. No operation returns a value. |
 
 avirtadmin reaches the Admin API only through avirthostd's admin socket, where avirthostd authenticates it by peer credentials and forwards the `Admin::"uid:<uid>"` principal (see [components](./components.md#host-services)). The commands are in [avirtadmin](./admin-cli.md#secrets-providers-and-bindings).
 
-### SDS
+### Mediator credentials
 
-avirtsecretsd's SDS serves Envoy `Secret` resources by name to avirtmedproxyd's Envoy alone, which can subscribe only to the names below.
+avirtmediatord retrieves mediator-injected binding values through the broker's `binding_credential` operation. Requests specify a binding of the caller's own live workload at its current generation. avirtsecretsd checks registration, injector, and `read_secret` before returning a short-lived lease.
 
-| Caller | Resource names | Resource type |
-| --- | --- | --- |
-| avirtmedproxyd's Envoy | `binding/<binding id>`, for its own workload's bindings whose credential injector is `mediator` | `generic_secret`: the short-lived value libavirtenvoy injects |
-
-- **Generation fencing.** avirtsecretsd accepts an SDS stream from avirtmedproxyd's Envoy only for a live workload at its current generation. When avirthostd reports a new generation with `SetGeneration`, avirtsecretsd closes the superseded generation's streams once successor confirmation completes, and that generation's leases end with them.
-- **Short-lived values.** A `generic_secret` contains the value of one lease. avirtsecretsd pushes a new version before the lease expires, and removes the resource on secret revocation, binding withdrawal, or workload deregistration.
-- **No TLS identity from avirtsecretsd.** avirtsecretsd never serves SVIDs, keys, or trust bundles. avirtedgeproxyd obtains its own `/service/avirtedgeproxyd` SVID from avirthostd's issuer socket and serves it, the SPIFFE bundle and the active peers' bundles to its Envoy over local SDS, and never receives a `generic_secret`, placeholder, or refresh token. avirtmedproxyd's Envoy gets its own SVID from avirtmedproxyd's local SDS (see [identity](./identity.md#rotation)).
+The broker also provides `revocations`, which avirtmediatord subscribes to while renewing leases before expiry. Credential values remain in memory only. A revoked binding, workload deregistration, or superseded generation ends its leases. Each next request requires an unexpired lease that avirtsecretsd hasn't revoked, and a missing value causes 503. avirtsecretsd never serves SVIDs, keys, or trust bundles. Those come from avirthostd (see [identity](./identity.md#rotation)).
 
 ## Rotation and revocation
 
-- **Rotation at the provider.** When a provider's version changes, at a refresh, a watch notice or an administration `RotateSecret` that forces a fetch, avirtsecretsd issues later leases with the new version. It revokes the old version through each gateway's `revocations` stream and pushes the new version over SDS to avirtmedproxyd's Envoy. Placeholders remain unchanged because they identify bindings independently of values.
-- **Rotation by avirtsecretsd.** An `oauth` or `codex` secret owned by avirtsecretsd rotates through [write-back](#write-back). avirtsecretsd renews each <!-- Preserve minted as the credential category distinct from fetched or leased values. --><!-- vale ai-tells.FigurativeMints = NO -->minted credential<!-- vale ai-tells.FigurativeMints = YES --> before its `lifetime` ends.
-- **Revocation.** `RevokeSecret` makes avirtsecretsd evict the value, refuse every new lease for it, remove its SDS resources, and send a revocation on every gateway's `revocations` stream, after which the gateway drops its cached value. A revoked secret remains revoked until an `UpdateSecret` or `RotateSecret` restores it.
-- **Workload end and superseded generations.** `DeregisterWorkload` ends every lease, placeholder and <!-- Preserve minted as the credential category distinct from fetched or leased values. --><!-- vale ai-tells.FigurativeMints = NO -->minted credential<!-- vale ai-tells.FigurativeMints = YES --> of the workload at once and closes its SDS streams. A superseded generation's leases end as [egress credentials](./egress-credentials.md#generation-fencing) describes.
+- **Rotation at the provider.** When a provider's version changes, at a refresh, a watch notice or an administration `RotateSecret` that forces a fetch, avirtsecretsd issues later leases with the new version. It revokes the old version through each injector's `revocations` stream. avirtmediatord fetches a new lease. Placeholders remain unchanged because they identify bindings independently of values.
+- **Rotation by avirtsecretsd.** An `oauth` or `codex` secret owned by avirtsecretsd rotates through [write-back](#write-back). avirtsecretsd renews each issued credential before its `lifetime` ends.
+- **Revocation.** `RevokeSecret` makes avirtsecretsd evict the value, refuse every new lease for it, send a revocation on every injector's `revocations` stream, after which the injector drops its cached value. A revoked secret remains revoked until an `UpdateSecret` or `RotateSecret` restores it.
+- **Workload end and superseded generations.** `DeregisterWorkload` ends every lease, placeholder and issued credential of the workload at once and closes the streams of placeholders and revocation notices on the broker API for that workload. A superseded generation's leases end as [egress credentials](./egress-credentials.md#generation-fencing) describes.
 - **Bound on exposure.** A caller that misses a revocation retains a value at most until its lease's `expires`.
 
 [Egress credentials](./egress-credentials.md#rotation-and-revocation) describes delivery of these changes to credential injectors and their effects on workload requests.
@@ -269,8 +261,8 @@ avirtsecretsd is a required host service (see [components](./components.md#all-i
 
 | Event | Effect |
 | --- | --- |
-| avirtsecretsd is down or degraded | avirthostd refuses new launches with 503. Running gateways keep serving from their leases until each expires, then fail the request with 503. avirtmedproxyd refuses requests that need a mediator-injected credential. A running agent never sees a credential value either way. |
-| avirtsecretsd restarts | The restart clears its cache, leases, <!-- Preserve minted as the credential category distinct from fetched or leased values. --><!-- vale ai-tells.FigurativeMints = NO -->minted credentials<!-- vale ai-tells.FigurativeMints = YES -->, and SDS streams. avirthostd resyncs every live workload with its generation, bindings and placeholders, and avirtsecretsd honors those placeholders again. Callers reconnect and receive new leases. A `refresh-pending` secret returns as `needs-login`. |
+| avirtsecretsd is down or degraded | avirthostd refuses new launches with 503. Running gateways keep serving from their leases until each expires, then fail the request with 503. avirtmediatord refuses requests that need a mediator-injected credential. A running agent never sees a credential value either way. |
+| avirtsecretsd restarts | The restart clears its cache, leases, and issued credentials. It closes the streams of placeholders and revocation notices on the broker API. avirthostd resyncs every live workload with its generation, bindings and placeholders, and avirtsecretsd honors those placeholders again. Callers reconnect and receive new leases. A `refresh-pending` secret returns as `needs-login`. |
 | A provider is unavailable or rate-limited | avirtsecretsd serves stale values within `stale_ttl`, then requests for that provider's secrets fail with 503 and a `provider_state` event. Other providers are unaffected. |
 | A provider is `unauthenticated`, `needs-user` or `locked` | Every fetch from it fails at once with the error type, avirtsecretsd serves cached values until they expire, and the state is an event. Only an operator action clears it. |
 | avirtpolicyd is unreachable | avirtsecretsd checks requests against its current host policy snapshot until it expires, then denies every `read_secret` (see [egress policies](./egress-policies.md#policy-failure-behavior)). |

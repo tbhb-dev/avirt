@@ -1,14 +1,14 @@
 ---
 type: README
 title: avirtedgeproxyd
-description: "The edge proxy supervises the host's edge Envoy with libavirtenvoy and serves it local xDS and SDS. It's the only component that opens connections off the host, and the policy enforcement point for traffic between workloads and between hosts."
+description: "The edge proxy evaluates host policy and resolves external names. It checks private addresses before opening upstream connections."
 tags: [avirt, crate, avirtedgeproxyd]
 implementation: planned
-generated: { by: codex/gpt-6, at: 2026-10-18T02:56:31Z }
+generated: { by: codex/gpt-6, at: 2026-10-18T04:57:58Z }
 ---
 
 # avirtedgeproxyd
 
-The edge proxy supervises the host's edge Envoy with libavirtenvoy and serves it local xDS and SDS. It's the only component that opens connections off the host, and the policy enforcement point for traffic between workloads and between hosts. It runs on the host.
+The edge proxy evaluates host policy and resolves external names. It checks private addresses before opening upstream connections. It runs on the host.
 
 Status: planned. See [docs/components.md](../../docs/components.md).

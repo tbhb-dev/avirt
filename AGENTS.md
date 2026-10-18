@@ -22,26 +22,24 @@ Every crate lives directly under `crates/`, and each directory uses its package 
 | --- | --- | --- | --- |
 | `avirthostd` | Binary | Host | The host daemon: control API, workload launch and teardown, logs, Codex `auth.json` write-back |
 | `avirt` | Binary `avirt` | Host | The operator CLI: `avirt launch` |
-| `avirtmediatord` | Binary | Host (one per workload) | The CONNECT proxy (Pingora by default, optional Envoy), and the TCP proxy that forwards avirtinitd's HTTP/2 connection on `mediator.sock` to avirthostd with the bytes unchanged |
-| `avirtmedproxyd` | Binary | Mediator (one per workload) | The mediator proxy supervises the mediator's Envoy with libavirtenvoy and serves it local xDS and SDS (not implemented) |
+| `avirtmediatord` | Binary | Host (one per workload) | The implemented host mediator. Planned: one process for workload traffic and lifecycle. Holds its SVID and handles rotation. |
 | `avirtinitd` | Binary | Linux guest only (the workload) | The ACP client spawns the adapter and taps JSON-RPC. It drops to uid 1000 under seccomp |
 | `avirt-connect` | Library | Both | CONNECT authority parsing and destination checks, shared by both CONNECT engines |
 | `avirt-core` | Library | Both | Shared code for the `api` module and the `avirthostd` server. Includes the `avirtinitd` harness and the client for the workload's HTTP/2 connection to its mediator. Also includes the log envelope and runtime directory |
 | `avirtadmin` | Binary | Host | The local admin CLI (not implemented) |
 | `avirtwebd` | Binary | Host | The backend for the avirt web UI (not implemented) |
 | `avirtapid` | Binary | Host | The API server: the gRPC and REST API in front of the local avirthostd and peers' API servers, reached through the edge proxy (not implemented) |
-| `avirtedgeproxyd` | Binary | Host | The edge proxy supervises the host's edge Envoy with libavirtenvoy and serves it local xDS and SDS. It's the only component that opens connections off the host, and the policy enforcement point for traffic between workloads and between hosts (not implemented) |
+| `avirtedgeproxyd` | Binary | Host | The edge proxy: host policy evaluation, external resolution, private-address checks and upstream connections (not implemented) |
 | `avirtdnsd` | Binary | Host | The DNS resolver for `<name>.<ns>.svc.host.avirt.internal` and `<name>.<ns>.workload.host.avirt.internal`, which answers with the local avirtedgeproxyd or, for peered names, their host's avirtedgeproxyd (not implemented) |
 | `avirtmcpgwd` | Binary | Host | The MCP gateway (not implemented) |
 | `avirtmodelgwd` | Binary | Host | The model gateway, which injects model credentials (not implemented) |
 | `avirtbuilderd` | Binary | Host | The builder, which watches VCS and builds repository OCI artifacts for fast workload startup (not implemented) |
 | `avirtpolicyd` | Binary | Host | The policy service, which stores, compiles, proves, and distributes Cedar policy snapshots (not implemented) |
 | `avirtregistryd` | Binary | Host | The workspace image registry, which wraps an OCI registry and adds avirt's index and search API for workspace images (not implemented) |
-| `avirtsecretsd` | Binary | Host | The secrets broker, which fetches secrets from providers and serves the credential broker API. It serves mediator-injected bindings over the Envoy secret discovery service (not implemented) |
+| `avirtsecretsd` | Binary | Host | The secrets broker, which fetches secrets from providers and serves the credential broker API. It serves leases for mediator-injected bindings through the broker API (not implemented) |
 | `avirtlogd` | Binary | Host | The log collector, which gathers workload stdout and stderr, transforms it and sends it to avirtoteld as OpenTelemetry Logs (not implemented) |
 | `avirtauditd` | Binary | Host | The audit logger, which delivers audit events as OCSF (not implemented) |
 | `avirtoteld` | Binary | Host | The OpenTelemetry Collector for the host (not implemented) |
-| `avirtenvoy` | Library (cdylib) | Mediator, host | The Envoy <!-- vale ai-tells.OverusedVocabulary = NO -->dynamic<!-- vale ai-tells.OverusedVocabulary = YES --> module with CONNECT destination checks and events. Cedar policy and credential injection remain planned |
 | `avirtacp` | Binary | Workload guest | The workload process that runs an agent through the Agent Client Protocol (not implemented) |
 | `avirtagent` | Binary | Workload guest | The workload process that runs an agent through its native harness (not implemented) |
 | `avirtexec` | Binary | Workload guest | The workload process for generic execution (not implemented) |
@@ -69,7 +67,7 @@ mise run launch claude "Reply with the word pong" -- --follow     # avirt launch
 
 ## Conventions
 
-- **Terms.** Use the project's terms consistently. The project name is always lowercase **avirt**. **avirthostd** is the host daemon. The **control plane** is avirthostd plus the host services that configure and decide, and the **data plane** is **avirtedgeproxyd** (the edge proxy) and **avirtmedproxyd** (the mediator proxy), which handle traffic. A **workload** is the whole unit avirthostd launches. It consists of the **workload container**, which runs the agent, plus its **mediator**. The mediator is the per-workload container that contains avirtmediatord, avirtmedproxyd, and its Envoy. All the workload's traffic passes through it. Today the mediator is the avirtmediatord host process. **avirtinitd** is the root process in each container. **avirtapid** is the API server. An ACP session stays an ACP session. See [docs/glossary.md](docs/glossary.md) for every other term.
+- **Terms.** Use the project's terms consistently. The project name is always lowercase **avirt**. **avirthostd** is the host daemon. The **control plane** is avirthostd plus the host services that configure and decide, and the **data plane** is **avirtedgeproxyd** (the edge proxy) and **avirtmediatord** (the mediator), which handle traffic. A **workload** is the whole unit avirthostd launches. It consists of the **workload container**, which runs the agent, plus its **mediator**. The mediator is the per-workload container that contains avirtinitd and avirtmediatord. All the workload's traffic passes through it. Today the mediator is the avirtmediatord host process. **avirtinitd** is the root process in each container. **avirtapid** is the API server. An ACP session stays an ACP session. See [docs/glossary.md](docs/glossary.md) for every other term.
 - **Docs format.** Every Markdown file in the repository has OKF v0.2 frontmatter, and `docs/` is an OKF v0.2 bundle:
   - every document has YAML frontmatter with a non-empty `type`, plus `title`, `description`, `tags` and `generated`, and `implementation` where it applies (every document in `docs/`, and crate READMEs).
   - `docs/index.md` lists every document under `docs/`, and Markdown files outside `docs/` don't need an index entry.

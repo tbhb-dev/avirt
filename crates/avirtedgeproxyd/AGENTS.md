@@ -8,6 +8,6 @@ generated: { by: codex/gpt-6, at: 2026-10-18T04:57:58Z }
 
 # Agent instructions: avirtedgeproxyd
 
-The edge proxy supervises the host's edge Envoy with libavirtenvoy and serves it local xDS and SDS. It's the only component that opens connections off the host, and the policy enforcement point for traffic between workloads and between hosts. It runs on the host and is a stub binary for now.
+The edge proxy evaluates host policy and resolves external names. It checks private addresses before opening upstream connections. It runs on the host and is a stub binary for now.
 
 See [docs/components.md](../../docs/components.md) for the component design and the root [AGENTS.md](../../AGENTS.md) for repository conventions.

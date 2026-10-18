@@ -20,7 +20,7 @@ avirt provides the base for agent security:
 - **Sandboxing.** Each workload container runs in its own VM with no network interface other than loopback, and the agent runs under a reduced user, capability, seccomp and Landlock profile (see [workload hardening](./workload-hardening.md) and [sandbox](./sandbox.md)).
 - **Identity.** avirthostd issues SPIFFE identities to workload containers and mediators, and to host services. Peers federate their trust domains (see [identity](./identity.md)).
 - **Egress and ingress mediation.** Each byte the agent sends out passes through its workload's mediator, and each workload-to-workload, service and off-host connection passes through avirtedgeproxyd, the edge proxy (see [egress](./egress.md) and [networking](./networking.md)).
-- **Credential brokering.** avirtsecretsd holds the real credentials, the workload container holds placeholders, and the gateways and avirtmedproxyd inject credentials on their bindings only (see [egress credentials](./egress-credentials.md)).
+- **Credential brokering.** avirtsecretsd holds the real credentials, the workload container holds placeholders, and the gateways and avirtmediatord inject credentials on their bindings only (see [egress credentials](./egress-credentials.md)).
 - **Policy.** Cedar policy governs egress, ingress, DNS, TLS interception, workload management and workspaces, and the policy prover checks each policy set before it's distributed (see [egress policies](./egress-policies.md)).
 - **Audit.** avirthostd's workload log records each JSON-RPC line, each connection and each control-plane decision, labelled with the component that observed it (see [trust boundaries](./trust-boundaries.md#event-provenance) and [observability](./observability.md#audit)).
 
@@ -36,9 +36,8 @@ avirt expects the layers outside it to provide:
 
 Status: planned. avirt's enforcement points accept extensions where content inspection and external authorization decisions belong:
 
-- **libavirtenvoy.** The Envoy <!-- Envoy feature name. --><!-- vale ai-tells.OverusedVocabulary = NO -->dynamic module<!-- vale ai-tells.OverusedVocabulary = YES --> in avirtmedproxyd's Envoy and avirtedgeproxyd's Envoy. It evaluates Cedar policy locally and resolves avirt names to entities. It also runs the placeholder misuse check and injects credentials (see [egress](./egress.md#avirtmedproxyd-pipeline)).
-- **Envoy `ext_proc` and `ext_authz` on avirtmedproxyd's Envoy.** Callouts on the agent's requests under TLS interception, for request and response inspection and for external authorization decisions per request.
-- **Envoy `ext_proc` and `ext_authz` on avirtedgeproxyd's Envoy.** Callouts on workload-to-workload, service, peer and off-host connections, for external authorization of each connection the host transports.
+- **Mediator data plane.** avirtmediatord evaluates workload policy and inspects intercepted requests. It checks placeholders and injects credentials in its own process. Request and response inspection extensions can add checks at this point (see [egress](./egress.md#how-avirtmediatord-handles-egress)).
+- **Edge proxy.** avirtedgeproxyd evaluates host policy for workload, service, peer and external connections in its own process. External authorization extensions can add checks to these connections.
 - **Cedar policy.** Host and workload policy sets, with policy invariants that the prover checks before avirtpolicyd builds any policy snapshot (see [egress policies](./egress-policies.md#the-prover)).
 - **Secret providers.** avirtsecretsd reads real credentials from the providers that the host configuration names, and is the only component that does (see [egress credentials](./egress-credentials.md#status-planned)).
 
@@ -55,13 +54,13 @@ Status legend:
 
 ## No credentials in the workload container
 
-The workload container holds placeholders and the workload's MITM CA certificate, neither of which is a secret. avirtsecretsd stores each real credential. Gateways and avirtmedproxyd inject it outside the workload container on its own binding only.
+The workload container holds placeholders and the workload's MITM CA certificate, neither of which is a secret. avirtsecretsd stores each real credential. Gateways and avirtmediatord inject it outside the workload container on its own binding only.
 
 - **Met.** avirthostd refuses a launch whose agent credential is missing, and passes credentials into the workload container by variable name, never on argv or in the image ([egress credentials](./egress-credentials.md#status-implemented)).
 - **Met.** A workload receives only its own agent's credentials: a Codex workload container doesn't contain `CLAUDE_CODE_OAUTH_TOKEN` ([egress credentials](./egress-credentials.md#status-implemented)).
 - **Future.** The workload container holds placeholders only, and a placeholder grants nothing outside its own workload, binding, and destinations. Today the agent can read the Claude token in its environment and the Codex `auth.json` in its mounted home ([placeholders](./egress-credentials.md#placeholders)).
 - **Future.** Only avirtmodelgwd and avirtmcpgwd inject model and MCP credentials. The mediator lacks long-lived real credentials ([bindings](./egress-credentials.md#bindings)).
-- **Future.** avirtmedproxyd's placeholder misuse check rejects any issued placeholder found outside its bound header, in both policy modes ([placeholders](./egress-credentials.md#placeholders)).
+- **Future.** avirtmediatord's placeholder misuse check rejects any issued placeholder found outside its bound header, in both policy modes ([placeholders](./egress-credentials.md#placeholders)).
 - **Future.** Each credential has exactly one owner that refreshes it. The Codex refresh token never leaves avirtsecretsd ([Codex refresh](./egress-credentials.md#codex-refresh)).
 - **Future.** avirthostd holds credential binding references and no credential values ([host services](./components.md#host-services)).
 
@@ -74,10 +73,10 @@ The agent's only way out is its workload's mediator, each connection needs an ex
 - **Met.** The mediator refuses each resolved address in a non-global range or assigned to one of the host's own interfaces, which it reads on each connection ([private-address block](./egress.md#private-address-block-private-dest)).
 - **Future.** Enforce mode requires an explicit Cedar permit for a connection, request, or DNS query. Today the mediator allows each destination that passes the private-address block under rule `allow-all` ([decision semantics](./egress-policies.md#decision-semantics)).
 - **Future.** avirtedgeproxyd is the policy enforcement point for each workload-to-workload, service, host-local service and external connection, and the only host service that opens connections off the host ([avirtedgeproxyd](./components.md#avirtedgeproxyd), [networking](./networking.md#off-host-enforcement)).
-- **Future.** avirtedgeproxyd and its Envoy run in the edge VM, the only avirt VM with a network interface, and on macOS a Network Extension content filter drops each non-loopback flow from avirt-signed host processes, so the edge VM is the only way off the host ([edge VM](./components.md#edge-vm), [macOS host](./networking.md#macos-host)).
-- **Future.** avirtedgeproxyd refuses the host's own interface addresses, which avirthostd pushes to it and updates on change, as well as the non-global ranges ([edge proxy egress](./egress.md#edge-proxy-egress)).
+- **Future.** avirtedgeproxyd runs on the host. The macOS content filter permits its binary and blocks non-loopback flows from other avirt-signed processes. Linux permits new off-host flows only from its UID ([off-host enforcement](./networking.md#off-host-enforcement)).
+- **Future.** avirtedgeproxyd refuses the host's own interface addresses, which it reads with `getifaddrs` on every connection, as well as the non-global ranges ([edge proxy egress](./egress.md#edge-proxy-egress)).
 - **Future.** Workload DNS goes through the `resolve` action, which applies as evaluated in audit mode too, and the mediator logs each query ([workload DNS](./egress.md#workload-dns)).
-- **Future.** The `Host` of a request under TLS interception must equal its CONNECT host, and the SNI of a connection under TLS passthrough must equal its CONNECT host ([avirtmedproxyd pipeline](./egress.md#avirtmedproxyd-pipeline)).
+- **Future.** The `Host` of a request under TLS interception must equal its CONNECT host, and the SNI of a connection under TLS passthrough must equal its CONNECT host ([how avirtmediatord handles egress](./egress.md#how-avirtmediatord-handles-egress)).
 - **Future.** Inbound connections reach only the ports a workload publishes, through avirtedgeproxyd and under the destination workload's `ingress` policy ([ingress](./workload-topology.md#ingress)).
 
 ## Strong workload identity
@@ -116,6 +115,7 @@ A compromised mediator controls only its own workload's traffic. It can't access
 - **Met.** The mediator starts from an empty environment that contains only its secret ([mediator secret](./identity.md#mediator-secret)).
 - **Met.** avirthostd binds each mediator connection to the workload its connection header names, and serves only that workload's `POST /workloads/<id>/stream` route on it ([sockets](./workload-topology.md#sockets)).
 - **Future.** The mediator runs in its own VM with no network interface other than loopback. Today it's a host process with the user's network access and file access ([mediator network](./egress.md#mediator-network)).
+- **Future.** avirtmediatord handles traffic and lifecycle in one process. A parser bug exposes its SVID's private key and mediator-injected credentials inside the per-workload mediator VM, which has no network device ([mediator sandbox](./sandbox.md#mediator), [compromise scope](./trust-boundaries.md#compromise-scope)).
 - **Future.** The mediator has only placeholders and short-lived mediator-injected credentials. Long-lived real credentials for model or MCP traffic remain outside it ([bindings](./egress-credentials.md#bindings)).
 - **Future.** avirthostd's SNI routing never connects one mediator to another, and each host listener refuses a superseded generation ([SNI routing](./workload-topology.md#sni-routing)).
 - **Future.** The workload's MITM CA is name-constrained to the hosts its policy can intercept, and a workload lacks a MITM CA unless its policy permits interception ([MITM CA name constraints](./egress-policies.md#mitm-ca-name-constraints)).
@@ -191,7 +191,7 @@ A secret exists in memory where it's used, and on disk only where an owner needs
 - **Met.** avirt excludes secrets from argv and workload images ([egress credentials](./egress-credentials.md#status-implemented)).
 - **Met.** The per-launch Codex home is 0700 with a 0600 `auth.json`, and it's removed on each exit path or left for the next startup cleanup ([Codex](./egress-credentials.md#codex)).
 - **Future.** Only memory stores the SPIFFE issuing CA, each SVID key, and the workload MITM CA key. The SPIFFE root key is a 0600 file in the state directory ([issuer](./identity.md#issuer), [durable state](./lifecycle.md#durable-state)).
-- **Future.** A gateway keeps a resolved credential in memory only, and for no longer than the credential's own lifetime ([credential broker API](./egress-credentials.md#credential-broker-api-and-sds)).
+- **Future.** A gateway keeps a resolved credential in memory only, and for no longer than the credential's own lifetime ([credential broker API](./egress-credentials.md#credential-broker-api)).
 - **Future.** The configuration layer excludes secret and placeholder values ([configuration layer](./workload-lifecycle.md#configuration-layer)).
 - **Future.** Workspace images exclude secrets by a denylist at build time and again at launch ([secret exclusion](./workspaces.md#secret-exclusion)).
 - **Future.** Encryption protects durable secrets at rest, including the SPIFFE root key and avirtsecretsd's credentials. No document specifies the mechanism yet (see [open questions](#open-questions)).
@@ -213,7 +213,7 @@ Peered hosts trust each other's identities explicitly and narrowly: a peer authe
 
 1. **Secrets at rest.** Whether to encrypt durable secrets at rest, such as the SPIFFE root key in the macOS Keychain, remains open. Storage for avirtsecretsd's cached provider values is also open.
 2. **Base image pinning.** Whether the avirt base, the harness bases and the mediator image pin their own base images by digest and their downloads by checksum is open.
-3. **Extension callouts.** The positions of `ext_proc` and `ext_authz` relative to libavirtenvoy in each Envoy remain open, along with their access under TLS passthrough and their failure behavior.
+3. **Extension callouts.** Request and response inspection, external authorization, their access under TLS passthrough, and their failure behavior remain unspecified.
 4. **Off-host enforcement.** Whether the Network Extension content filter enforces the off-host rule on macOS needs a prototype. The property to test is that it drops each non-loopback flow from avirt-signed host processes (see [networking](./networking.md#open-questions)).
 
 # Threat model

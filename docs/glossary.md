@@ -1,7 +1,7 @@
 ---
 type: Reference
 title: Glossary
-description: One definition for every avirt term and every standard term the avirt docs rely on, from workload, mediator, avirtedgeproxyd and the control plane to SPIFFE, SDS and OCI referrers, each with the document section that specifies it.
+description: One definition for every avirt term and every standard term the avirt docs rely on, from workload, mediator, avirtedgeproxyd and the control plane to SPIFFE and OCI referrers, each with the document section that specifies it.
 tags: [avirt, glossary, terminology, reference]
 implementation: partial
 generated: { by: codex/gpt-6, at: 2026-10-18T05:20:59Z }
@@ -97,7 +97,7 @@ The host service that answers avirt names with the address of avirtedgeproxyd on
 
 ## avirtedgeproxyd
 
-The edge proxy supervises the host's edge Envoy with libavirtenvoy and serves it local xDS and SDS. Through that Envoy it's the only global policy enforcement point for workload-to-workload, service, host-local service, and external connections. It's also the only component that opens connections off the host. It runs in the edge VM as part of the data plane. Status: planned. See [avirtedgeproxyd](./components.md#avirtedgeproxyd).
+The edge proxy. It evaluates the host policy snapshot and resolves external names. It checks private addresses before opening upstream connections. It's the global enforcement point for workload-to-workload, service, and external connections. Status: planned. See [avirtedgeproxyd](./components.md#avirtedgeproxyd).
 
 ## avirtexec
 
@@ -133,11 +133,7 @@ The MCP gateway: the credential injector for MCP upstream credentials, which sco
 
 ## avirtmediatord
 
-The mediator's control process. In the implemented system it's the whole mediator, a CONNECT proxy on the host that runs Pingora by default and an optional supervised Envoy. In the planned design it maintains the mediator's connection to avirthostd and requests both mediator SVIDs. It handles generations and the workload lifecycle without forwarding traffic. See [mediator process](./egress.md#mediator-process) and [mediator container](./components.md#mediator-container).
-
-## avirtmedproxyd
-
-The mediator proxy runs in the mediator. It supervises the mediator's Envoy with libavirtenvoy and serves it local xDS and SDS. Through that Envoy it transports all one workload's ingress and egress. It's the endpoint for the workload's HTTP/2 connection to its mediator. It evaluates the workload policy snapshot. It's part of the data plane. Status: planned. See [avirtmedproxyd pipeline](./egress.md#avirtmedproxyd-pipeline).
+The mediator daemon. Its implemented host process runs Pingora by default and an optional supervised Envoy. The planned mediator container runs one avirtmediatord process under one UID, with one SVID. Workload lifecycle and rotation share that process with traffic inspection and credential injection. See [mediator process](./egress.md#mediator-process) and [mediator container](./components.md#mediator-container).
 
 ## avirtmodelgwd
 
@@ -185,7 +181,7 @@ The avirtadmin commands that avirthostd authorizes by peer credentials alone, wi
 
 ## Broker API
 
-avirtsecretsd's API, also called the credential broker API, through which avirtmediatord, avirtmedproxyd and the gateways get placeholders and leases for the workload and generation they serve. Status: planned. See [APIs](./secrets.md#apis).
+avirtsecretsd's API, also called the credential broker API, through which avirtmediatord and the gateways get placeholders and leases for the workload and generation they serve. Status: planned. See [APIs](./secrets.md#apis).
 
 ## Build job
 
@@ -225,7 +221,7 @@ The control message with which avirtmediatord releases a workload container to s
 
 ## CONNECT
 
-The HTTP method with which a proxy-aware client asks a forward proxy to open a tunnel to `host:port`, and the only method avirt's egress path accepts. See [CONNECT app](./egress.md#pingora-connect-app).
+The HTTP method with which a proxy-aware client asks a forward proxy to open a tunnel to `host:port`. See [CONNECT app](./egress.md#pingora-connect-app).
 
 ## CONNECT app
 
@@ -249,15 +245,15 @@ avirthostd's store of runtime artifacts, keyed by digest: kernels, initfs images
 
 ## Control plane
 
-avirthostd plus the host services that configure and decide. These services include avirtpolicyd and avirtsecretsd. A control-plane action is one that avirthostd authorizes, such as `create_workload`. avirtedgeproxyd and avirtmedproxyd transport traffic and form the data plane. See [components](./components.md#overview).
+avirthostd plus the host services that configure and decide. These services include avirtpolicyd and avirtsecretsd. A control-plane action is one that avirthostd authorizes, such as `create_workload`. avirtedgeproxyd and avirtmediatord form the data plane and forward traffic. See [components](./components.md#overview).
 
 ## Credential injector
 
-The one component that may inject a binding's real credential: avirtmodelgwd, avirtmcpgwd, or avirtmedproxyd. The binding field and Cedar attribute are both `injector`. Status: planned. See [credential injectors](./egress-credentials.md#credential-injectors).
+The one component that may inject a binding's real credential: avirtmodelgwd, avirtmcpgwd, or avirtmediatord. The binding field and Cedar attribute are both `injector`. Status: planned. See [credential injectors](./egress-credentials.md#credential-injectors).
 
 ## Data plane
 
-avirtedgeproxyd and avirtmedproxyd with their Envoys and libavirtenvoy, which transport and inspect traffic, as distinct from the control plane, which configures them. Status: planned. See [components](./components.md#overview).
+avirtedgeproxyd and avirtmediatord, which transport and inspect traffic, as distinct from the control plane, which configures them. Status: planned. See [components](./components.md#overview).
 
 ## Delegation chain
 
@@ -267,25 +263,13 @@ The chain of creators that created a workload. Its record uses `avirt.internal/c
 
 The compute runtime that runs each workload container and each mediator as a container on Docker Desktop's single shared Linux kernel. Status: planned. See [Docker Desktop runtime](./compute-runtimes.md#docker-desktop-runtime).
 
-## Dynamic forward proxy
-
-The Envoy cluster type with which avirtedgeproxyd's Envoy resolves and dials external endpoints per connection. Status: planned. See [avirtedgeproxyd](./components.md#avirtedgeproxyd).
-
-## Dynamic module
-
-Envoy's interface for loading a shared library that adds filters to Envoy, through which libavirtenvoy runs. Status: planned. See [avirtmedproxyd pipeline](./egress.md#avirtmedproxyd-pipeline).
-
-## Edge VM
-
-The Linux container that runs only avirtedgeproxyd and its Envoy, under avirtinitd, and the only avirt VM with a network interface: a Containerization VM with a vmnet NAT interface on the Containerization runtime, and a container with normal container networking on Docker Desktop. Status: planned. See [edge VM](./components.md#edge-vm).
-
 ## Egress event
 
 An event about one connection (`conn`), one intercepted request (`http`) or one DNS query (`dns`), written into the workload log with `dir: "egress"`. The implemented system writes only `conn` events. See [events](./egress.md#events) and [planned events](./egress.md#events-1).
 
 ## Enforcement point
 
-A component that evaluates policy and enforces the decision on traffic or a call (PEP). avirtedgeproxyd is the only global PEP for traffic that leaves a workload. Each avirtmedproxyd enforces its own workload policy snapshot. Status: planned. See [enforcement points](./egress-policies.md#enforcement-points).
+A component that evaluates policy and enforces the decision on traffic or a call (PEP). avirtedgeproxyd is the only global PEP for traffic that leaves a workload. Each avirtmediatord enforces its own workload policy snapshot. Status: planned. See [enforcement points](./egress-policies.md#enforcement-points).
 
 ## Enrollment
 
@@ -303,17 +287,13 @@ A numbered set of the Cedar entities avirthostd owns, such as namespaces, worklo
 
 One line of the workload log, `{ts, dir, msg}`, where `dir` is `client->agent`, `agent->client`, `meta` or `egress`. See [envelope](./hostd-api.md#envelope).
 
-## Envoy Proxy
-
-The proxy that runs the data plane, supervised as avirtmedproxyd's Envoy in each mediator and avirtedgeproxyd's Envoy on the host, extended by libavirtenvoy. Status: planned. See [components](./components.md#overview).
-
 ## Event provenance
 
 The `src` label on every planned event, such as `hostd`, `edgeproxy`, `gateway`, `mediator`, `secrets`, or `workload`. avirthostd stamps it from the authenticated connection the event arrived on. It states how far the recipient can trust the event. Status: planned. See [event provenance](./trust-boundaries.md#event-provenance).
 
 ## External endpoint
 
-A destination that's neither an avirt name nor a host service, given by a canonical host name or an IP literal and a port, and reached only through avirtedgeproxyd. Status: planned. See [avirtmedproxyd pipeline](./egress.md#avirtmedproxyd-pipeline).
+A destination that's neither an avirt name nor a host service, given by a canonical host name or an IP literal and a port, and reached only through avirtedgeproxyd. Status: planned. See [how avirtmediatord handles egress](./egress.md#how-avirtmediatord-handles-egress).
 
 ## Federation
 
@@ -333,7 +313,7 @@ The `<adverb>-<adjective>-<noun>` name, such as `quietly-brave-otter`, that avir
 
 ## Generation
 
-The number of one mediator instance of a workload, starting at 1 and incremented on each mediator restart, included in the mediator's SVIDs as `<gen>` and in events as `gen`. Status: planned. See [freeze and reconnect](./workload-topology.md#freeze-and-reconnect).
+The number of one mediator instance of a workload, starting at 1 and incremented on each mediator restart, included in the mediator's SVID as `<gen>` and in events as `gen`. Status: planned. See [freeze and reconnect](./workload-topology.md#freeze-and-reconnect).
 
 ## Generation fencing
 
@@ -389,7 +369,7 @@ The tag `build-<build id>` that every promoted workspace image gets, which no ot
 
 ## Ingress listener
 
-avirtmedproxyd's listener on `/run/avirt/ingress.sock`, on which avirtedgeproxyd's Envoy, through avirthostd's SNI routing, reaches that workload's published ports. Status: planned. See [runtime-provided sockets](./workload-topology.md#runtime-provided-sockets).
+avirtmediatord's listener on `/run/avirt/ingress.sock`, on which avirtedgeproxyd, through avirthostd's SNI routing, reaches that workload's published ports. Status: planned. See [runtime-provided sockets](./workload-topology.md#runtime-provided-sockets).
 
 ## Issuing CA
 
@@ -419,10 +399,6 @@ The layers of a workload container's root filesystem, with five levels. The avir
 
 A time-bounded grant of one secret value from avirtsecretsd to one caller, for one workload, binding and generation, in the sense of a Vault lease, that expires no later than the secret's cache lifetime. Status: planned. See [scoping](./secrets.md#scoping).
 
-## libavirtenvoy
-
-The Envoy <!-- vale ai-tells.OverusedVocabulary = NO -->dynamic module<!-- vale ai-tells.OverusedVocabulary = YES --> that the `avirtenvoy` crate builds. It evaluates Cedar locally and resolves avirt names to entities. It issues MITM leaf certificates and runs the placeholder misuse check, injects mediator-bound credentials and writes events. The implemented module only checks CONNECT destinations and reports connection events. Status: partial. See [mediator container](./components.md#mediator-container).
-
 ## Local client listener
 
 avirtedgeproxyd's user-owned Unix socket `edgeproxy.sock` in the runtime directory, with mode 0600. avirt and local clients access avirtapid through it. Status: planned. See [listeners](./trust-boundaries.md#listeners).
@@ -445,7 +421,7 @@ The Model Context Protocol, which the agent speaks only to avirtmcp, and which a
 
 ## Mediator
 
-The per-workload egress half of a workload, through which every byte the agent sends out passes. In the implemented system it's the avirtmediatord host process. In the planned design it's a container with no network that runs avirtmediatord, avirtmedproxyd and avirtmedproxyd's Envoy. See [architecture](./architecture.md#topology).
+The per-workload egress half of a workload, through which every byte the agent sends out passes. In the implemented system it's the avirtmediatord host process. In the planned design it's a container with no network that runs avirtinitd and avirtmediatord. See [architecture](./architecture.md#topology).
 
 ## Mediator secret
 
@@ -457,7 +433,7 @@ A workload log envelope with `dir: "meta"`, such as `start`, `auto_approve`, `ex
 
 ## MITM CA
 
-The per-workload CA whose leaf certificates let avirtmedproxyd's Envoy perform TLS interception of the agent's connections. It's name-constrained to the hosts the workload's policy can intercept, its key never enters the workload container, and it's separate from the SPIFFE CA. Status: planned. See [MITM CA and leaf certificates](./egress.md#mitm-ca-and-leaf-certificates).
+The per-workload CA whose leaf certificates let avirtmediatord perform TLS interception of the agent's connections. It's name-constrained to the hosts the workload's policy can intercept, its key never enters the workload container, and it's separate from the SPIFFE CA. Status: planned. See [MITM CA and leaf certificates](./egress.md#mitm-ca-and-leaf-certificates).
 
 ## Mutable tag
 
@@ -525,7 +501,7 @@ A string that avirtsecretsd issues per workload and binding, a client-acceptable
 
 ## Placeholder misuse check
 
-avirtmedproxyd's rejection, with 403 `credential-misplaced` in both policy modes, of any issued placeholder found anywhere in a request except its bound header. Status: planned. See [placeholders](./egress-credentials.md#placeholders).
+avirtmediatord's rejection, with 403 `credential-misplaced` in both policy modes, of any issued placeholder found anywhere in a request except its bound header. Status: planned. See [placeholders](./egress-credentials.md#placeholders).
 
 ## Policy invariant
 
@@ -595,10 +571,6 @@ The Linux syscall filter that avirtinitd applies to itself and every process it 
 
 A named record in avirtsecretsd, `<scope>/<name>`, that says which provider holds a value and how avirtsecretsd treats it, and never holds the value itself. Status: planned. See [secrets and references](./secrets.md#secrets-and-references).
 
-## Secret discovery service
-
-Envoy's xDS API for TLS certificates, keys, validation contexts and generic secrets (SDS). avirtedgeproxyd and avirtmedproxyd serve it locally to their Envoys, and avirtsecretsd serves binding secrets to avirtmedproxyd's Envoy. Status: planned. See [SDS](./secrets.md#sds).
-
 ## Secret reference
 
 `secret:<scope>/<name>`, the form in which every other record specifies a secret. Status: planned. See [secrets and references](./secrets.md#secrets-and-references).
@@ -657,11 +629,11 @@ avirtinitd's implemented listener on a `127.0.0.1` port that forwards each agent
 
 ## TLS interception
 
-avirtmedproxyd's Envoy accepting the agent's TLS connection with a leaf certificate from the MITM CA. It checks each request and evaluates it under `request`, with the option to inject a credential. It then opens its own TLS connection to the upstream. This happens only when `intercept` permits it on port 443. Status: planned. See [avirtmedproxyd pipeline](./egress.md#avirtmedproxyd-pipeline).
+avirtmediatord accepting the agent's TLS connection with a leaf certificate from the MITM CA. It checks each request and evaluates it under `request`, with the option to inject a credential. It then opens its own TLS connection to the upstream. This happens only when `intercept` permits it on port 443. Status: planned. See [how avirtmediatord handles egress](./egress.md#how-avirtmediatord-handles-egress).
 
 ## TLS passthrough
 
-avirtmedproxyd's Envoy relaying a connection to avirtedgeproxyd byte for byte without acting as a TLS endpoint. It neither inspects requests nor injects credentials. Every avirt name takes this path, as does an external connection when `passthrough` permits it. Status: planned. See [avirtmedproxyd pipeline](./egress.md#avirtmedproxyd-pipeline).
+avirtmediatord relaying a connection to avirtedgeproxyd byte for byte without decrypting TLS. It neither inspects requests nor injects credentials. Every avirt name takes this path, as does an external connection when `passthrough` permits it. Status: planned. See [how avirtmediatord handles egress](./egress.md#how-avirtmediatord-handles-egress).
 
 ## Trust bundle
 
@@ -713,7 +685,7 @@ The creation, listing, inspection, stopping and deletion of workloads by another
 
 ## Workload policy snapshot
 
-The policy snapshot scoped to one workload, which that workload's avirtmedproxyd evaluates. Status: planned. See [building snapshots](./egress-policies.md#building).
+The policy snapshot scoped to one workload, which that workload's avirtmediatord evaluates. Status: planned. See [building snapshots](./egress-policies.md#building).
 
 ## Workload stdio log
 
@@ -749,11 +721,7 @@ Layer 5 of the layer stack, the per-workload writable layer that receives every 
 
 ## `x-avirt-caller`
 
-The header that contains the originating principal's identity on a stream avirtedgeproxyd's Envoy originates, in the role of Envoy's `x-forwarded-client-cert`. Only avirtedgeproxyd, avirtmedproxyd for `guest-cli`, avirtapid, and the gateways set it. Recipients refuse a missing, repeated, or unparseable header. Status: planned. See [avirtedgeproxyd](./components.md#avirtedgeproxyd).
-
-## xDS
-
-Envoy's family of discovery APIs for listeners, clusters, routes and secrets, which avirtmedproxyd and avirtedgeproxyd serve to their Envoys over local sockets. Status: planned. See [mediator container](./components.md#mediator-container).
+The header that contains the originating principal's identity on a stream avirtedgeproxyd originates. Only avirtedgeproxyd, avirtmediatord for `guest-cli`, avirtapid, and the gateways set it. Recipients refuse a missing, repeated, or unparseable header. Status: planned. See [avirtedgeproxyd](./components.md#avirtedgeproxyd).
 
 ## zot
 

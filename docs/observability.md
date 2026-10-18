@@ -1,7 +1,7 @@
 ---
 type: Component Design
 title: Observability
-description: How avirt records and exposes its behavior through logs, audit, metrics, and traces. Covers workload and host logs, stdout and stderr per runtime, severity and fields, content and access, OCSF delivery, integrity and retention, metric attributes and cardinality, Envoy metrics, trace propagation and spans, sampling and trace context privacy, avirtoteld delivery and backpressure, and bundled dashboards and alerts.
+description: How avirt records and exposes its behavior through logs, audit, metrics, and traces. Covers workload and host logs, stdout and stderr per runtime, severity and fields, content and access, OCSF delivery, integrity and retention, metric attributes and cardinality, metrics from avirtmediatord and avirtedgeproxyd, trace propagation and spans, sampling and trace context privacy, avirtoteld delivery and backpressure, and bundled dashboards and alerts.
 tags: [avirt, observability, logging, audit, ocsf, metrics, tracing, opentelemetry, dashboards]
 implementation: partial
 generated: { by: codex/gpt-6, at: 2026-10-18T05:20:59Z }
@@ -21,8 +21,8 @@ avirt produces two kinds of output.
 | Workload stdio log | Durable record | avirthostd's stdio writers | `logs/<workload-id>.stdio.ndjson` | Planned |
 | Audit logs | Durable record | avirthostd and the host services | Each component's audit log, delivered as OCSF by avirtauditd | Planned |
 | Logs | Telemetry | avirtlogd, each daemon, avirthostd's event copies | avirtoteld's destinations | Planned |
-| Metrics | Telemetry | Each daemon, Envoy, libavirtenvoy | avirtoteld's destinations | Planned |
-| Traces | Telemetry | Each daemon, Envoy, avirtacp | avirtoteld's destinations | Planned |
+| Metrics | Telemetry | Each daemon | avirtoteld's destinations | Planned |
+| Traces | Telemetry | Each daemon, avirtacp | avirtoteld's destinations | Planned |
 
 # Status: implemented
 
@@ -111,7 +111,7 @@ avirtlogd joins the partial records of one line up to the writer's line cap, and
 
 ### Host service logs
 
-Each avirt daemon logs through `tracing` with a JSON formatter on stderr, one object per line, and also exports each record as OpenTelemetry Logs through the `tracing` log bridge when the deployment includes avirtoteld. stderr is the local copy: avirtinitd captures each child's stderr in server mode, and a direct host install sends it to the supervisor's log. avirtmediatord, avirtmedproxyd and avirtmedproxyd's Envoy write stderr to `logs/<workload-id>.mediator.log` and export through the mediator's outbound socket to avirthostd, which routes the connection to avirtoteld by SNI. `AVIRT_LOG` sets the filter, in `tracing`'s directive syntax, and defaults to `info`.
+Each avirt daemon logs through `tracing` with a JSON formatter on stderr, one object per line, and also exports each record as OpenTelemetry Logs through the `tracing` log bridge when the deployment includes avirtoteld. stderr is the local copy: avirtinitd captures each child's stderr in server mode, and a direct host install sends it to the supervisor's log. avirtmediatord writes stderr to `logs/<workload-id>.mediator.log` and exports through the mediator's outbound socket to avirthostd, which routes the connection to avirtoteld by SNI. `AVIRT_LOG` sets the filter, in `tracing`'s directive syntax, and defaults to `info`.
 
 ### Severity
 
@@ -139,8 +139,8 @@ Each avirt daemon logs through `tracing` with a JSON formatter on stderr, one ob
 | `avirt.src` | `hostd`, `edgeproxy`, `gateway`, `secrets`, `mediator` or `workload` | avirthostd, avirtoteld |
 | `avirt.trust_domain` | The host's trust domain | avirtoteld |
 | `avirt.agent` | `claude` or `codex` | avirthostd |
-| `avirt.decision`, `avirt.rule`, `avirt.mode`, `avirt.policy_version` | A policy decision's outcome, deciding rule, mode, and policy snapshot | libavirtenvoy, avirthostd |
-| `service.name` | The component, such as `avirthostd`, `avirtmediatord`, `envoy-medproxy` or `envoy-edgeproxy` | The producer |
+| `avirt.decision`, `avirt.rule`, `avirt.mode`, `avirt.policy_version` | A policy decision's outcome, deciding rule, mode, and policy snapshot | avirtmediatord, avirtedgeproxyd, avirthostd |
+| `service.name` | The component, such as `avirthostd`, `avirtmediatord` or `avirtedgeproxyd` | The producer |
 
 ### Content and redaction
 
@@ -203,7 +203,7 @@ avirtauditd maps each audit event to an OCSF 1.9.0 class, keeps `src` (see [even
 | `conn` events, each decision including `allow`, with the deciding rule, mode and `policy_version` | Network Activity (4001) |
 | `http` events, with their `cred` entries | HTTP Activity (4002) |
 | `dns` events | DNS Activity (4003) |
-| Credential injection, rejection, refresh and broker fetches, from the gateways, libavirtenvoy, and avirtsecretsd | <!-- OCSF event class name. --><!-- vale write-good.TooWordy = NO -->Authorize Session<!-- vale write-good.TooWordy = YES --> (3003) |
+| Credential injection, rejection, refresh and broker fetches, from the gateways, avirtmediatord, and avirtsecretsd | <!-- OCSF event class name. --><!-- vale write-good.TooWordy = NO -->Authorize Session<!-- vale write-good.TooWordy = YES --> (3003) |
 | Web UI authentication and MFA, peer enrollment, and SVID issuance refusals | Authentication (3002) |
 | `auto_approve` permission approvals | API Activity (6003) |
 | Audit chain breaks, `envelope_gap` and `line_truncated` | Application Error (6008) |
@@ -239,7 +239,7 @@ A compromised writer can rewrite what it hasn't yet delivered. The chain proves 
 - Producers export each instrument in [performance metrics](./performance.md) as `avirt.<name>`, such as `avirt.launch.agent_started` and `avirt.egress.connect_setup`. This document adds only the pipeline's own instruments: `avirt.telemetry.shed`, `avirt.stdio.dropped_bytes` and `avirt.log.redactions`.
 - For a metric whose How column says Span, the producer records both a span of that name and a duration histogram of that name. Sampling never thins the histogram.
 - Units are UCUM. Producers record durations in `s`, as the semantic conventions require, and the Unit column of performance metrics is the dashboard display unit.
-- Where the semantic conventions define a metric, avirt emits it too: `http.server.request.duration` and `http.client.request.duration` from the Envoys, `rpc.server.call.duration` from avirtapid and avirthostd, and `gen_ai.client.token.usage` and `gen_ai.client.operation.duration` from avirtmodelgwd.
+- Where the semantic conventions define a metric, avirt emits it too: `http.server.request.duration` and `http.client.request.duration` from avirtmediatord and avirtedgeproxyd, `rpc.server.call.duration` from avirtapid and avirthostd, and `gen_ai.client.token.usage` and `gen_ai.client.operation.duration` from avirtmodelgwd.
 - Counters and histograms use cumulative temporality, so a failed export doesn't lose counts. The next successful export includes them.
 
 ### Attributes and cardinality
@@ -264,17 +264,9 @@ Metric attributes must exclude the workload's UUIDv7 and short ID, alias, and ge
 
 When avirtoteld isn't deployed, producers export nothing over OTLP and write each workload's summaries into its workload log as `meta` `metric` events (see [collection](./performance.md#collection)).
 
-### Envoy stats
+### Metrics from avirtmediatord and avirtedgeproxyd
 
-Both Envoys push their stats with the OpenTelemetry stat sink (`envoy.stat_sinks.open_telemetry`) over gRPC to avirtoteld. Stats use cumulative temporality and tags as attributes.
-
-- **avirtmedproxyd's Envoy.** It pushes through the mediator's outbound socket to avirthostd, which routes it to avirtoteld by SNI, as its own SVID, so avirtoteld stamps the workload's resource attributes.
-- **Selection.** A `stats_matcher` inclusion list keeps the listener, HTTP connection manager, cluster upstream and TLS handshake stats avirt's dashboards use, and drops per-host stats. The <!-- Envoy feature name. --><!-- vale ai-tells.OverusedVocabulary = NO -->dynamic forward proxy<!-- vale ai-tells.OverusedVocabulary = YES --> cluster doesn't emit per-destination stats.
-- **Admin interface.** Each Envoy's <!-- Envoy interface name. --><!-- vale project.WordList = NO -->admin interface<!-- vale project.WordList = YES --> listens only on a Unix socket owned by its UID, and nothing scrapes it.
-
-### libavirtenvoy metrics
-
-libavirtenvoy defines its own counters, gauges and histograms through the <!-- Envoy feature name. --><!-- vale ai-tells.OverusedVocabulary = NO -->dynamic module<!-- vale ai-tells.OverusedVocabulary = YES --> interface, and Envoy exports them with its stats.
+avirtmediatord and avirtedgeproxyd record counters, gauges and histograms through avirt's OpenTelemetry path. Their metrics include connection counts, active streams, TLS handshake results, upstream dial latency, DNS cache outcomes under the same cardinality limits as other daemons. avirtmediatord also records lifecycle and readiness metrics. Each process uses its binary name as `service.name`.
 
 | Instrument | Kind | Attributes |
 | --- | --- | --- |
@@ -301,9 +293,9 @@ flowchart LR
     cli["avirt"] -->|"gRPC metadata"| fd["avirtedgeproxyd"]
     fd --> proxyd["avirtapid"]
     proxyd -->|"gRPC metadata"| hostd["avirthostd"]
-    hostd -->|"bootstrap material, GET /workload"| med["avirtmediatord"]
+    hostd -->|"bootstrap material, GET /workload"| me["avirtmediatord"]
     hostd -->|"bootstrap material"| net["avirtnetd"]
-    net -->|"HTTP/2 stream headers"| me["avirtmedproxyd"]
+    net -->|"HTTP/2 stream headers"| me["avirtmediatord"]
     acp["avirtacp turn span"] -->|"local service socket"| net
     me -->|"h2 CONNECT headers"| fd2["avirtedgeproxyd"]
     me -->|"request headers"| gw["avirtmodelgwd, avirtmcpgwd"]
@@ -321,7 +313,7 @@ flowchart LR
 
 Trace context never crosses to an external endpoint.
 
-- avirtmedproxyd, avirtedgeproxyd, avirtmodelgwd and avirtmcpgwd don't add a `traceparent`, `tracestate`, `baggage`, `x-request-id`, or `x-envoy-*` header to a request bound for an external endpoint, and an MCP gateway doesn't add trace keys to `_meta`.
+- avirtmediatord, avirtedgeproxyd, avirtmodelgwd and avirtmcpgwd don't add a `traceparent`, `tracestate`, `baggage`, or `x-request-id` header to a request bound for an external endpoint, and an MCP gateway doesn't add trace keys to `_meta`.
 - avirtacp sends the adapter no trace context, because the agent's outbound requests go to external endpoints.
 - Headers and `_meta` keys that the agent itself sends are request content, and pass unchanged.
 - To an enrolled peer, avirtedgeproxyd sends `traceparent` only. A host configuration can turn that off.
@@ -360,13 +352,13 @@ avirtacp follows the GenAI agent conventions, which are at Development status, a
 
 | Span | Kind | Producer | Attributes |
 | --- | --- | --- | --- |
-| `CONNECT` | Server | avirtmedproxyd, one per agent CONNECT stream | `server.address`, `server.port`, `avirt.dest.kind`, `avirt.path` (`intercept`, `passthrough`), `avirt.decision`, `avirt.rule`, `avirt.policy_version`, `error.type` |
-| `{method}` | Client | avirtmedproxyd, one per request under TLS interception | `http.request.method`, `http.response.status_code`, `server.address`, `url.scheme`, `url.path` (no query), the decision attributes |
+| `CONNECT` | Server | avirtmediatord, one per agent CONNECT stream | `server.address`, `server.port`, `avirt.dest.kind`, `avirt.path` (`intercept`, `passthrough`), `avirt.decision`, `avirt.rule`, `avirt.policy_version`, `error.type` |
+| `{method}` | Client | avirtmediatord, one per request under TLS interception | `http.request.method`, `http.response.status_code`, `server.address`, `url.scheme`, `url.path` (no query), the decision attributes |
 | `CONNECT` | Server | avirtedgeproxyd, one per egress stream | `server.address`, `server.port`, `avirt.dest.kind`, the decision attributes from the host policy snapshot |
 | `chat {model}` | Client | avirtmodelgwd, one per model request | `gen_ai.operation.name`, `gen_ai.provider.name`, `gen_ai.request.model`, `gen_ai.response.model`, `gen_ai.usage.input_tokens`, `gen_ai.usage.output_tokens` where the response reports usage, the provider's request ID as `gen_ai.response.id` |
 | `tools/call {tool}` and the other MCP methods | Client | avirtmcpgwd, one per MCP request | `mcp.method.name`, `mcp.session.id`, `jsonrpc.request.id`, `gen_ai.tool.name`, `gen_ai.operation.name` `execute_tool` for `tools/call` |
 
-The Envoys use their OpenTelemetry tracer, which exports over gRPC to avirtoteld, and libavirtenvoy sets the decision attributes on the active span. DNS queries produce `dns` events and metrics, not spans.
+avirtmediatord and avirtedgeproxyd record spans through `tracing` and export them through avirtoteld, setting decision attributes on each span. DNS queries produce `dns` events and metrics, not spans.
 
 ### Sampling
 
@@ -382,7 +374,7 @@ avirtoteld is a Rust front end that supervises a pinned OpenTelemetry Collector 
 
 - **Front end.** avirtoteld listens on `services/avirtoteld.sock` for OTLP over gRPC with mutual TLS 1.3, authorizes the caller's exact SPIFFE ID (see [listeners](./trust-boundaries.md#listeners)), and rewrites each request's resource attributes: it removes any `avirt.workload.id`, `avirt.workload.short_id`, `avirt.namespace`, `avirt.gen`, `avirt.src` and `avirt.trust_domain` the producer set and stamps the values from the caller's SVID. It then forwards the request to the Collector and returns the Collector's answer to the producer.
 - **Collector.** The child listens only on a Unix socket in avirtoteld's state directory that only avirtoteld's UID can open. avirtoteld generates its configuration from the host configuration without including any secrets. It restarts the child with backoff.
-- **Workload telemetry.** avirtnetd and the main workload process send OTLP on the `/otlp` stream (`POST /otlp`) of the workload's HTTP/2 connection to its mediator, and avirtmedproxyd forwards it to avirtoteld with `x-avirt-src: workload`, which avirtoteld turns into `avirt.src` `workload`.
+- **Workload telemetry.** avirtnetd and the main workload process send OTLP on the `/otlp` stream (`POST /otlp`) of the workload's HTTP/2 connection to its mediator, and avirtmediatord forwards it to avirtoteld with `x-avirt-src: workload`, which avirtoteld turns into `avirt.src` `workload`.
 - **Off-host export.** The Collector's exporters connect through avirtoteld, which forwards each connection to avirtedgeproxyd's egress listener as an h2 CONNECT stream under `/service/avirtoteld`, so the host policy snapshot authorizes each telemetry destination.
 
 | Stage | Components |
@@ -415,8 +407,7 @@ flowchart LR
         runner["avirtacp"] --> net["avirtnetd"]
     end
     subgraph med["mediator"]
-        me["avirtmedproxyd's Envoy + libavirtenvoy"]
-        md["avirtmediatord"]
+        me["avirtmediatord"]
     end
     subgraph host["host"]
         hostd["avirthostd"]
@@ -443,7 +434,6 @@ flowchart LR
     remote(("remote OTLP destinations"))
     net -->|"/otlp stream"| me
     me -->|"SNI routing"| front
-    md -->|"SNI routing"| front
     hostd --> files
     hostd --> journals
     hostd --> front
@@ -471,7 +461,7 @@ avirt includes its dashboards as Grafana dashboard JSON in the repository, provi
 | --- | --- |
 | Host health | Each host service's up state, restarts and degraded state, avirthostd's CPU and memory, live workloads against the limit, launch refusals by reason, disk use of the runtime directory, caches and logs, SVID rotation and issuing CA lifetime, and avirtoteld's queue use, refusals and telemetry dropped with an explicit count |
 | Workload activity | Launches and exits by reason, `launch.agent_started` and `acp.first_update` against their objectives, turns, tool calls by kind and status, permission requests, reconnects of the workload's connection to its mediator and freezes, envelope latency and gaps, and per-workload resources for one selected workload |
-| Egress and policy | Decisions by decision, rule and mode, `would-deny` by rule as the enforce-mode readiness view, errors by kind, connect setup, DNS and dial latency, DNS answers by rcode, top destinations from the `avirt.egress.conn` log records, policy snapshot versions and time to expiry, and prover rejections |
+| Egress and policy | Decisions by decision, rule and mode, `would-deny` by rule as the enforce-mode readiness view, errors by kind, connect setup, DNS and dial latency, DNS answers by rcode, top destinations from the `avirt.egress.conn` log records, policy snapshot versions and time to expiry, prover rejections, active streams, TLS handshakes, and DNS cache outcomes |
 | Credential broker | Injections and rejections by location, hits from the placeholder misuse check, broker fetches and their latency, refresh outcomes, Codex refresh time, provider errors, and time to expiry of each refreshed credential |
 | Model and MCP gateways | Requests, latency and errors by provider and model, token usage, budget use per namespace, and MCP calls by method and outcome |
 | Builds | Queue depth, build duration by kind, failures by stage, cache hit ratio, promotions, and prebuild triggers |
@@ -487,7 +477,7 @@ avirt includes Grafana alert rules with its dashboards, provisioned from files, 
 | `HostDaemonDegraded` | A daemon has used every restart in its budget (see [all-in-one server image](./components.md#all-in-one-server-image)) | Critical |
 | `LaunchesRefused` | avirthostd refused launches with 503 for 5 minutes | Warning |
 | `LaunchSlow` | p95 `launch.agent_started` exceeds its target for 15 minutes | Warning |
-| `PolicySnapshotExpiring` | Any Envoy's `avirt.policy.snapshot_expiry` below 10 minutes | Critical |
+| `PolicySnapshotExpiring` | Either proxy's `avirt.policy.snapshot_expiry` below 10 minutes | Critical |
 | `CredentialMisplaced` | Any placeholder misuse check hit | Warning |
 | `CredentialRefreshFailing` | A credential refresh failed and the credential expires within 30 minutes | Critical |
 | `EventRingRefusing` | `avirt.events.refused` increased in the last 5 minutes | Warning |
@@ -510,8 +500,7 @@ avirt includes Grafana alert rules with its dashboards, provisioned from files, 
 2. **The bundled monitoring stack's licenses.** Grafana, Loki and Tempo are AGPL-3.0, and Prometheus is Apache-2.0. Whether the all-in-one image includes them unmodified, or includes Apache-2.0 alternatives such as Jaeger for traces and VictoriaLogs for logs, is open.
 3. **Bundled monitoring stack authentication.** The stores listen on loopback, where any local process can connect to them. Whether they require authentication from avirtoteld and Grafana is open.
 4. **Exporter transport.** How the Collector child's exporters hand their connections to avirtoteld for avirtedgeproxyd, by a local CONNECT proxy or by avirtoteld forwarding OTLP itself, is open.
-5. **The `/otlp` stream.** The stream needs a place in the [HTTP/2 stream table](./workload-topology.md#http2-streams), a reserved flow-control share and a per-workload rate limit. Its limits are open.
+5. **The `/otlp` stream.** The stream needs a place in the [HTTP/2 stream table](./workload-topology.md#http2-streams), a bounded request queue within the workload's stream limit and a per-workload rate limit. Its limits are open.
 6. **The agent's own telemetry.** Claude Code and Codex can export their own OpenTelemetry. Whether avirt accepts it on an agent socket, labelled `avirt.src` `workload` and off by default, is open.
-7. **libavirtenvoy span attributes.** Whether the <!-- Envoy feature name. --><!-- vale ai-tells.OverusedVocabulary = NO -->dynamic module<!-- vale ai-tells.OverusedVocabulary = YES --> interface lets libavirtenvoy set attributes on Envoy's active span, which the egress spans need, is open.
-8. **Checkpoint verification over time.** Verifying an old checkpoint needs the SPIFFE roots that were in the bundle at the time of signing. Where avirtauditd keeps past bundles is open.
-9. **Ended-workload retention.** Retention for an ended workload's log also forms part of the operator CLI's open question on ended workloads.
+7. **Checkpoint verification over time.** Verifying an old checkpoint needs the SPIFFE roots that were in the bundle at the time of signing. Where avirtauditd keeps past bundles is open.
+8. **Ended-workload retention.** Retention for an ended workload's log also forms part of the operator CLI's open question on ended workloads.
