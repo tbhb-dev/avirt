@@ -1,3 +1,5 @@
 # Terms the new-term check (scripts/jargon_check.py) allows. One term per line, then a
 # `# reason`. An entry with no reason is itself a finding. A glossary entry is preferred
 # where the term needs a definition; list a term here only when it needs none.
+per-process UIDs # The maintainer specifies this wording for the separate process identities.
+host connections # Ordinary description of connections opened by host daemons.

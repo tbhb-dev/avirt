@@ -73,7 +73,7 @@ Every workload image derives from the avirt base image (see [workload lifecycle]
 
 | Image | Directory | `FROM` | Adds |
 | --- | --- | --- | --- |
-| avirt base, `avirt-workload-base` | `workloads/base/` | `ubuntu:26.04` | `ca-certificates`, the `agent` user, the helper users and the `avirt-ws` group, `/workspace`, and every workload guest binary in the targets table |
+| avirt base, `avirt-workload-base` | `workloads/base/` | `ubuntu:26.04` | `ca-certificates`, the `agent` user, the per-process UIDs and the `avirt-ws` group, `/workspace`, and every workload guest binary in the targets table |
 | Claude harness base, `avirt-workload-claude` | `workloads/claude/` | The avirt base | Node, claude-agent-acp and `harness.toml`, under `/opt/agent` |
 | Codex harness base, `avirt-workload-codex` | `workloads/codex/` | The avirt base | Node, codex-acp and `harness.toml`, under `/opt/agent` |
 | avirt builder | `workloads/builder/` | The avirt base | `git`, avirt's layer tool and BuildKit |
@@ -136,4 +136,4 @@ Both move together with the Containerization package version. Docker Desktop sup
 
 # Open questions
 
-1. **Windows off-host enforcement.** The host rule that restricts new off-host connections to avirtedgeproxyd on Windows remains unspecified.
+1. **Windows restrictions on host connections.** The host rule that restricts new off-host connections to avirtedgeproxyd on Windows remains unspecified.

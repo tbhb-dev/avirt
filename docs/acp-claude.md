@@ -85,7 +85,7 @@ The keys of `harness.toml` are in [ACP](./acp.md#harnesstoml).
 
 ## Authentication
 
-The agent's environment contains the placeholder `sk-ant-oat01-avirtph<32>` in `CLAUDE_CODE_OAUTH_TOKEN`, never the real token. `/etc/avirt/launch.toml` names the variable, avirtinitd sets it from the placeholder that arrives in `confirm`, and avirtmodelgwd replaces it with the real token in the `authorization` header of requests to `api.anthropic.com`. Claude Code never refreshes this token, so no refresh path exists. The binding, the placeholder format and the placeholder misuse check are in [credentials](./egress-credentials.md#claude-code).
+The agent's environment contains the placeholder `sk-ant-oat01-avirtph<32>` in `CLAUDE_CODE_OAUTH_TOKEN`, never the real token. `/etc/avirt/launch.toml` names the variable, avirtinitd sets it from the placeholder that arrives in `confirm`, and avirtmodelgwd replaces it with the real token in the `authorization` header of requests to `api.anthropic.com`. Claude Code never refreshes this token, so no refresh path exists. The binding, the placeholder format and the `credential-misplaced` check are in [credentials](./egress-credentials.md#claude-code).
 
 ## Managed settings
 

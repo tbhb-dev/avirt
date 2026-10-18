@@ -1,7 +1,7 @@
 ---
 type: Component Design
 title: Workspaces
-description: Workspace images as OCI artifacts composed onto a harness base image, the image format with its base image reference and content rules, `.avirt-workspace.toml` with its sources, includes, lockfile, secret exclusion and zero-config defaults, local provenance, the dev.avirt annotation set, workspace references and resolution, root filesystem composition per runtime, the avirt workspace commands, and the Cedar entities and launch action.
+description: Workspace images as OCI artifacts composed onto a harness base image, the image format with its base image reference and content rules, `.avirt-workspace.toml` with its sources, includes, lockfile, secret exclusion and zero-config defaults, images built from local sources, the dev.avirt annotation set, workspace references and resolution, root filesystem composition per runtime, the avirt workspace commands, and the Cedar entities and launch action.
 tags: [avirt, workspaces, oci, cel, policy]
 implementation: planned
 generated: { by: codex/gpt-6, at: 2026-10-18T04:29:26Z }
@@ -15,7 +15,7 @@ A **workspace** is the content a workload container starts with beyond its harne
 | --- | --- |
 | avirt | Reads `.avirt-workspace.toml` and packages local sources. Sends every `avirt workspace` command to avirtapid |
 | avirtapid | Forwards `avirt workspace` commands to avirtbuilderd, avirtregistryd and avirthostd with the caller's identity |
-| avirtbuilderd | Watches repositories and schedules on-demand builds. Runs prebuild policies. Runs each build processing untrusted content in a disposable sandboxed build job and checks every output before admission |
+| avirtbuilderd | Watches repositories and schedules on-demand builds. Runs prebuild configurations. Runs each build processing untrusted content in a disposable sandboxed build job and checks every output before admission |
 | avirtregistryd | Stores workspace images in an embedded OCI registry with avirt's secondary index. Serves search and resolution and makes every off-host registry connection |
 | avirthostd | Resolves the workspace reference and authorizes the launch. Pulls the image into its content-addressed cache and composes the workload container's root filesystem. Records the resolved digest in the immutable workload configuration |
 | avirtpolicyd | Distributes the Cedar policy that governs build, push, pull, export and launch-from-workspace |
@@ -62,7 +62,7 @@ The config blob records:
 - `layers`: each layer's origin and destinations, plus the canonical remote URL, ref, and commit for version control sources.
 - `config_digest`: the digest of the resolved `.avirt-workspace.toml`, with every default filled in.
 - `lock`: every include digest and source commit the build resolved, in the form of the [lockfile](#lockfile).
-- `provenance`: `reproducible` or `local` (see [local provenance](#local-provenance)).
+- `provenance`: `reproducible` or `local` (see [images built from local sources](#images-built-from-local-sources)).
 - `secret_allows`: the denylist patterns that `secrets.allow` lifted for this build, when there are any.
 
 ### Base image reference
@@ -89,7 +89,7 @@ avirtbuilderd checks every layer of a workspace image before admitting it, and a
 - **Reserved paths.** Entries, whiteouts, and opaque whiteouts must avoid `/run`, `/proc`, `/sys`, `/dev`, `/opt/agent`, any avirt binary in the avirt base image (`/usr/local/bin/avirt*`), `/etc/passwd`, `/etc/group`, `/etc/shadow`, `/etc/gshadow`, `/etc/resolv.conf`, `/etc/hosts`, `/etc/avirt`, or the system CA bundle (`/etc/ssl/certs`, `/usr/local/share/ca-certificates`, `/usr/share/ca-certificates`). At launch avirthostd also refuses any entry under the managed configuration paths and the harness user paths that the harness base's `harness.toml` names, such as `/home/agent/.claude` and `/home/agent/.codex`, so a workspace can't mark `/workspace` trusted in the harness's own state (see [workload lifecycle](./workload-lifecycle.md#base-images) and [`harness.toml`](./acp.md#harnesstoml)).
 - **Entry types.** Only regular files, directories, symlinks, and hard links. avirt refuses device nodes, FIFOs, and sockets.
 - **Modes.** No setuid or setgid bit, and no file capability (`security.capability` xattr).
-- **Ownership.** uid 1000 and gid 1000 own entries under `/workspace` and `/home/agent`. uid 0 owns entries from sources and includes elsewhere. avirt rewrites ownership on the layers it produces from sources and includes, and refuses any layer owned by a helper UID.
+- **Ownership.** uid 1000 and gid 1000 own entries under `/workspace` and `/home/agent`. uid 0 owns entries from sources and includes elsewhere. avirt rewrites ownership on the layers it produces from sources and includes, and refuses any layer owned by a per-process UID.
 - **Paths.** Entry names must use relative paths in valid UTF-8 without `..` segments. Symlinks and hard links may point anywhere. Later entries in the same layer must never write through symlinks.
 - **Size.** Host settings cap each layer and the whole image. They also cap the entry count and length of any path.
 - **Secrets.** Entries must avoid the built-in denylist and host denylist (see [secret exclusion](#secret-exclusion)), less the patterns that the config blob's `secret_allows` records. This repeats the build-time filter and catches pushed and imported images that never went through it.
@@ -155,7 +155,7 @@ remote = "origin"                   # default when that remote exists
 [[sources]]
 type = "github"
 repository = "foo/bar"
-branch = "main"                     # one ref; a prebuild policy chooses which refs stay built
+branch = "main"                     # one ref; a prebuild configuration chooses which refs stay built
 destination = "/workspace/bar"
 
 [[sources]]
@@ -189,13 +189,13 @@ A `mode` is a TOML octal integer (`0o755`) or a string of octal digits (`"0755"`
 | `name` | The primary `git` or `github` source's repository name, else the directory name, lowercased to a DNS label | The workspace repository's name in avirtregistryd |
 | `namespace` | `default` | The avirt namespace containing the repository. The repository is `<namespace>/<name>`. |
 | `build.base` | The host's avirt base image | The image that build commands run on: the avirt base or a harness base (see [workload lifecycle](./workload-lifecycle.md#base-images)). It must be in avirtregistryd. |
-| `build.containerfile` | `.avirt-workspace.containerfile` | The Containerfile, resolved in the primary source's tree, used when it exists |
+| `build.containerfile` | `.avirt-workspace.containerfile` | The Containerfile, resolved in the tree of the source selected by `primary`, used when it exists |
 | `build-hooks.pre-source`, `build-hooks.dependencies`, `build-hooks.post-source` | None | Tables with `commands` (a list of shell commands, each run with `/bin/sh -c`), `user` and `workdir` (see [build stages](./workspace-build.md#build-stages-and-the-containerfile)) |
 | `secrets.deny`, `secrets.allow` | None | Denylist patterns this workspace adds and lifts (see [secret exclusion](#secret-exclusion)) |
 
-Ref selection, prebuild triggers, retention and mutable tags live in a [prebuild policy](./workspace-build.md#prebuild-policies), never in this file.
+Ref selection, prebuild triggers, retention and mutable tags live in a [prebuild configuration](./workspace-build.md#prebuild-configurations), never in this file.
 
-The **primary source** is the first `git` or `github` source, or the source with `primary = true`. Its remote and revision are the image's `org.opencontainers.image.source` and `org.opencontainers.image.revision`, and its tree provides the location for resolving the Containerfile.
+The **source selected by the `primary` key** is the first `git` or `github` source, or the source with `primary = true`. Its remote and revision are the image's `org.opencontainers.image.source` and `org.opencontainers.image.revision`, and its tree provides the location for resolving the Containerfile.
 
 ### Sources
 
@@ -213,13 +213,13 @@ Each source produces one layer. Every source takes `destination`, `primary`, `st
 - **File.** One host file, written at `destination` with `mode`.
 - **Local git.** The tracked files at `HEAD`, plus `.git` when `include-git-dir` is true. With `allow-dirty = true` it also takes the working tree's modified tracked files and its untracked files that aren't ignored. With `allow-dirty = false` a dirty working tree fails the build with `dirty working tree`. Local git sources always exclude files that git ignores or `excludes-file` matches. `paths` narrows the source as it does for a directory.
 - **Remote git.** The repository at `remote-url`, or at the URL of `remote` in the local repository, fetched at `revision`, or at the head of `branch` or `tag`. Remote sources never read the local working tree. A build whose revision isn't on the remote fails with `commit not on remote`. Fetches use the HTTPS form of SSH remotes for known hosts, such as `https://github.com/foo/bar.git` for `git@github.com:foo/bar.git`.
-- **`github`.** The repository `owner/name` on GitHub, fetched at `revision`, or at the head of `branch` or `tag`, else at the head of the default branch. It differs from a remote `git` source in authenticating with a GitHub installation token and in recording the `dev.avirt.image.github.*` annotations. A source specifies one ref. Which refs stay built is a [prebuild policy](./workspace-build.md#prebuild-policies)'s decision, and a prebuild replaces the primary source's ref with the ref it's building.
+- **`github`.** The repository `owner/name` on GitHub, fetched at `revision`, or at the head of `branch` or `tag`, else at the head of the default branch. It differs from a remote `git` source in authenticating with a GitHub installation token and in recording the `dev.avirt.image.github.*` annotations. A source specifies one ref. Which refs stay built is a [prebuild configuration](./workspace-build.md#prebuild-configurations)'s decision, and a prebuild replaces the ref of the source selected by `primary` with the ref it's building.
 
-Only builds that the command-line tool starts from a local config accept sources read on the host. Such sources give the build local provenance. A prebuild fails with `config not buildable by policy` when the config it reads names a `directory`, `file` or local `git` source.
+Only builds that the command-line tool starts from a local config accept sources read on the host. The resulting image is an image built from local sources. A prebuild fails with `config not buildable by policy` when the config it reads names a `directory`, `file` or local `git` source.
 
-### Local provenance
+### Images built from local sources
 
-A build with any source read on the host has **local provenance**: its content came from one machine's files, and avirt can't rebuild it from inputs it can fetch. avirtbuilderd records it as `dev.avirt.build.provenance = local`, in the config blob, and as the image's `provenance` attribute for policy. Every other build is `reproducible`. A local build remains local unless the caller forces otherwise:
+An image built from local sources contains files read on the host. avirt can't rebuild it from inputs it can fetch. avirtbuilderd records it as `dev.avirt.build.provenance = local`, in the config blob, and as the image's `provenance` attribute for policy. Every other build is `reproducible`. A local build remains local unless the caller forces otherwise:
 
 - `github:` and `git:` selectors never resolve to a local image, so a laptop build never replaces a ref's image in resolution. It's reachable by digest, by the tag `avirt workspace build` printed, or through `dir:`.
 - `avirt workspace export` refuses a local image.
@@ -278,10 +278,10 @@ All expressions use CEL with a cost limit and without I/O. Results must have the
 
 | Key | Returns | Variables |
 | --- | --- | --- |
-| `refs` (prebuild policy) | `bool` | `ref`, `repository` |
+| `refs` (prebuild configuration) | `bool` | `ref`, `repository` |
 | `layers-expr` | `bool` | `annotations` (map of string to string, the layer descriptor's annotations), `mediaType`, `digest`, `size` (int), `index` (int, the layer's position), `image` (`{ digest, annotations }` for the included manifest) |
 | `filter` (include) | `bool` | `image`, the image record as `Search` exposes it |
-| `tag-format` (prebuild policy) | `string` per `{{ }}` | `ref`, `repository`, `build` (`{ id, time }`) |
+| `tag-format` (prebuild configuration) | `string` per `{{ }}` | `ref`, `repository`, `build` (`{ id, time }`) |
 
 `ref` is the same object in every expression: `{ name, short, kind, sha, protected, default, pull_request }`. `name` is the full ref name such as `refs/pull/12/head`, `short` is the branch or tag name or the pull request number as a string, `kind` is `branch`, `tag` or `pull`, `sha` is the object the ref points at, `protected` and `default` are booleans, and `pull_request` is the pull request number, or 0. `repository` is `{ owner, name, full_name, default_branch, private }`. In `tag-format`, each `{{ <expression> }}` is a CEL expression whose string result replaces it.
 
@@ -291,11 +291,11 @@ avirtbuilderd sets these annotations on every manifest it promotes. User-pushed 
 
 | Annotation | Value |
 | --- | --- |
-| `org.opencontainers.image.source` | The primary source's canonical remote URL, such as `https://github.com/foo/bar` |
-| `org.opencontainers.image.revision` | The primary source's commit SHA |
+| `org.opencontainers.image.source` | The canonical remote URL of the source selected by `primary`, such as `https://github.com/foo/bar` |
+| `org.opencontainers.image.revision` | The commit SHA of the source selected by `primary` |
 | `org.opencontainers.image.created` | The build's completion time, RFC 3339 |
 | `dev.avirt.image.kind` | `workspace` |
-| `dev.avirt.image.git.remote` | The primary source's canonical remote URL |
+| `dev.avirt.image.git.remote` | The canonical remote URL of the source selected by `primary` |
 | `dev.avirt.image.git.ref` | The full ref built, such as `refs/heads/feat/hello` or `refs/pull/12/head` |
 | `dev.avirt.image.git.branch` | The branch name, when the ref is a branch, such as `feat/hello` |
 | `dev.avirt.image.git.tag` | The tag name, when the ref is a tag |
@@ -316,9 +316,9 @@ avirtbuilderd sets these annotations on every manifest it promotes. User-pushed 
 | `dev.avirt.build.trigger` | `manual`, `schedule`, or the event name, such as `pull_request.synchronize` |
 | `dev.avirt.build.trust-domain` | The trust domain of the host that built it |
 | `dev.avirt.build.provenance` | `reproducible`, or `local` for a build with a source read on the host |
-| `dev.avirt.build.prebuild-policy` | The prebuild policy's name, for a prebuild |
+| `dev.avirt.build.prebuild-policy` | The prebuild configuration's name, for a prebuild |
 
-For builds with more than one version control source, the config blob and layer annotations record each source's remote, ref, and commit. Manifest-level `dev.avirt.image.git.*` annotations describe the primary source.
+For builds with more than one version control source, the config blob and layer annotations record each source's remote, ref, and commit. Manifest-level `dev.avirt.image.git.*` annotations describe the source selected by the `primary` key.
 
 ## Workspace references
 
@@ -358,7 +358,7 @@ A `github:` reference matches by `dev.avirt.image.github.repository-id` once avi
 avirthostd resolves a reference by calling avirtregistryd's `Resolve`, and records only the resolved digest in the workload configuration.
 
 1. avirtregistryd selects the candidates that match the reference.
-2. It drops candidates whose base image reference the launch's harness base image doesn't meet. It also drops images without a builder producer unless policy permits user-produced images (see [policy](#policy)), local provenance unless the caller passes `--allow-local`, and images the caller may not `pull_workspace`. Selection ignores mutable tags.
+2. It drops candidates whose base image reference the launch's harness base image doesn't meet. Policy must permit images whose producer is a user rather than the builder (see [policy](#policy)). Images built from local sources need `--allow-local`. The caller must have `pull_workspace` permission for each remaining image. Selection ignores mutable tags.
 3. For a branch, tag or pull request selector, it ranks the remaining candidates by whether their commit is the ref head avirtbuilderd last observed, then by commit time, then by build time. For a commit selector, it ranks by build time.
 4. It returns the first candidate together with its staleness: whether the ref head has moved past its commit.
 5. With `--fresh=require`, a stale or missing result makes avirthostd ask avirtbuilderd for a build of the head and wait for it. The default `--fresh=prefer` uses a stale result and reports its staleness. With `--fresh=any`, avirthostd ignores staleness.
@@ -390,7 +390,7 @@ avirtbuilderd, avirtregistryd and avirthostd each check the host policy snapshot
 | Element | Values |
 | --- | --- |
 | Entities | `WorkspaceRepository::"<ns>/<name>"`, `in Namespace::"<ns>"`. `WorkspaceImage::"<ns>/<name>@<digest>"`, in its repository, with attributes `producer` (`builder`, `user` or `import`), `provenance` (`reproducible` or `local`), `base` (a digest or `none`), `source` and `revision` (when present), `trigger`, and its manifest annotations as tags. |
-| Principals | The caller that avirtapid forwards, `HostService::"avirtbuilderd"` for prebuilds, which contain the prebuild policy's owner as `context.owner`, `HostService::"avirthostd"` pulling for a launch, and a build job's `Workload` reading its inputs |
+| Principals | The caller that avirtapid forwards, `HostService::"avirtbuilderd"` for prebuilds, which contain the prebuild configuration's owner as `context.owner`, `HostService::"avirthostd"` pulling for a launch, and a build job's `Workload` reading its inputs |
 
 | Action | Evaluated by | Resource | Context |
 | --- | --- | --- | --- |
@@ -411,6 +411,6 @@ when { context.namespace == Namespace::"prod" && resource.provenance == "local" 
 # Open questions
 
 1. **Snapshots to workspace images.** Whether to convert an avirtguestd workspace snapshot of a running workload container into a new workspace image remains open. The producer for such images also remains open.
-2. **Zero-config in a repository with a remote.** The zero-config git source fetches the local `HEAD` commit from `origin`, so unpushed commits fail with `commit not on remote` and the source never reads the working tree. Whether zero-config should use a local git source instead remains open. That choice would give the build local provenance.
+2. **Zero-config in a repository with a remote.** The zero-config git source fetches the local `HEAD` commit from `origin`, so unpushed commits fail with `commit not on remote` and the source never reads the working tree. Whether zero-config should use a local git source instead remains open. That choice would produce an image built from local sources.
 3. **The guest CLI.** Whether `guest-cli` may search workspaces or start builds from inside a workload container is open (see [guest CLI](./guest-cli.md#open-questions)).
-4. **`github` and `git` sources.** With ref selection in prebuild policies, a `github` source is a remote `git` source with GitHub authentication and annotations. Whether to represent it as `git` with a provider key is open.
+4. **`github` and `git` sources.** With ref selection in prebuild configurations, a `github` source is a remote `git` source with GitHub authentication and annotations. Whether to represent it as `git` with a provider key is open.

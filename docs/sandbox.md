@@ -43,7 +43,7 @@ Landlock trace events (`/sys/kernel/tracing/events/landlock/`) aren't in either 
 
 | Runtime | Kernel | Landlock configuration | ABI | Denial audit records |
 | --- | --- | --- | --- | --- |
-| Containerization | Kata Containers 3.32.0 arm64 `vmlinux`, Linux 6.18.35, pinned by sha256 (see [compute runtimes](./compute-runtimes.md#guest-artifacts)) | `CONFIG_SECURITY_LANDLOCK=y` from Kata's `landlock.conf` fragment, and `CONFIG_AUDIT=y` and `CONFIG_AUDITSYSCALL=y` from its `lsm.conf` fragment. No fragment sets `CONFIG_LSM`, so the kernel's default list applies, and that list includes `landlock`. | 7 | Available to guest root, one VM per workload |
+| Containerization | Kata Containers 3.32.0 arm64 `vmlinux`, Linux 6.18.35, pinned by sha256 (see [compute runtimes](./compute-runtimes.md#guest-artifacts)) | `CONFIG_SECURITY_LANDLOCK=y` from Kata's `landlock.conf` fragment, and `CONFIG_AUDIT=y` and `CONFIG_AUDITSYSCALL=y` from its `lsm.conf` fragment. No fragment sets `CONFIG_LSM`, so the kernel's default list applies, and that list includes `landlock`. | 7 | Available to root in the workload container, one VM per workload |
 | Docker Desktop | LinuxKit 7.0.14, shared by each container (see [Docker Desktop runtime](./compute-runtimes.md#docker-desktop-runtime)) | Landlock enabled and usable unprivileged with `no_new_privs`. Docker's default seccomp profile allows `landlock_create_ruleset`, `landlock_add_rule` and `landlock_restrict_self`. | 8 | Not available to the workload container (see [denials](#denials)) |
 | Apple container CLI | The same Kata kernel as Containerization | As Containerization | 7 | Not used: avirt removes the Apple container CLI runtime before adding Landlock |
 
@@ -137,7 +137,7 @@ Each ruleset handles each filesystem right of the target ABI and denies access u
 
 Never grant `MAKE_CHAR` or `MAKE_BLOCK` to any process. Grant `IOCTL_DEV` only in `pty`.
 
-**The paths each helper needs** to run are: `ro` on `/usr/lib` and `/proc`, `file-r` on `/etc/ld.so.cache`, `ro` on `/sys/fs/cgroup`, `file-rw` on `/dev/null`, `file-r` on `/dev/urandom`, and `exec` on its own binary and on `/usr/lib/ld-linux-aarch64.so.1`. `/bin`, `/sbin` and `/lib` are symlinks into `/usr` in the avirt base, and resolving a symlink doesn't need a right. Mount `/proc` with `hidepid=invisible` to limit each process to its own UID's entries.
+**The paths each daemon needs** to run are: `ro` on `/usr/lib` and `/proc`, `file-r` on `/etc/ld.so.cache`, `ro` on `/sys/fs/cgroup`, `file-rw` on `/dev/null`, `file-r` on `/dev/urandom`, and `exec` on its own binary and on `/usr/lib/ld-linux-aarch64.so.1`. `/bin`, `/sbin` and `/lib` are symlinks into `/usr` in the avirt base, and resolving a symlink doesn't need a right. Mount `/proc` with `hidepid=invisible` to limit each process to its own UID's entries.
 
 ## Per-process rulesets
 
@@ -208,7 +208,7 @@ avirtacp, avirtagent or avirtexec, as `avirt-run`. The runner doesn't execute an
 
 | Path | Rights |
 | --- | --- |
-| The paths each helper needs | Same as the preceding table |
+| The paths each daemon needs | Same as the preceding table |
 | `/etc/avirt/launch.toml` | `file-r` |
 | `/run/avirt/streams/run.sock`, `/run/avirt/init/run.sock` | `unix` |
 
@@ -218,7 +218,7 @@ As `avirt-net`.
 
 | Path | Rights |
 | --- | --- |
-| The paths each helper needs | Same as the preceding table |
+| The paths each daemon needs | Same as the preceding table |
 | `/run/avirt/streams` | `sock-dir` |
 | `/run/avirt/agent` | `sock-dir` |
 | `/run/avirt/mediator.sock`, `/run/avirt/init/net.sock` | `unix` |
@@ -231,13 +231,13 @@ As `avirt-guest`, in the `avirt-ws` group.
 
 | Path | Rights |
 | --- | --- |
-| The paths each helper needs | Same as the preceding table |
+| The paths each daemon needs | Same as the preceding table |
 | Each workspace root from the workspace image's `roots` (`/workspace` and each directory destination under `/home/agent`) | `rw`, without `EXECUTE`, `MAKE_SOCK` or `MAKE_FIFO` |
 | Its workspace snapshot directory | `rw` |
 | `/run/avirt/streams` | `sock-dir`, for its listener `/run/avirt/streams/guestd.sock` |
 | `/run/avirt/init/guestd.sock` | `unix` |
 
-avirtguestd resolves paths beneath a root without following symlinks out of it. The ruleset enforces the same boundary in the kernel. A symlink inside a root that points elsewhere can't open anything outside the roots or workspace snapshot directory, except the paths each helper needs.
+avirtguestd resolves paths beneath a root without following symlinks out of it. The ruleset enforces the same boundary in the kernel. A symlink inside a root that points elsewhere can't open anything outside the roots or workspace snapshot directory, except the paths each daemon needs.
 
 ### Build jobs
 
@@ -277,13 +277,13 @@ Landlock port rules match the port only, never the address. The workload contain
 - **Agent.** The agent binds and connects to its own servers on loopback for development and for published ports. The only other loopback listeners are avirtnetd's forward proxy and DNS stub, which serve the agent.
 - **avirtnetd.** avirtinitd binds avirtnetd's forward proxy listener and the DNS stub's port 53 sockets and hands them over, so avirtnetd binds nothing itself. Its reverse proxy connects to the agent's published ports, which change while the workload runs. A domain can't change after exec, so the ruleset doesn't handle connect.
 - **Everything else** has no TCP at all.
-- **UDP** has no Landlock rule at ABI 9 or below. When the target ABI reaches 10 and the crate supports it, limit the agent's UDP sends to port 53 and deny each helper's UDP.
+- **UDP** has no Landlock rule at ABI 9 or below. When the target ABI reaches 10 and the crate supports it, limit the agent's UDP sends to port 53 and deny each daemon's UDP.
 
 ## Scopes
 
 Each ruleset sets both ABI 6 scopes:
 
-- `SCOPE_SIGNAL`: a process may signal only processes in its own domain or a nested one. The agent can signal its own tools. It can't signal a helper, avirtinitd, or the runtime's init.
+- `SCOPE_SIGNAL`: a process may signal only processes in its own domain or a nested one. The agent can signal its own tools. It can't send signals to avirtnetd, avirtacp, avirtagent, avirtexec, and avirtguestd, avirtinitd, or the runtime's init.
 - `SCOPE_ABSTRACT_UNIX_SOCKET`: a process may connect only to abstract Unix sockets created in its own domain or a nested one. Abstract sockets have no file mode, so this scope is the only layer that keeps the agent off an abstract socket created by any other workload process or by the runtime.
 
 ## Configuration
@@ -311,7 +311,7 @@ flowchart LR
 
 | Input | Source | Contributes |
 | --- | --- | --- |
-| Built-in rules | avirtinitd, compiled in | Each helper's ruleset, and the agent's built-in rows |
+| Built-in rules | avirtinitd, compiled in | Each daemon's ruleset, and the agent's built-in rows |
 | `harness.toml` | `/opt/agent/harness.toml` | The adapter path, `sandbox.pty`, `sandbox.read`, `sandbox.write`, and the managed configuration paths, which stay `ro` |
 | Workspace roots | The workspace image config's `roots` (see [workspace image format](./workspaces.md#workspace-image-format)) | avirtguestd's `rw` rules. Each root is under `/workspace` or `/home/agent`, within the agent's existing rules. |
 | Workspace destinations | The config blob's `layers[].destinations` (see [destinations](./workspaces.md#destinations)) | `rx` rules for the agent on destinations outside the agent's built-in rules, such as a directory a `pre-source` hook installs under `/var/lib`. A destination never adds a write. |
@@ -365,7 +365,7 @@ roots = ["/workspace", "/home/agent/.cache"]
 | `agent.rule` | Array of tables | Rules added to the agent's built-in rows, each with `path`, `access` (`ro`, `rx` or `rwx`), `source`, and `policy` for an extra sandbox path |
 | `guestd.roots` | Array of paths | avirtguestd's workspace roots |
 
-The helpers' security contexts have no keys: they come only from avirtinitd's built-in rules.
+The security contexts of avirtnetd, avirtacp, avirtagent, avirtexec, and avirtguestd have no keys: they come only from avirtinitd's built-in rules.
 
 ### Recording and logging
 
@@ -399,14 +399,14 @@ The `start` meta event includes the digest of `sandbox.toml`. To reproduce a lau
 | Guarantee | Enforced by |
 | --- | --- |
 | The agent writes only under `/workspace`, `/home/agent`, `/tmp`, `/dev/shm`, the listed device nodes, and approved extra sandbox paths | Landlock. File ownership and modes add a second check for root-owned paths. Writes never affect layers 1 to 4 (see [layer stack](./workload-lifecycle.md#layer-stack)). |
-| The agent can't open helper sockets | Socket file modes and helper ownership, `SO_PEERCRED` checks at each listener, and Landlock `RESOLVE_UNIX` at ABI 9 |
+| The agent can't open sockets owned by avirtnetd, avirtacp, avirtagent, avirtexec, and avirtguestd | Socket file modes and per-process ownership, `SO_PEERCRED` checks at each listener, and Landlock `RESOLVE_UNIX` at ABI 9 |
 | The agent can't access an abstract Unix socket outside its domain | Landlock's abstract socket scope only |
-| The agent can't signal or trace a helper | UID separation, Landlock's signal scope, Landlock's ptrace rule, the seccomp denylist for `ptrace`, `process_vm_*` and `pidfd_*`, and `hidepid=invisible` |
-| The agent can't read a helper's memory or descriptors | UID separation, `hidepid=invisible` and the seccomp denylist. Landlock doesn't restrict reopening pipes and sockets through `/proc/<pid>/fd`. These layers alone provide that guarantee. |
+| The agent can't signal these daemons or trace their processes | UID separation, Landlock's signal scope, Landlock's ptrace rule, the seccomp denylist for `ptrace`, `process_vm_*` and `pidfd_*`, and `hidepid=invisible` |
+| The agent can't read one of these daemons' memory or descriptors | UID separation, `hidepid=invisible` and the seccomp denylist. Landlock doesn't restrict reopening pipes and sockets through `/proc/<pid>/fd`. These layers alone provide that guarantee. |
 | No workload process gains privilege | `no_new_privs`, zero capabilities, and no setuid, setgid or file capability in any layer (see [content rules](./workspaces.md#content-rules)). Landlock requires `no_new_privs` for an unprivileged domain. |
 | Processes can't change the filesystem topology around their rules | Landlock denies `mount` and `pivot_root` in a domain. The seccomp denylist blocks the mount family, `setns` and new user namespaces, and no process holds `CAP_SYS_ADMIN` or `CAP_SYS_CHROOT`. |
-| Workload processes can't access a host Unix socket or a network | The runtime's absence of a network interface, the seccomp socket-domain allowlist with `AF_VSOCK` denied, and avirtnetd as the only path to the workload's HTTP/2 connection to its mediator. Landlock port rules keep the helpers off TCP. |
-| A helper executes only its own binary | Landlock's `exec` rule, and the seccomp denial of `memfd_create` and `execveat` with `AT_EMPTY_PATH` |
+| Workload processes can't access a host Unix socket or a network | The runtime's absence of a network interface, the seccomp socket-domain allowlist with `AF_VSOCK` denied, and avirtnetd as the only path to the workload's HTTP/2 connection to its mediator. Landlock port rules keep avirtnetd, avirtacp, avirtagent, avirtexec, and avirtguestd off TCP. |
+| Each of avirtnetd, avirtacp, avirtagent, avirtexec, and avirtguestd executes only its own binary | Landlock's `exec` rule, and the seccomp denial of `memfd_create` and `execveat` with `AT_EMPTY_PATH` |
 | The agent can't freeze, thaw, or leave the agent cgroup | Root ownership of the cgroup files, and Landlock's `ro` on `/sys/fs/cgroup` |
 | A guest-kernel compromise stays in one workload | A VM per workload container and per mediator on Containerization. On Docker Desktop each workload shares one kernel (see [Docker Desktop runtime](./compute-runtimes.md#docker-desktop-runtime)). |
 
@@ -474,7 +474,7 @@ These checks join the [regression suite](./roadmap.md#regression-suite) in phase
 | `unshare -U`, `memfd_create`, `ptrace` | `EPERM` |
 | On Containerization, after the `/var/tmp` check | A `landlock_denial` event with `blockers` `fs.make_reg` and the path, before `container_exit` |
 | On Docker Desktop | No `landlock_denial` event, and the agent's `sandbox` event has `logging: false` |
-| Each `sandbox` event | `abi` 7 on Containerization and 8 on Docker Desktop, the agent's `self_test` is `pass`, and each helper's security context lists the rules in this document |
+| Each `sandbox` event | `abi` 7 on Containerization and 8 on Docker Desktop, the agent's `self_test` is `pass`, and each daemon's security context lists the rules in this document |
 | Codex workspace-write tool commands, Node, npm, and git | Still pass, on both runtimes |
 
 Lifecycle checks:
@@ -488,5 +488,5 @@ Lifecycle checks:
 2. **Docker Desktop kernel audit.** Whether LinuxKit 7.0.14 has `CONFIG_AUDIT` matters only to the host's console. Check whether the Docker Desktop VM's kernel log receives denial records from containers at a rate that matters.
 3. **Codex's tool sandbox.** Whether Codex's workspace-write sandbox stacks its own Landlock domain cleanly inside the agent's, and whether it needs user namespaces (see [roadmap](./roadmap.md#open-questions)).
 4. **avirtguestd's paths.** The workspace snapshot directory has no fixed path, and the design assigns `/run/avirt/streams/guestd.sock` to both avirtguestd's listener and one of avirtnetd's local service sockets. Each needs one owner and one path before avirtguestd's ruleset can name them.
-5. **Statically linked helpers.** If avirt uses static binaries, the paths each helper needs lose `/usr/lib`, `/etc/ld.so.cache` and the ELF interpreter, which narrows each helper's read set.
+5. **Statically linked daemons.** If avirt uses static binaries, the paths each daemon needs lose `/usr/lib`, `/etc/ld.so.cache` and the ELF interpreter, which narrows each daemon's read set.
 6. **Agent read access to `/var`.** The agent's security context doesn't grant access under `/var`, so tools that read `/var/lib` or `/var/cache` from the avirt base fail unless a workspace destination specifies the path. Check the positive checks and common toolchains against that.

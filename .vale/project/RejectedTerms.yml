@@ -21,3 +21,20 @@ tokens:
   - identity lifetime bound
   - the usual workload writers
   - avirtmediationd
+  - avirt names?
+  - helpers?
+  - peered names?
+  - local provenance
+  - guest root
+  - event provenance
+  - provenance labels?
+  - off-host rules?
+  - off-host enforcement
+  - policy invariants?
+  - non-policy checks?
+  - required-allow invariants?
+  - guardrails?
+  - permissions boundar(?:y|ies)
+  - mediator-bound credentials?
+  - SPIFFE bundles?
+  - prebuild polic(?:y|ies)

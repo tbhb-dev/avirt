@@ -80,7 +80,7 @@ flowchart LR
 | `egress.tls_added_latency` | Request completion time through termination minus through TLS passthrough, for the same request | ms | Bench harness | External benchmark | Containerization, Docker | diag |
 | `egress.tls_added_throughput` | Throughput through termination relative to TLS passthrough, for the same transfer | ratio | Bench harness | External benchmark | Containerization, Docker | diag |
 | `egress.policy_eval` | Rule evaluation started → decision for each connection and each request | µs | Mediator and edge proxy | Histogram | All | diag |
-| `egress.substitution` | Credential substitution and placeholder misuse check, per request, including body scanning | µs | Mediator | Histogram | Containerization, Docker | diag |
+| `egress.substitution` | Credential substitution and `credential-misplaced` check, per request, including body scanning | µs | Mediator | Histogram | Containerization, Docker | diag |
 | `egress.codex_refresh` | Intercepted refresh request received → synthesized response sent, plus avirtmodelgwd's and avirtsecretsd's refresh time | ms | Mediator, avirtmodelgwd, avirtsecretsd | Span | Containerization, Docker | diag |
 | `egress.decisions` | Connections and requests by `decision` (`allow`, `deny`, `would-deny`) and by `rule` | count | Mediator and edge proxy | Counter, from the egress events | All | diag |
 | `egress.errors` | Failures by kind: `bad-request`, `private-dest`, `plain-http`, DNS, dial, timeout, `shutdown`, `credential-misplaced` | count | Mediator and edge proxy | Counter, from the egress events | All | diag |

@@ -268,3 +268,5 @@ workspace's
 Xcode
 zot
 [Pp]athname
+
+[Ii]nternal names?

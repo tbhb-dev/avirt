@@ -31,7 +31,7 @@ Constraints:
 
 ## Reference syntax
 
-A 1Password secret's `ref` is a 1Password secret reference:
+A 1Password secret record's `ref` is a 1Password secret reference:
 
 ```text
 op://<vault>/<item>/[<section>/]<field>[?attribute=<attribute>]
