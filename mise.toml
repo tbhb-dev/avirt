@@ -112,9 +112,13 @@ uv run --no-project --with pyyaml python scripts/okf-check.py --repo .
 description = "Run the bats suites of the repository-local agent skills"
 run = "bats .agents/skills/agent-commit/tests .agents/skills/agent-pr/tests .agents/skills/agent-merge-pr/tests"
 
+[tasks.test-jargon]
+description = "Unit tests for the new-term check"
+run = "uv run --no-project --with pytest==8.4.2 --with markdown-it-py==4.0.0 pytest scripts/tests -q"
+
 [tasks.check]
-description = "The full local gate: fmt, clippy, rustdoc, shear, deny, the tests, the skill suites and check-docs"
-depends = ["check-docs", "test-skills"]
+description = "The full local gate: fmt, clippy, rustdoc, shear, deny, the tests, the skill suites, check-docs and the new-term tests"
+depends = ["check-docs", "test-skills", "test-jargon"]
 run = [
   "mise run fmt-check",
   "mise run lint-rust",
@@ -222,6 +226,15 @@ run = [
   "bash $DEVTOOLS_DIR/scripts/check-leaks.sh PR_AGENTDESC.md",
 ]
 
+[tasks.lint-jargon]
+description = "Flag new hyphenated compounds and repeated new phrases in added prose, against the merge base with origin/main"
+run = "uv run --script scripts/jargon_check.py"
+
+[tasks.lint-jargon-staged]
+description = "The new-term check on the staged index, for the pre-commit hook"
+hide = true
+run = "uv run --script scripts/jargon_check.py --staged"
+
 [tasks.lint-prose]
 extends = "devtools:lint-prose"
 
@@ -259,6 +272,7 @@ run = [
   "mise run devtools:lint-leaks",
   "mise run devtools:check-leak-hook",
   "mise run lint-prose",
+  "mise run lint-jargon",
   "mise run devtools:lint-spelling",
   "mise run devtools:lint-markdown",
   "mise run devtools:lint-markdown-wrap",

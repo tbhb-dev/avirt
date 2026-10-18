@@ -12,3 +12,6 @@
 /deny.toml      @tbhb
 /mise.toml      @tbhb
 /mise.lock      @tbhb
+
+# Changes to accepted terminology require the maintainer's review.
+/jargon-accept.txt @tbhb

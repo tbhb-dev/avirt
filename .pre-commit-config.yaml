@@ -141,6 +141,13 @@ repos:
         language: system
         types: [markdown]
 
+      - id: jargon
+        name: jargon (new-term check)
+        entry: mise run lint-jargon-staged
+        language: system
+        files: ^(.*\.md|jargon-accept\.txt)$
+        pass_filenames: false
+
       - id: cspell
         name: cspell
         entry: mise run devtools:lint-spelling

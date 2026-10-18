@@ -472,3 +472,14 @@ xwin
 zeroizes
 zot
 zstd
+capsys
+ches
+hardbreak
+ngrams
+pytest
+segs
+softbreak
+sses
+stopword
+stopwords
+zorblax

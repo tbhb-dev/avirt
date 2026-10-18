@@ -33,6 +33,8 @@
     "mise.local.toml",
     "tmp/**/*",
     "vendir.lock.yml",
+    // Word lists for the jargon check hold ordinary English words and stems, not prose.
+    "scripts/jargon_words.py",
     "LICENSE"
   ],
   // Address literals and the malformed host are parser rejection fixtures.
