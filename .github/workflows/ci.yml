@@ -154,7 +154,7 @@ jobs:
           MISE_TASK_RUN_AUTO_INSTALL: "0"
         run: mise run vuln
 
-  # cargo-deny: advisories, bans and sources, under deny.toml.
+  # cargo-deny: advisories, licenses, bans and sources, under deny.toml.
   deny:
     name: deny
     runs-on: ubuntu-24.04

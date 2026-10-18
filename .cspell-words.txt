@@ -6,6 +6,7 @@ agentclientprotocol
 AGENTDESC
 agentr
 AGPL
+ahash
 allowlist
 ALPN
 anycast
@@ -103,6 +104,7 @@ csock
 cspell
 CSR
 darwin
+dashmap
 deduplicated
 deduplication
 denylist
@@ -160,15 +162,18 @@ getent
 getfd
 getifaddrs
 getppid
+getrandom
 getuid
 gitignored
 gitleaks
 Gitpod
 glibc
+gnullvm
 GOAWAY
 Grafana
 gshadow
 guestd
+hashbrown
 hchan
 HCS
 HEXDIG
@@ -191,6 +196,7 @@ JWKS
 JWT
 JWTs
 Kata
+keccak
 keepalive
 keepalives
 kexec
@@ -205,6 +211,8 @@ libc
 libclang
 libfuzzer
 libuv
+libyaml
+libz
 linuxkit
 liveness
 lockdown
@@ -225,10 +233,12 @@ medproxy
 medproxyd
 medvm
 memfd_create
+memoffset
 MFA
 MITM
 mkfifo
 modelgwd
+msvc
 multicast
 multithreaded
 musl
@@ -341,6 +351,7 @@ RUSTDOCFLAGS
 rustix
 rustls
 RUSTSEC
+rustversion
 RXRPC
 SAN
 sandboxed
@@ -414,6 +425,7 @@ TUI
 TXT
 UCUM
 UDP
+UEFI
 UID
 uid
 UIDs
@@ -469,7 +481,9 @@ Xcode
 xcrun
 XPC
 xwin
+zerocopy
 zeroizes
+zmij
 zot
 zstd
 capsys
