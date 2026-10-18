@@ -11,7 +11,8 @@ use std::process::ExitCode;
 
 use anyhow::{Result, bail};
 use avirt_core::api::DEFAULT_PORT;
-use avirt_core::hostd::{self, Config};
+use avirt_core::hostd;
+use avirt_core::hostd::profile::Config;
 use clap::Parser;
 
 /// The command-line options.

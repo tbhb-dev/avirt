@@ -6,7 +6,7 @@ use std::env;
 use std::path::Path;
 
 use anyhow::Result;
-use avirt_core::hostd::{Cleanup, Prepared, Profile, Refused};
+use avirt_core::hostd::profile::{Cleanup, Prepared, Profile, Refused};
 
 use crate::codex_auth::HostAuth;
 

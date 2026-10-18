@@ -18,7 +18,7 @@ use std::os::unix::fs::{OpenOptionsExt as _, PermissionsExt as _};
 use std::path::{Path, PathBuf};
 
 use anyhow::{Context as _, Result};
-use avirt_core::hostd::{Cleanup, Prepared, Refused};
+use avirt_core::hostd::profile::{Cleanup, Prepared, Refused};
 use avirt_core::state::remove_tree;
 use base64::Engine as _;
 use base64::engine::general_purpose::URL_SAFE_NO_PAD;
