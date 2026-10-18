@@ -22,7 +22,16 @@ env -u AVIRT_WORKLOAD_ID -u AVIRT_PROMPT -u AVIRT_CWD -u AVIRT_CONNECTION_TOKEN 
   setpriv --reuid=agent --regid=agent --init-groups --inh-caps=-all --bounding-set=-all --no-new-privs -- <adapter>
 ```
 
-The agent has all five capability sets at zero and `NoNewPrivs: 1`. Its environment has `HOME=/home/agent`. avirtinitd removes workload identity and connection credentials from the agent's environment.
+The agent has all five capability sets at zero and `NoNewPrivs: 1`. Its environment has `HOME=/home/agent` and the proxy variables below. It doesn't contain the workload ID, the prompt or the connection token (`AVIRT_CONNECTION_TOKEN`). Credentials and `CODEX_HOME` pass through.
+
+```text
+HTTPS_PROXY  https_proxy  HTTP_PROXY  http_proxy  ALL_PROXY  =  http://127.0.0.1:PORT
+NO_PROXY     no_proxy                                         =  localhost,127.0.0.1
+NODE_USE_ENV_PROXY=1
+npm_config_proxy  npm_config_https_proxy                      =  http://127.0.0.1:PORT
+```
+
+Node also lets `HTTP_PROXY` serve HTTPS requests, so a bypass test has to unset every proxy variable.
 
 ## Seccomp
 
@@ -35,7 +44,7 @@ Claude Code, Codex, Node, npm, and git work under these filters (Node falls back
 
 ## Residual agent access
 
-The agent can spend CPU and use the proxy. Its visible files include its own filesystem and the mounted `/workspace` or `CODEX_HOME`. It can't open a socket other than AF_UNIX, AF_INET or AF_INET6, and every external flow requires mediation. It can't open `proxy.sock` or `mediator.sock` (they're `root:root 0600`), read `/proc/1/fd`, `/proc/1/mem` or `/proc/1/environ`, or send a fatal signal to PID 1. avirtinitd automatically approves permission requests (see [permission requests](./acp.md#permission-requests)). The agent can run any tool inside the workload without human approval.
+The agent can spend CPU and use the proxy. Its visible files include its own filesystem and the mounted `/workspace` or `CODEX_HOME`. It can't open a socket other than AF_UNIX, AF_INET or AF_INET6, and it has no route anywhere except loopback. It can't open `proxy.sock` or `mediator.sock` (they're `root:root 0600`), read `/proc/1/fd`, `/proc/1/mem` or `/proc/1/environ`, or send a fatal signal to PID 1. avirtinitd automatically approves permission requests (see [permission requests](./acp.md#permission-requests)). The agent can run any tool inside the workload without human approval.
 
 # Status: planned
 

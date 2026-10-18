@@ -172,7 +172,7 @@ avirtedgeproxyd runs as a host process on macOS and as a host service in the all
 
 ## Host mediator
 
-Status: implemented. avirtmediatord runs on the host with the [Pingora CONNECT app](../crates/avirtmediatord/README.md). It serves `proxy.sock` and forwards bytes on `mediator.sock` to avirthostd. `avirt-connect` provides CONNECT authority parsing and destination checks. Plans include Cedar, TLS, and credential functions.
+Status: implemented. avirtmediatord runs on the host with the [Pingora CONNECT app](./egress.md#pingora-connect-app). Its `proxy.sock` and `mediator.sock` behavior follows [mediator process](./egress.md#mediator-process). `avirt-connect` provides CONNECT authority parsing and destination checks. Plans include Cedar, TLS, and credential functions.
 
 ## Mediator container
 

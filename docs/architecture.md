@@ -54,7 +54,7 @@ flowchart LR
         gw --> secrets
     end
     gw --> fd
-    subgraph medvm["mediator (runtime Unix sockets)"]
+    subgraph medvm["mediator (no network)"]
         me["avirtmediatord: lifecycle, TLS, policy"]
     end
     subgraph wl["sandbox container"]

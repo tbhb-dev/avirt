@@ -136,7 +136,7 @@ Each host service limits its state, secrets, and callers to those it needs. Loca
 
 A workload can manage other workloads only as policy permits, and never gains more authority than it holds.
 
-- **Met.** A workload has no control-plane access: its HTTP/2 connection to its mediator reaches only its own `POST /workloads/<id>/stream` route ([sockets](./workload-topology.md#runtime-provided-sockets)).
+- **Met.** A workload has no control-plane access: its HTTP/2 connection to its mediator reaches only its own `POST /workloads/<id>/stream` route ([sockets](./workload-topology.md#sockets)).
 - **Future.** avirthostd authorizes each management call per action and per resource against the host policy snapshot, with denial as the default decision ([workload management](./components.md#workload-management)).
 - **Future.** A workload creates workloads only in namespaces where it may, with bindings it holds, from workspace images it may launch, and with its own or an assignable policy reference ([workload management](./components.md#workload-management)).
 - **Future.** Only avirthostd sets `avirt.internal/` labels, and a workload can't change its own namespace, labels, bindings or policy reference ([workload management](./components.md#workload-management)).
@@ -149,7 +149,7 @@ A workload can manage other workloads only as policy permits, and never gains mo
 
 avirt denies or ends the workload if a check can't run, a dependency is missing, or state is uncertain.
 
-- **Met.** Starting the agent requires avirthostd to accept the workload's HTTP/2 connection to its mediator and avirtinitd to apply the seccomp filters. Failure to apply a filter ends the workload ([connection to the mediator](./workload-topology.md#http2-streams), [seccomp](./workload-hardening.md#seccomp)).
+- **Met.** Starting the agent requires avirthostd to accept the workload's HTTP/2 connection to its mediator and avirtinitd to apply the seccomp filters. Failure to apply a filter ends the workload ([connection to the mediator](./workload-topology.md#connection-to-the-mediator), [seccomp](./workload-hardening.md#seccomp)).
 - **Met.** A stream POST with a missing or wrong token gets 403 before the workload's state changes, and avirthostd closes a mediator connection whose header lacks the right secret ([identity](./identity.md#status-implemented)).
 - **Met.** Losing its mediator leaves a workload without an outbound path. A mediator shuts down on stdin EOF when avirthostd exits ([mediator process](./egress.md#mediator-process)).
 - **Met.** Codex write-back replaces the host `auth.json` only with a strictly newer copy of the same login. avirthostd skips write-back unless it confirms that the workload has ended ([Codex](./egress-credentials.md#codex)).
