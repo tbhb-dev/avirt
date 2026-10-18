@@ -20,7 +20,7 @@ The `avirthostd` binary. Most of the server is in `avirt-core` (`hostd`, `egress
 
 ## Invariants
 
-- Pass secrets to the workload as `-e NAME` with no value, so they never appear on argv. A profile only names variables, it never formats their values into arguments.
+- Pass secrets to the workload as `EnvVar::Inherit`, so no runtime puts a value on argv. A profile only names variables, it never formats their values into arguments.
 - Refuse a launch whose credentials are missing with a `Refused` message (a 400). Never start it without them.
 - Treat everything read back from the workload's `CODEX_HOME` as untrusted, because the agent can write to it. Open it without following symlinks, accept only a regular file of at most 1 MiB, and never log or return text that may quote its contents. Use fixed reason strings for outcomes.
 - Write-back requires the `auth.json.lock` flock and a workload `last_refresh` strictly newer than the host's. The keys, `auth_mode`, and account must also match the seed. It goes through an exclusive 0600 temp file (`auth.json.avirt-tmp-<random>`), fsync, and rename. Back up the first host file once as `auth.json.pre-avirt-backup`. Never overwrite that backup.

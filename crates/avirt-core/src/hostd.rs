@@ -28,13 +28,12 @@ use hyper::server::conn::http2;
 use hyper::service::service_fn;
 use hyper_util::rt::{TokioExecutor, TokioIo};
 use mediator::mediator_loop;
-use profile::{Cleanup, Config, Prepared, Profile, Refused};
+use profile::{Cleanup, Config, EnvVar, Prepared, Profile, Refused, Share};
 use routes::handle_control;
 use serde_json::{Value, json};
 use std::collections::HashMap;
 use std::collections::hash_map::RandomState;
 use std::env;
-use std::ffi::OsString;
 use std::fs::{self, File, OpenOptions, Permissions};
 use std::io::{self, Write as _};
 use std::os::unix::fs::{OpenOptionsExt as _, PermissionsExt as _};
@@ -326,14 +325,18 @@ impl Hostd {
     /// # Errors
     ///
     /// Returns an error if creating the container log fails.
-    fn command(&self, launch: &Launch<'_>, extra_args: &[OsString], inherit: &[&str]) -> io::Result<Command> {
+    fn command(&self, launch: &Launch<'_>, env: &[EnvVar], shares: &[Share]) -> io::Result<Command> {
         let Launch { cwd, id, mediator_socket, profile, prompt, proxy_socket, token } = *launch;
         let container_log = Self::create_private(&self.config.logs_dir.join(format!("{id}.container.log")))?;
         let mut cmd = Command::new("container");
         // Start from nothing: avirthostd's environment holds credentials for every agent, and a
         // launch gets only the variables its profile names plus what the command-line interface itself needs.
         cmd.env_clear();
-        for name in ["HOME", "PATH", "TMPDIR", "USER", "LOGNAME"].iter().chain(inherit) {
+        let inherited = env.iter().filter_map(|var| match var {
+            EnvVar::Inherit(name) => Some(name),
+            EnvVar::Set(..) => None,
+        });
+        for name in ["HOME", "PATH", "TMPDIR", "USER", "LOGNAME"].iter().chain(inherited) {
             if let Some(value) = env::var_os(name) {
                 cmd.env(name, value);
             }
@@ -360,13 +363,18 @@ impl Hostd {
         .arg("-v")
         .arg(mount(proxy_socket, "/run/avirt/proxy.sock"))
         .arg("-v")
-        .arg(mount(mediator_socket, "/run/avirt/mediator.sock"))
-        .args(extra_args);
-        if let Some(host_dir) = cwd {
-            cmd.arg("-v").arg(mount(host_dir, "/workspace"));
+        .arg(mount(mediator_socket, "/run/avirt/mediator.sock"));
+        for share in shares {
+            cmd.arg("-v").arg(mount(&share.host, share.guest));
         }
         // `-e NAME` with no value makes the `container` command read it from its own environment, so
-        // the prompt never appears on argv.
+        // argv holds names and never a profile secret or the prompt.
+        for var in env {
+            match var {
+                EnvVar::Inherit(name) => cmd.args(["-e", name]),
+                EnvVar::Set(name, value) => cmd.arg("-e").arg(format!("{name}={value}")),
+            };
+        }
         cmd.args(["-e", "AVIRT_PROMPT", "-e", "AVIRT_CWD", "-e", "AVIRT_CONNECTION_TOKEN"])
             .arg("-e")
             .arg(format!("AVIRT_WORKLOAD_ID={id}"))
@@ -562,7 +570,11 @@ impl Hostd {
             proxy_socket: &proxy_socket,
             token: &workload.token,
         };
-        let mut cmd = match self.command(&launch, &prepared.args, &prepared.inherit) {
+        let mut shares = prepared.shares.clone();
+        if let Some(host_dir) = args.cwd {
+            shares.push(Share { host: host_dir.to_path_buf(), guest: "/workspace" });
+        }
+        let mut cmd = match self.command(&launch, &prepared.env, &shares) {
             Ok(cmd) => cmd,
             Err(err) => {
                 proxy.stop().await;
