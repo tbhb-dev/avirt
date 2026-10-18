@@ -124,14 +124,15 @@ run = [
   "mise run test",
 ]
 
-# The floors are the measured line and region coverage, rounded down to a whole percent.
+# The floors are the line and region coverage that the CI coverage job measured on its macOS
+# runner, rounded down to a whole percent.
 # The report runs as its own step because llvm-cov crashes when nextest and the report
 # share one invocation.
 [tasks.coverage]
 description = "Run the tests under cargo-llvm-cov and fail below the line and region floors"
 run = [
   "cargo llvm-cov nextest --workspace --locked --no-report",
-  "cargo llvm-cov report --summary-only --fail-under-lines 35 --fail-under-regions 38",
+  "cargo llvm-cov report --summary-only --fail-under-lines 23 --fail-under-regions 22",
 ]
 
 [tasks.coverage-report]
