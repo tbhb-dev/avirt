@@ -20,8 +20,12 @@ struct HelperTests {
       await runHelper(workload: "1a2b3c4d", directory: scratch.path, stdin: pipe.fileHandleForReading.fileDescriptor)
     }
     #expect(await waitForSocket(in: scratch.path))
-    let attributes = try FileManager.default.attributesOfItem(atPath: scratch.path + "/v.sock")
-    #expect(attributes[.posixPermissions] as? Int == 0o600)
+    // bind creates the socket with the default mode, and the helper restricts it right after.
+    let restricted = await eventually {
+      let attributes = try? FileManager.default.attributesOfItem(atPath: scratch.path + "/v.sock")
+      return attributes?[.posixPermissions] as? Int == 0o600
+    }
+    #expect(restricted)
 
     try pipe.fileHandleForWriting.close()
     #expect(await helper.value == HelperExit.ok)
