@@ -728,7 +728,7 @@ STUB
 }
 
 @test "a missing Log entry line fails the check and publish" {
-  sed -i '$d' PR_AGENTDESC.md
+  sed '$d' PR_AGENTDESC.md >PR_AGENTDESC.md.new && mv PR_AGENTDESC.md.new PR_AGENTDESC.md
   check
   [ "$status" -eq 1 ]
   [[ $output == *"the description must end with a line of the form: Log entry: * **Label**: text"* ]] || false
@@ -747,14 +747,14 @@ STUB
 }
 
 @test "a malformed Log entry line fails" {
-  sed -i '$d' PR_AGENTDESC.md
+  sed '$d' PR_AGENTDESC.md >PR_AGENTDESC.md.new && mv PR_AGENTDESC.md.new PR_AGENTDESC.md
   printf 'Log entry: added a second note.\n' >>PR_AGENTDESC.md
   check
   [ "$status" -eq 1 ]
 }
 
 @test "pr_log_entry set to off skips the Log entry check" {
-  sed -i '$d' PR_AGENTDESC.md
+  sed '$d' PR_AGENTDESC.md >PR_AGENTDESC.md.new && mv PR_AGENTDESC.md.new PR_AGENTDESC.md
   export AGENT_SKILLS_PR_LOG_ENTRY=off
   check
   [ "$status" -eq 0 ]
@@ -816,7 +816,7 @@ STUB
 @test "the check reports every failure in one run" {
   export AGENT_SKILLS_LINT_PR_CMD="echo 'vale found a tell'; exit 1"
   write_draft "Builds on the earlier pull request."
-  sed -i '$d' PR_AGENTDESC.md
+  sed '$d' PR_AGENTDESC.md >PR_AGENTDESC.md.new && mv PR_AGENTDESC.md.new PR_AGENTDESC.md
   check
   [ "$status" -eq 1 ]
   [[ $output == *"vale found a tell"* ]] || false
@@ -826,7 +826,7 @@ STUB
 
 @test "a draft that the lint command rewrites is not published" {
   reviewed
-  export AGENT_SKILLS_LINT_PR_CMD="sed -i 's/Adds a second note/Adds a note nobody reviewed/' PR_AGENTDESC.md"
+  export AGENT_SKILLS_LINT_PR_CMD="sed 's/Adds a second note/Adds a note nobody reviewed/' PR_AGENTDESC.md >PR_AGENTDESC.md.new && mv PR_AGENTDESC.md.new PR_AGENTDESC.md"
   publish
   [ "$status" -eq 1 ]
   [[ $output == *"changed after its review"* ]] || false
@@ -840,7 +840,7 @@ STUB
   reviewed
   cat >"$tmp/on-label-list" <<STUB
 #!/usr/bin/env bash
-sed -i 's/Adds a second note/Adds a note nobody reviewed/' "$repo/PR_AGENTDESC.md"
+sed 's/Adds a second note/Adds a note nobody reviewed/' "$repo/PR_AGENTDESC.md" >"$repo/PR_AGENTDESC.md.new" && mv "$repo/PR_AGENTDESC.md.new" "$repo/PR_AGENTDESC.md"
 STUB
   chmod +x "$tmp/on-label-list"
   publish
@@ -865,7 +865,7 @@ STUB
 
 @test "a pre-push hook that rewrites the draft doesn't change what is published" {
   reviewed
-  printf '#!/usr/bin/env bash\nsed -i -e "s/Adds a second note/Rewritten after the check/" -e "s/^# docs: add a second note/# docs: a title nobody reviewed/" PR_AGENTDESC.md\n' >.git/hooks/pre-push
+  printf '#!/usr/bin/env bash\nsed -e "s/Adds a second note/Rewritten after the check/" -e "s/^# docs: add a second note/# docs: a title nobody reviewed/" PR_AGENTDESC.md >PR_AGENTDESC.md.new && mv PR_AGENTDESC.md.new PR_AGENTDESC.md\n' >.git/hooks/pre-push
   chmod +x .git/hooks/pre-push
   publish
   [ "$status" -eq 0 ]
