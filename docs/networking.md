@@ -70,7 +70,7 @@ UDP uses connected upstream sockets. Its flow key includes the source address an
 
 ## Names and DNS
 
-avirtmediatord maintains a bounded, persistent table of synthetic addresses for each workload. It never reassigns an address to a different name during that workload's lifetime, including across mediator restarts. Allocation fails when the table is full. Synthetic answers use `198.18.0.0/15` and a ULA `/64`. Selecting the exact IPv6 range remains open.
+avirtmediatord maintains a bounded, persistent table of synthetic addresses for each workload. It never reassigns an address to a different name during that workload's lifetime, including across mediator restarts. Allocation fails when the table is full. Entries remain valid while flows are active and until their leases expire after the DNS answer's TTL. The mediator never reuses a live address. Synthetic answers use `198.18.0.0/15` and a ULA `/64`. Selecting the exact IPv6 range remains open.
 
 avirtmediatord canonicalizes IPv4-mapped IPv6 addresses to IPv4 before table lookup.
 
