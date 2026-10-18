@@ -22,3 +22,4 @@ apm.lock.yaml rebase-resolve=regenerate
 # The resolve-rebase-conflicts skill shows the conflict marker shape in its
 # own text, and marker-scan.sh reads this attribute to skip the copy.
 .claude/skills/resolve-rebase-conflicts/SKILL.md conflict-markers=documented
+.agents/skills/resolve-rebase-conflicts/SKILL.md conflict-markers=documented
