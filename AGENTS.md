@@ -3,7 +3,7 @@ type: Agent Instructions
 title: Agent instructions
 description: Guidance for AI coding agents working in this repository.
 tags: [avirt, agents]
-generated: { by: claude-code/claude-sonnet-5-5, at: 2026-10-17T19:16:42Z }
+generated: { by: codex/gpt-6, at: 2026-10-18T03:13:20Z }
 ---
 
 # Agent instructions
@@ -12,47 +12,47 @@ Guidance for AI coding agents working in this repository. Read it alongside the 
 
 ## What this is
 
-`avirt` runs ACP agents (Claude and Codex) in isolated workloads on an Apple silicon Mac. The host daemon, `avirthostd`, launches one workload per request, and every byte the agent sends out passes through that workload's mediator. [docs/architecture.md](docs/architecture.md) is the entry point to the design, and it marks what is implemented and what is planned.
+`avirt` runs ACP agents (Claude and Codex) in isolated workloads on an Apple silicon Mac. The host daemon, `avirthostd`, launches one workload per request, and every byte the agent sends out passes through that workload's mediator. [docs/architecture.md](docs/architecture.md) is the entry point to the design, and it distinguishes working features from plans.
 
 ## Crate map
 
-Every crate lives directly under `crates/`, and each directory is named after its package.
+Every crate lives directly under `crates/`, and each directory uses its package name.
 
 | Crate | Kind | Runs | Role |
 | --- | --- | --- | --- |
 | `avirthostd` | Binary | Host | The host daemon: control API, workload launch and teardown, logs, Codex `auth.json` write-back |
-| `avirt` | Binary `avirt` | Host | The operator CLI: `avirt launch` |
+| `avirt` | Binary `avirt` | Host | The <!-- Preserve the exact term from the glossary. --><!-- vale project.WordList = NO -->operator CLI<!-- vale project.WordList = YES -->: `avirt launch` |
 | `avirtmediatord` | Binary | Host (one per workload) | The CONNECT proxy (Pingora by default, optional Envoy), and the TCP proxy that forwards avirtinitd's HTTP/2 connection on `mediator.sock` to avirthostd with the bytes unchanged |
-| `avirtmedproxyd` | Binary | Mediator (one per workload) | The mediator proxy: supervises the mediator's Envoy with libavirtenvoy and serves it local xDS and SDS (not implemented) |
-| `avirtinitd` | Binary | Linux guest only (the workload) | The ACP client: spawns the adapter, taps JSON-RPC, drops to uid 1000 under seccomp |
+| `avirtmedproxyd` | Binary | Mediator (one per workload) | The mediator proxy supervises the mediator's Envoy with libavirtenvoy and serves it local xDS and SDS (not implemented) |
+| `avirtinitd` | Binary | Linux guest only (the workload) | The ACP client spawns the adapter and taps JSON-RPC. It drops to uid 1000 under seccomp |
 | `avirt-connect` | Library | Both | CONNECT authority parsing and destination checks, shared by both CONNECT engines |
-| `avirt-core` | Library | Both | Shared code: the `api` module, the `avirthostd` server, the `avirtinitd` harness, the client for the workload's HTTP/2 connection to its mediator, the log envelope, the runtime directory |
-| `avirtadmin` | Binary | Host | The local admin CLI (not implemented) |
+| `avirt-core` | Library | Both | Shared code for the `api` module and the `avirthostd` server. Includes the `avirtinitd` harness and the client for the workload's HTTP/2 connection to its mediator. Also includes the log envelope and runtime directory |
+| `avirtadmin` | Binary | Host | The local <!-- Preserve the exact term from the glossary. --><!-- vale project.WordList = NO -->admin CLI<!-- vale project.WordList = YES --> (not implemented) |
 | `avirtwebd` | Binary | Host | The backend for the avirt web UI (not implemented) |
 | `avirtapid` | Binary | Host | The API server: the gRPC and REST API in front of the local avirthostd and peers' API servers, reached through the edge proxy (not implemented) |
-| `avirtedgeproxyd` | Binary | Host | The edge proxy: supervises the host's edge Envoy with libavirtenvoy and serves it local xDS and SDS. It is the only component that opens connections off the host, and the policy enforcement point for traffic between workloads and between hosts (not implemented) |
-| `avirtdnsd` | Binary | Host | The DNS resolver for `<name>.<ns>.svc.host.avirt.internal` and `<name>.<ns>.workload.host.avirt.internal`, which answers with the local avirtedgeproxyd and, for peered names, with their host's avirtedgeproxyd (not implemented) |
+| `avirtedgeproxyd` | Binary | Host | The edge proxy supervises the host's edge Envoy with libavirtenvoy and serves it local xDS and SDS. It's the only component that opens connections off the host, and the policy enforcement point for traffic between workloads and between hosts (not implemented) |
+| `avirtdnsd` | Binary | Host | The DNS resolver for `<name>.<ns>.svc.host.avirt.internal` and `<name>.<ns>.workload.host.avirt.internal`, which answers with the local avirtedgeproxyd or, for peered names, their host's avirtedgeproxyd (not implemented) |
 | `avirtmcpgwd` | Binary | Host | The MCP gateway (not implemented) |
 | `avirtmodelgwd` | Binary | Host | The model gateway, which injects model credentials (not implemented) |
-| `avirtbuilderd` | Binary | Host | The builder, which watches VCS and builds repo OCI artifacts for fast workload startup (not implemented) |
-| `avirtpolicyd` | Binary | Host | The policy service, which stores, compiles, proves and distributes Cedar policy snapshots (not implemented) |
+| `avirtbuilderd` | Binary | Host | The builder, which watches VCS and builds repository OCI artifacts for fast workload startup (not implemented) |
+| `avirtpolicyd` | Binary | Host | The policy service, which stores, compiles, proves, and distributes Cedar policy snapshots (not implemented) |
 | `avirtregistryd` | Binary | Host | The workspace image registry, which wraps an OCI registry and adds avirt's index and search API for workspace images (not implemented) |
-| `avirtsecretsd` | Binary | Host | The secrets broker, which fetches secrets from providers, serves the credential broker API, and serves mediator-injected bindings over the Envoy secret discovery service (not implemented) |
+| `avirtsecretsd` | Binary | Host | The secrets broker, which fetches secrets from providers and serves the credential broker API. It serves mediator-injected bindings over the Envoy secret discovery service (not implemented) |
 | `avirtlogd` | Binary | Host | The log collector, which gathers workload stdout and stderr, transforms it and sends it to avirtoteld as OpenTelemetry Logs (not implemented) |
 | `avirtauditd` | Binary | Host | The audit logger, which delivers audit events as OCSF (not implemented) |
 | `avirtoteld` | Binary | Host | The OpenTelemetry Collector for the host (not implemented) |
-| `avirtenvoy` | Library (cdylib) | Mediator, host | The Envoy dynamic module with CONNECT destination checks and events; Cedar policy and credential injection are planned |
+| `avirtenvoy` | Library (cdylib) | Mediator, host | The Envoy <!-- vale ai-tells.OverusedVocabulary = NO -->dynamic<!-- vale ai-tells.OverusedVocabulary = YES --> module with CONNECT destination checks and events. Cedar policy and credential injection remain planned |
 | `avirtacp` | Binary | Workload guest | The workload process that runs an agent through the Agent Client Protocol (not implemented) |
 | `avirtagent` | Binary | Workload guest | The workload process that runs an agent through its native harness (not implemented) |
 | `avirtexec` | Binary | Workload guest | The workload process for generic execution (not implemented) |
-| `avirtnetd` | Binary | Workload guest | The guest networking daemon: the client end of the workload's HTTP/2 connection to its mediator, the forward proxy, the reverse proxy, the stub DNS resolver and the guest control API (not implemented) |
-| `avirtguestd` | Binary | Workload guest | The workload services daemon: file server, snapshots and the guest MCP tool surface (not implemented) |
+| `avirtnetd` | Binary | Workload guest | The guest networking daemon provides the client end of the workload's HTTP/2 connection to its mediator. It also provides the forward and reverse proxies, the stub DNS resolver, and the guest control API (not implemented) |
+| `avirtguestd` | Binary | Workload guest | The workload services daemon provides a file server and snapshots, plus the guest MCP tool surface (not implemented) |
 | `avirtmcp` | Binary | Workload guest | The MCP stdio proxy to avirtmcpgwd, launched on demand by the agent (not implemented) |
-| `avirtguest` | Binary | Workload guest | The in-image CLI that reaches avirtapid through the mediator (not implemented) |
+| `avirtguest` | Binary | Workload guest | The <!-- Preserve the exact term from the glossary. --><!-- vale project.WordList = NO -->guest CLI<!-- vale project.WordList = YES --> that's in the image and connects to avirtapid through the mediator (not implemented) |
 
-`avirt-connect` is part of the root workspace. `avirtenvoy` is an excluded standalone workspace with its own lockfile; build it with `cargo build --locked --manifest-path crates/avirtenvoy/Cargo.toml --target-dir target/envoy-module`. Root builds do not include the Envoy SDK or libclang build dependencies.
+`avirt-connect` is part of the root workspace. `avirtenvoy` is an excluded standalone workspace with its own lockfile. Use `cargo build --locked --manifest-path crates/avirtenvoy/Cargo.toml --target-dir target/envoy-module` to build it. The root builds don't include the Envoy SDK or libclang build dependencies.
 
-`workloads/claude/` and `workloads/codex/` hold only the workload image build directories.
+`workloads/claude/` and `workloads/codex/` contain only the workload image build directories.
 
 ## Commands
 
@@ -68,20 +68,20 @@ mise run launch claude "Reply with the word pong" -- --follow     # avirt launch
 
 ## Conventions
 
-- **Terms.** Use the project's terms consistently. The project name is always lowercase **avirt**. **avirthostd** is the host daemon. The **control plane** is avirthostd plus the host services that configure and decide, and the **data plane** is **avirtedgeproxyd** (the edge proxy) and **avirtmedproxyd** (the mediator proxy), which carry traffic. A **workload** is the whole unit avirthostd launches: the **workload container**, which runs the agent, plus its **mediator**, the per-workload container that holds avirtmediatord, avirtmedproxyd and its Envoy, through which all of the workload's traffic passes. Today the mediator is the avirtmediatord host process. **avirtinitd** is the root process in each container. **avirtapid** is the API server. An ACP session stays an ACP session. See [docs/glossary.md](docs/glossary.md) for every other term.
-- **Docs format.** Every Markdown file in the repo carries OKF v0.2 frontmatter, and `docs/` is an OKF v0.2 bundle:
-  - every document has YAML frontmatter with a non-empty `type`, plus `title`, `description`, `tags` and `generated`, and `implementation` where it applies (every document in `docs/`, and crate READMEs);
-  - `docs/index.md` lists every document under `docs/`, and Markdown files outside `docs/` need no index entry;
+- **Terms.** Use the project's terms consistently. The project name is always lowercase **avirt**. **avirthostd** is the host daemon. The **control plane** is avirthostd plus the host services that configure and decide, and the **data plane** is **avirtedgeproxyd** (the edge proxy) and **avirtmedproxyd** (the mediator proxy), which handle traffic. A **workload** is the whole unit avirthostd launches. It consists of the **workload container**, which runs the agent, plus its **mediator**. The mediator is the per-workload container that contains avirtmediatord, avirtmedproxyd, and its Envoy. All the workload's traffic passes through it. Today the mediator is the avirtmediatord host process. **avirtinitd** is the root process in each container. **avirtapid** is the API server. An ACP session stays an ACP session. See [docs/glossary.md](docs/glossary.md) for every other term.
+- **Docs format.** Every Markdown file in the repository has OKF v0.2 frontmatter, and `docs/` is an OKF v0.2 bundle:
+  - every document has YAML frontmatter with a non-empty `type`, plus `title`, `description`, `tags` and `generated`, and `implementation` where it applies (every document in `docs/`, and crate READMEs).
+  - `docs/index.md` lists every document under `docs/`, and Markdown files outside `docs/` don't need an index entry.
   - after editing, run `mise run check-docs`, which runs `scripts/okf-check.py docs` and `scripts/okf-check.py --repo .`.
-- **Docs content.** Docs and code comments describe what the system is and does. They hold no history and no decision rationale. A fact that constrains behavior is stated as a constraint. Planned work is marked with a `Status: planned` section, never with version names.
-- **Markdown.** Diagrams are Mermaid. Each paragraph is a single line, with no hard wrapping. Run `guard-markdown <file>` on every Markdown file you touch.
+- **Docs content.** Docs and code comments describe what the system is and does. Don't include history or decision rationale. State facts that constrain behavior as constraints. Mark planned work with a `Status: planned` section, never with version names.
+- **Markdown.** Diagrams are Mermaid. Each paragraph is one line, with no hard wrapping. Run `guard-markdown <file>` on every Markdown file you edit.
 
 ## Secrets
 
 - Never print, log or echo `CLAUDE_CODE_OAUTH_TOKEN` or the contents of any `auth.json`.
-- The token lives in `mise.local.toml`, which is gitignored and loaded by mise on top of `mise.toml`. Don't commit it, copy it elsewhere, or read it into output.
-- Don't modify `~/.codex/` yourself. `avirthostd`'s own write-back is the only thing that changes `~/.codex/auth.json`.
-- Workload logs (`logs/`) can contain prompts, tool output, credentials and the Codex account email and plan. Treat them as secret, and quote only the lines you need.
+- The token is in `mise.local.toml`. Git ignores this file, and mise loads it on top of `mise.toml`. Don't commit it, copy it elsewhere, or read it into output.
+- Don't change `~/.codex/` yourself. `avirthostd`'s own write-back is the only thing that changes `~/.codex/auth.json`.
+- Workload logs (`logs/`) can contain prompts and tool output. They can also contain credentials and the Codex account email and plan. Treat them as secret, and quote only the lines you need.
 
 ## End-to-end checks
 
@@ -91,8 +91,8 @@ An end-to-end run launches a real workload:
 2. Launch with `mise run launch <agent> "<prompt>" -- --follow`.
 3. Read `logs/<workload-id>.ndjson`. It ends with a `container_exit` meta event, and the `dir: "egress"` lines record every proxied connection.
 
-The regression suite, with its bypass, positive and lifecycle checks, is in [docs/roadmap.md](docs/roadmap.md#regression-suite). Run bypass checks inside the agent's own process tree, by prompting the agent to run the script. A process started from outside the agent's tree is not under its restrictions, and checking from there proves nothing.
+The regression suite, with its bypass, positive and lifecycle checks, is in [docs/roadmap.md](docs/roadmap.md#regression-suite). Run bypass checks inside the agent's own process tree, by prompting the agent to run the script. A process started from outside the agent's tree isn't under its restrictions, and checking from there doesn't prove the restrictions apply.
 
 ## Signing
 
-Once the Containerization runtime lands, `avirthostd` on macOS must carry the `com.apple.security.virtualization` entitlement. `cargo run` and `cargo test` then go through a signing runner. [docs/build-and-platforms.md](docs/build-and-platforms.md) describes the targets, the signing setup and the CI matrix.
+Once avirt supports the Containerization runtime, `avirthostd` on macOS must have the `com.apple.security.virtualization` entitlement. `cargo run` and `cargo test` then go through a signing runner. [docs/build-and-platforms.md](docs/build-and-platforms.md) describes the targets, the signing setup, and the CI matrix.

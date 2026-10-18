@@ -28,22 +28,22 @@ type Outcome = Option<Result<StatusCode, String>>;
 
 #[derive(Clone, Debug)]
 pub struct MediatorConnection {
-    /// `None` once closed; sends after that are no-ops.
+    /// `None` once closed. Sends after that are no-ops.
     tx: Arc<Mutex<Option<mpsc::UnboundedSender<Bytes>>>>,
     outcome: watch::Receiver<Outcome>,
 }
 
 impl MediatorConnection {
-    /// Connects to the mediator's workload socket, runs the HTTP/2 client over it and opens
-    /// the workload's streaming POST. Returns only once avirthostd has accepted the stream, so the
-    /// agent is never started into a dead connection. Every step has a timeout: a socket file whose
-    /// listener is gone accepts a connect and then says nothing.
+    /// Connects to the mediator's workload socket, runs the HTTP/2 client over it, and opens
+    /// the workload's streaming POST. Returns only once avirthostd has accepted the stream, so
+    /// the harness never starts the agent with a dead connection. A timeout applies to each step:
+    /// a socket file whose listener no longer exists accepts a connect and then says nothing.
     pub async fn open(socket: &Path, workload_id: &str, token: &str, wait: Duration) -> Result<Self> {
         let deadline = tokio::time::Instant::now() + wait;
         loop {
-            // Connecting is not proof that anyone is listening: the runtime's relay accepts the
-            // connection inside the VM whether or not the host mediator is there. So the whole
-            // sequence is retried, and readiness is avirthostd's answer to the stream request.
+            // Connecting isn't proof that anyone is listening: the runtime's relay accepts the
+            // connection inside the VM even if the host mediator isn't there. Retry the whole
+            // sequence and use avirthostd's answer to the stream request as the readiness check.
             match Self::attempt(socket, workload_id, token).await {
                 Ok(connection) => return Ok(connection),
                 Err(Attempt::Fatal(why)) => bail!("{why}"),
@@ -84,7 +84,7 @@ impl MediatorConnection {
                     // avirthostd answers as soon as it accepts or refuses the stream.
                     let _ = started_tx.send(Ok(status));
                     if status == StatusCode::OK {
-                        // The body arrives once avirthostd has drained our request body.
+                        // The body arrives once avirthostd has drained the request body.
                         let _ = response.into_body().collect().await;
                     }
                     Ok(status)
@@ -98,7 +98,7 @@ impl MediatorConnection {
         });
         match tokio::time::timeout(Duration::from_secs(4), started_rx).await {
             Ok(Ok(Ok(StatusCode::OK))) => Ok(Self { tx: Arc::new(Mutex::new(Some(tx))), outcome }),
-            // A refusal that retrying cannot fix: wrong token, unknown, repeated or finished workload.
+            // A refusal that retrying can't fix: a wrong token or an unknown, repeated, or finished workload.
             Ok(Ok(Ok(status))) if matches!(status.as_u16(), 403 | 404 | 409 | 410) => {
                 Err(Attempt::Fatal(format!("avirthostd refused the stream: HTTP {status}")))
             }
@@ -118,8 +118,8 @@ impl MediatorConnection {
         self.send(Dir::Meta, msg);
     }
 
-    /// Resolves with a reason if avirthostd refuses the stream (404, 409, 410) or it dies
-    /// before `close`; stays pending otherwise.
+    /// Resolves with a reason if avirthostd refuses the stream (404, 409, 410) or stops
+    /// before `close`. Stays pending otherwise.
     pub async fn rejected(&self) -> String {
         let mut rx = self.outcome.clone();
         let outcome =

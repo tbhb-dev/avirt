@@ -3,7 +3,7 @@ type: Agent Instructions
 title: "Agent instructions: avirt"
 description: "Guidance for AI coding agents working in the `avirt` crate."
 tags: [avirt, crate, cli]
-generated: { by: claude-code/claude-sonnet-5-5, at: 2026-10-17T19:16:42Z }
+generated: { by: codex/gpt-6, at: 2026-10-18T02:56:31Z }
 ---
 
 # Agent instructions: avirt
@@ -20,10 +20,10 @@ The `avirt` binary, in `src/main.rs`.
 
 ## Invariants
 
-- Request and response types, routes and the default port come from `avirt_core::api`. Don't redefine them here, because avirthostd and the CLI must agree on them.
+- Request and response types, routes and the default port come from `avirt_core::api`. Don't redefine them here, because avirthostd and the command-line interface must agree on them.
 - `--follow` stops only on `api::is_terminal_event` (the `container_exit` meta event, parsed as JSON). Never pattern-match raw log text.
-- After 5 s without log growth, `follow` probes `POST /health` with a 3 s timeout, and gives up only when avirthostd does not answer.
-- Print only the workload ID, the log path and the log lines. Never print request bodies or environment values.
+- After 5 s without log growth, `follow` probes `POST /health` with a 3 s timeout, and gives up only when avirthostd doesn't answer.
+- Print only the workload ID, the log path, and the log lines. Never print request bodies or environment values.
 
 ## Testing
 
@@ -31,4 +31,4 @@ The `avirt` binary, in `src/main.rs`.
 cargo test -p avirt
 ```
 
-The unit test checks that an unset `--cwd` is omitted from the request. End-to-end behavior needs avirthostd running (see the root `AGENTS.md`).
+The unit test checks that the request omits an unset `--cwd`. End-to-end behavior needs avirthostd running (see the root `AGENTS.md`).

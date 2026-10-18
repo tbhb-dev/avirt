@@ -1,5 +1,5 @@
-//! Per-agent launch profiles: the image, the env passed to the container, and any per-launch
-//! hook with cleanup (Codex's `CODEX_HOME` seed and write-back).
+//! Per-agent launch profiles specify the image and environment passed to the container. They
+//! also specify any per-launch hook with cleanup (Codex's `CODEX_HOME` seed and write-back).
 
 use std::collections::HashMap;
 use std::path::Path;
@@ -25,7 +25,7 @@ impl Profile for Claude {
             )
             .into());
         }
-        // `-e NAME` with no value: the container CLI inherits the token from avirthostd's
+        // `-e NAME` with no value: the container command-line interface inherits the token from avirthostd's
         // environment, so it never appears on argv.
         Ok(Prepared {
             args: vec!["-e".into(), "CLAUDE_CODE_OAUTH_TOKEN".into()],

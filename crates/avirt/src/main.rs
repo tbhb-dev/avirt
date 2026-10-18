@@ -45,7 +45,7 @@ struct Launch {
     follow: bool,
     #[arg(long, env = "PORT", default_value_t = DEFAULT_PORT)]
     port: u16,
-    /// avirthostd URL [default: the local avirthostd on --port]
+    /// avirthostd URL [default: the local avirthostd on `--port`]
     #[arg(long, env = "AVIRT_HOSTD_URL")]
     url: Option<String>,
 }
@@ -87,13 +87,13 @@ async fn launch(args: Launch) -> Result<ExitCode> {
 
 /// Polls the log and prints new lines until avirthostd writes `container_exit`, which is
 /// always the last event of a workload. If the log stops growing and avirthostd's control API
-/// stops answering, avirthostd is gone and the follow ends with an error instead of waiting
+/// stops answering, avirthostd is unavailable and the follow ends with an error instead of waiting
 /// forever.
 async fn follow(path: &std::path::Path, url: &str) -> Result<()> {
     let mut offset = 0u64;
     let mut last_growth = std::time::Instant::now();
     loop {
-        // Read only what was appended since the last pass.
+        // Read only the bytes added since the last pass.
         let mut fresh = Vec::new();
         if let Ok(mut file) = File::open(path)
             && file.seek(SeekFrom::Start(offset)).is_ok()

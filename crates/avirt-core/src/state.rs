@@ -1,5 +1,5 @@
 //! `avirthostd`'s state root, `$TMPDIR/avirt-<uid>/` (0700): everything a workload leaves on disk
-//! lives under it, so that an avirthostd that was killed uncleanly can be swept up by the next one.
+//! lives under it. If avirthostd exits without cleanup, the next instance can remove what it left.
 //!
 //! ```text
 //! lock            held (flock) for avirthostd's lifetime; a second avirthostd refuses to start
@@ -8,7 +8,7 @@
 //! scratch/        per-launch temp files, such as a Codex home holding an `auth.json` copy
 //! ```
 //!
-//! Mediators are not tracked here: they exit when avirthostd's end of their stdin closes.
+//! Mediators aren't tracked here: they exit when avirthostd's end of their stdin closes.
 
 use std::fs::{self, File, OpenOptions, Permissions};
 use std::io;
@@ -19,7 +19,7 @@ use std::process::Command;
 use anyhow::{Context, Result, bail};
 use serde_json::Value;
 
-/// Label put on every container avirthostd starts, so a sweep finds them without guessing at names.
+/// Label put on every container avirthostd starts. A sweep uses it to find them without guessing at names.
 pub const CONTAINER_LABEL: &str = "avirt=1";
 /// Marks the container as a workload.
 pub const WORKLOAD_LABEL: &str = "avirt.role=workload";
@@ -36,7 +36,7 @@ pub struct StateRoot {
 pub struct Swept {
     pub containers: Vec<String>,
     pub dirs: usize,
-    /// Directories that could not be removed; the sweep goes on without them.
+    /// Directories the sweep couldn't remove. The sweep goes on without them.
     pub failures: Vec<String>,
 }
 
@@ -55,8 +55,8 @@ pub fn private_dir(path: &Path) -> Result<()> {
     Ok(())
 }
 
-/// Makes a tree removable by its owner: directories 0700, files 0600, never following a link.
-/// An agent that owns a mounted directory can strip its own permissions (`chmod 0000`), which
+/// Makes a tree removable by its owner with directory mode 0700 and file mode 0600. Never follows a link.
+/// An agent with ownership of a mounted directory can strip its own permissions (`chmod 0000`), which
 /// would make `remove_dir_all` fail and leave an `auth.json` copy behind.
 pub fn make_removable(path: &Path) {
     let Ok(meta) = fs::symlink_metadata(path) else { return };
@@ -81,8 +81,8 @@ pub fn remove_tree(path: &Path) -> io::Result<()> {
 }
 
 impl StateRoot {
-    /// Creates (or reuses) the state root, takes its lock, and fails clearly if another avirthostd
-    /// holds it.
+    /// Creates (or reuses) the state root and takes its lock. Fails if another avirthostd
+    /// holds the lock.
     pub fn open() -> Result<Self> {
         Self::open_in(&std::env::temp_dir())
     }
@@ -128,9 +128,9 @@ impl StateRoot {
     }
 
     /// Removes what a previous avirthostd left behind and recreates the empty layout. The lock
-    /// guarantees nobody else is running, so everything found is stale; nothing is written back
-    /// to the host (a Codex home's `auth.json` is just deleted). A directory that cannot be
-    /// removed is reported, not fatal.
+    /// guarantees nobody else is running, so everything it finds is stale. The sweep never writes anything back
+    /// to the host (it deletes a Codex home's `auth.json`). It reports any directory it can't remove
+    /// and continues.
     #[must_use]
     pub fn sweep(&self) -> Swept {
         let mut swept = Swept { containers: sweep_containers(), ..Swept::default() };
@@ -147,7 +147,7 @@ impl StateRoot {
     }
 }
 
-/// Stops and deletes every container carrying avirthostd's label, whatever state it is in.
+/// Stops and deletes every container with avirthostd's label, whatever its state.
 fn sweep_containers() -> Vec<String> {
     let Ok(out) = Command::new("container").args(["ls", "--all", "--format", "json"]).output() else {
         return Vec::new();
@@ -177,7 +177,7 @@ mod tests {
     fn sweep_empties_the_layout_and_the_lock_is_exclusive() {
         let base = tempfile::tempdir().unwrap();
         let first = StateRoot::open_in(base.path()).unwrap();
-        // A second avirthostd in the same user's temp dir must be refused while the first lives.
+        // Refuse a second avirthostd in the same user's temp dir while the first lives.
         assert!(StateRoot::open_in(base.path()).unwrap_err().to_string().contains("already running"));
         let _ = first.sweep();
         fs::create_dir_all(first.scratch().join("avirt-codex-x")).unwrap();

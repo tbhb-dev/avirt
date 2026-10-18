@@ -1,14 +1,14 @@
 ---
 type: README
 title: avirtadmin
-description: The local admin CLI.
+description: The local administration command-line interface.
 tags: [avirt, crate, avirtadmin]
 implementation: planned
-generated: { by: claude-code/claude-sonnet-5-5, at: 2026-10-17T19:16:42Z }
+generated: { by: codex/gpt-6, at: 2026-10-18T03:13:20Z }
 ---
 
 # avirtadmin
 
-The local admin CLI. It runs on the host.
+The local <!-- Preserve the exact term from the glossary. --><!-- vale project.WordList = NO -->admin CLI<!-- vale project.WordList = YES -->. It runs on the host.
 
 Status: planned. See [docs/components.md](../../docs/components.md).

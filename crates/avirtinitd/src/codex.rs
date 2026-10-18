@@ -15,7 +15,7 @@ use serde_json::json;
 const NAME: &str = "codex-container";
 
 pub async fn run() -> ExitCode {
-    // CODEX_HOME points at the workload's mounted credentials and is inherited by the adapter.
+    // The adapter inherits CODEX_HOME, which points at the workload's mounted credentials.
     harness::run(Spec { agent: "codex", agent_command: "codex-acp", agent_env: &[] }, converse).await
 }
 
@@ -56,9 +56,9 @@ async fn converse(workload: Workload) -> Result<String, Error> {
     let permission_connection = connection.clone();
     let init_connection = connection.clone();
 
-    // Updates are shown by a handler as they arrive, independently of the prompt request, so
-    // output is not delayed until the turn ends and survives a rejected prompt. In v1 the
-    // `session/prompt` response is the end of the turn and carries the stop reason.
+    // A handler shows updates as they arrive, independently of the prompt request. It doesn't wait
+    // for the turn to end or discard output if the adapter rejects the prompt. In v1 the `session/prompt`
+    // response is the end of the turn and includes the stop reason.
     Client
         .builder()
         .name(NAME)

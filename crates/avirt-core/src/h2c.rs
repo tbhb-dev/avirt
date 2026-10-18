@@ -1,4 +1,4 @@
-//! Cleartext HTTP/2 (prior knowledge, no TLS) client helpers.
+//! Client helpers for HTTP/2 with prior knowledge and without TLS.
 
 use std::convert::Infallible;
 
@@ -28,8 +28,8 @@ where
     Ok(send)
 }
 
-/// POSTs a JSON body to `http://host:port{path}` and returns the status with the parsed JSON
-/// response. The CLI uses this for avirthostd's loopback control port.
+/// Sends a JSON body in a POST to `http://host:port{path}` and returns the status with the parsed JSON
+/// response. The command-line interface uses this for avirthostd's loopback control port.
 pub async fn post_json(url: &str, path: &str, body: &Value) -> Result<(StatusCode, Value)> {
     let uri: Uri = url.parse().with_context(|| format!("invalid URL {url}"))?;
     let authority = uri.authority().ok_or_else(|| anyhow!("URL {url} has no host:port"))?.to_string();

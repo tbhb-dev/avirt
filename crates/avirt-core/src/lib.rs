@@ -1,5 +1,5 @@
-//! Shared code for avirt: the NDJSON log envelope, the h2c connection from a workload to
-//! avirthostd, avirthostd itself and the workload-side avirtinitd harness.
+//! Shared code for avirt includes the NDJSON log envelope and the h2c connection from a workload
+//! to avirthostd. It also includes avirthostd itself and the workload-side avirtinitd harness.
 
 pub mod api;
 pub mod connection;

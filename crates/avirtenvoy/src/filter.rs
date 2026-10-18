@@ -1,4 +1,4 @@
-//! The filter resolves once, checks the entire answer, and pins the DFP authority to a checked IP.
+//! The filter resolves once and checks the entire answer. It pins the DFP authority to a checked IP.
 use std::cell::RefCell;
 use std::io::Write;
 use std::net::SocketAddr;
@@ -14,7 +14,7 @@ use sdk::{EnvoyHttpFilter, EnvoyHttpFilterConfig, EnvoyHttpFilterScheduler, Http
 use crate::stream::Stream;
 use avirt_connect::{self as policy, Target};
 
-// The SDK owns the FFI boundary; no handwritten unsafe code is needed here.
+// With the SDK handling the FFI boundary, this code doesn't need handwritten unsafe code.
 sdk::declare_init_functions!(init, config);
 
 fn init() -> bool {
@@ -29,7 +29,7 @@ fn config<EC: EnvoyHttpFilterConfig, EHF: EnvoyHttpFilter>(
     (name == "avirt-connect").then(|| Box::new(Config) as Box<dyn HttpFilterConfig<EHF>>)
 }
 
-// DNS work stays off Envoy's workers. The blocking resolver pool is bounded even when
+// DNS work stays off Envoy's workers. The blocking resolver pool keeps its size limit even when
 // the system resolver takes longer than the per-request deadline to return.
 static RESOLVER: LazyLock<std::io::Result<tokio::runtime::Runtime>> = LazyLock::new(|| {
     tokio::runtime::Builder::new_multi_thread().worker_threads(1).max_blocking_threads(128).enable_all().build()
@@ -107,7 +107,7 @@ impl<EHF: EnvoyHttpFilter> HttpFilter<EHF> for Filter {
         let answer = self.resolved.lock().expect("resolution lock").take();
         match answer {
             Some(Ok(address)) => {
-                // Do not let the DFP perform a second hostname lookup (DNS rebinding).
+                // Don't let the DFP perform a second hostname lookup (DNS rebinding).
                 if envoy.set_request_header(":authority", address.to_string().as_bytes()) {
                     if let Some(stream) = self.stream.borrow_mut().as_mut() {
                         Self::emit(stream.on_allowed(Instant::now()));

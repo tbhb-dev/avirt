@@ -1,9 +1,9 @@
-//! `avirthostd`'s local control API, shared by `avirthostd` and the CLI.
+//! `avirthostd`'s local control API, shared by `avirthostd` and the command-line interface.
 
 use serde::{Deserialize, Serialize};
 use serde_json::Value;
 
-/// Loopback port avirthostd listens on by default.
+/// Default loopback port for avirthostd.
 pub const DEFAULT_PORT: u16 = 8787;
 /// `POST` path that starts a workload.
 pub const LAUNCH_PATH: &str = "/launch";
@@ -36,7 +36,7 @@ pub struct LaunchResponse {
 }
 
 /// Whether a log line is the `container_exit` meta event, which is always the last event of an
-/// workload. Each line is parsed as JSON; raw text is never pattern-matched.
+/// workload. Parses each line as JSON without pattern-matching raw text.
 #[must_use]
 pub fn is_terminal_event(line: &str) -> bool {
     serde_json::from_str::<Value>(line).is_ok_and(|e| e["dir"] == "meta" && e["msg"]["event"] == "container_exit")
@@ -49,7 +49,7 @@ mod tests {
     #[test]
     fn follow_stops_on_meta_events_only() {
         assert!(is_terminal_event(r#"{"ts":"t","dir":"meta","msg":{"event":"container_exit","code":0}}"#));
-        // An error is followed by the exit event, which is the only terminal one.
+        // The exit event follows an error and is the only terminal event.
         assert!(!is_terminal_event(r#"{"ts":"t","dir":"meta","msg":{"event":"container_error"}}"#));
         // The same text inside agent traffic must not stop the follow.
         assert!(!is_terminal_event(r#"{"ts":"t","dir":"agent->client","msg":{"text":"container_exit"}}"#));

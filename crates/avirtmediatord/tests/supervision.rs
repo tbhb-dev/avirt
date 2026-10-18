@@ -1,4 +1,4 @@
-//! Supervision checks with a fake Envoy and avirthostd, without workloads or workloads.
+//! Supervision checks use a fake Envoy and avirthostd. They don't launch workloads.
 use std::fs;
 use std::io::{BufRead, BufReader};
 use std::os::unix::fs::PermissionsExt;
@@ -133,7 +133,7 @@ impl Harness {
     }
 }
 
-// Envoy::start's first connection is a readiness probe. Subsequent accepts model a stream.
+// Envoy::start's first connection is a readiness probe. Later accepts model a stream.
 const FAKE: &str = r#"#!/bin/sh
 exec /usr/bin/perl -e '
 use strict;

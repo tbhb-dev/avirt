@@ -1,4 +1,4 @@
-//! SDK-independent connection event state.
+//! Connection event state that doesn't depend on the SDK.
 use std::time::{Duration, Instant};
 
 use avirt_connect::Target;

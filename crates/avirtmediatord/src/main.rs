@@ -1,13 +1,13 @@
 #![recursion_limit = "256"]
 
-//! Per-workload mediator, spawned by avirthostd. It owns the two Unix sockets that are mounted
-//! into one container and is the container's only way out:
+//! Per-workload mediator, spawned by avirthostd. It creates two Unix sockets for avirthostd to mount
+//! into one container. The mediator is the container's only way out:
 //!
-//! - `proxy.sock`: a CONNECT proxy. It accepts only `CONNECT host:port`, refuses private
-//!   destinations, and tunnels everything else. The only denies are `private-dest`,
+//! - `proxy.sock`: a CONNECT proxy. It accepts only `CONNECT host:port`. It refuses private
+//!   destinations and tunnels everything else. The only denies are `private-dest`,
 //!   `plain-http` and `unsupported-method`.
-//! - `mediator.sock`: the container's HTTP/2 workload connection, spliced byte for byte to
-//!   avirthostd's own socket, so HTTP/2 stays end to end between avirtinitd and avirthostd.
+//! - `mediator.sock` forwards the container's HTTP/2 workload connection byte for byte to
+//!   avirthostd's own socket. HTTP/2 stays end to end between avirtinitd and avirthostd.
 //!
 //! One NDJSON event per proxied connection goes to avirthostd over a second avirthostd connection.
 
@@ -43,7 +43,7 @@ const DIAL_TIMEOUT: Duration = Duration::from_secs(10);
 
 #[derive(Parser)]
 struct Args {
-    /// The workload's private directory; `proxy.sock` and `mediator.sock` are created in it, 0600.
+    /// The workload's private directory. Creates `proxy.sock` and `mediator.sock` in it with mode 0600.
     #[arg(long)]
     dir: PathBuf,
     /// avirthostd's Unix socket.
@@ -53,13 +53,13 @@ struct Args {
     #[arg(long)]
     workload: String,
     /// What this mediator presents to avirthostd in its connection preambles. It comes from the
-    /// environment so that it is not on the command line, and the container never sees it.
+    /// environment to keep it off the command line. The container never sees it.
     #[arg(long, env = "AVIRT_MEDIATOR_SECRET", hide_env_values = true)]
     secret: String,
-    /// CONNECT engine; Pingora remains the default.
+    /// CONNECT engine. Pingora remains the default.
     #[arg(long, value_enum, env = "AVIRT_PROXY_ENGINE", default_value = "pingora")]
     proxy_engine: ProxyEngine,
-    /// Envoy v1.40.0 executable (used only with --proxy-engine envoy).
+    /// Envoy v1.40.0 executable (used only with `--proxy-engine envoy`).
     #[arg(long, env = "AVIRT_ENVOY_BIN", default_value = "envoy")]
     envoy_bin: PathBuf,
     /// Dynamic module built with `cargo build --locked --manifest-path crates/avirtenvoy/Cargo.toml --target-dir target/envoy-module`.
@@ -73,7 +73,7 @@ enum ProxyEngine {
     Envoy,
 }
 
-/// One tunnel. The byte counters are shared with the copy loop so a shutdown flush can report
+/// One tunnel. Shares byte counters with the copy loop so a shutdown flush can report
 /// what moved so far.
 struct Conn {
     id: u64,
@@ -88,7 +88,7 @@ struct Conn {
 }
 
 static OPEN: LazyLock<Mutex<HashMap<u64, Arc<Conn>>>> = LazyLock::new(Mutex::default);
-/// Concurrent connections each service will carry; the rest wait.
+/// Concurrent connections each service handles. The rest wait.
 static LIMIT: Semaphore = Semaphore::const_new(MAX_CONNECTIONS);
 const MAX_CONNECTIONS: usize = 128;
 static WORKLOAD: LazyLock<Mutex<String>> = LazyLock::new(Mutex::default);
@@ -109,8 +109,8 @@ impl Conn {
         })
     }
 
-    /// Starts tracking the connection for the shutdown flush. Only called once the destination
-    /// has passed the policy, so a refused request is never reported as allowed.
+    /// Starts tracking the connection for the shutdown flush. Call only once the destination
+    /// has passed the policy, so tracking never reports a refused request as allowed.
     fn register(self: &Arc<Self>) {
         OPEN.lock().expect("open lock").insert(self.id, Arc::clone(self));
     }
@@ -241,7 +241,7 @@ impl ServerApp for ConnectApp {
         let early = &buf[head_len..];
 
         if method != "CONNECT" {
-            // Plain HTTP is denied: serving it would need a second proxy service.
+            // Deny plain HTTP: serving it would need a second proxy service.
             let (host, port) = policy::absolute_uri_authority(&path).unwrap_or_default();
             let conn = Conn::new(&method, &host, port);
             let rule = if path.starts_with("http://") { "plain-http" } else { "unsupported-method" };
@@ -270,7 +270,7 @@ impl ServerApp for ConnectApp {
         }
         // Without this the proxy would bridge to avirthostd's /launch and every host service.
         // The host's own addresses count too, global ones included: a wildcard listener answers on
-        // all of them.
+        // them all.
         let own = policy::host_addresses();
         if !policy::destination_allowed(&addrs.iter().map(SocketAddr::ip).collect::<Vec<_>>(), &own) {
             conn.emit("deny", "private-dest", own.as_ref().err().map(|_| "host addresses"));
@@ -372,9 +372,9 @@ impl ShutdownSignalWatch for Shutdown {
     }
 }
 
-/// Splices `mediator.sock` to avirthostd. Nothing is dialed until the first bytes arrive, so a
+/// Splices `mediator.sock` to avirthostd. Waits for the first bytes before dialing, so a
 /// readiness probe (connect and close) costs avirthostd nothing. Either direction ending ends
-/// the splice: HTTP/2 closes both ways when it is done.
+/// the splice: HTTP/2 closes both ways when it's done.
 struct SpliceApp {
     hostd_sock: PathBuf,
     workload: String,
@@ -396,7 +396,7 @@ impl ServerApp for SpliceApp {
         let (mut from_hostd, mut to_hostd) = hostd.split();
         let (mut from_container, mut to_container) = tokio::io::split(&mut stream);
         // Each direction passes its end-of-stream on, and an end on one side gives the other a
-        // bounded time to finish, so a reply that is still in flight is not cut off.
+        // bounded time to finish, so a reply that's still in flight isn't cut off.
         let up = async {
             let _ = tokio::io::copy(&mut from_container, &mut to_hostd).await;
             let _ = to_hostd.shutdown().await;
@@ -475,7 +475,7 @@ fn main() {
     });
     server.run(RunArgs { shutdown_signal: Box::new(Shutdown { envoy: envoy.clone(), stdin_eof }) });
     drop(envoy);
-    // Connections still open when the server stopped are reported, with what moved so far.
+    // Report connections still open when the server stopped, with what moved so far.
     let open: Vec<_> = OPEN.lock().expect("open lock").values().cloned().collect();
     for conn in open {
         conn.emit("allow", "allow-all", Some("shutdown"));

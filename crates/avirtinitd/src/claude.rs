@@ -11,7 +11,7 @@ use tokio::sync::mpsc::unbounded_channel;
 const NAME: &str = "claude-container";
 
 pub async fn run() -> ExitCode {
-    // ACP v2 is a draft; the adapter only speaks it behind this flag.
+    // ACP v2 is a draft. The adapter only speaks it behind this flag.
     let spec = Spec {
         agent: "claude",
         agent_command: "claude-agent-acp",
@@ -84,9 +84,9 @@ async fn converse(workload: Workload) -> Result<String, Error> {
                     .data(format!("agent answered protocol version {:?}, expected 2", init.protocol_version)));
             }
             let session = cx.build_session(&cwd).start_session().block_task().await?.into_session();
-            // Whatever queued before the prompt (session setup updates) is not part of the turn.
+            // Whatever queued before the prompt (session setup updates) isn't part of the turn.
             while updates.try_recv().is_ok() {}
-            // The response only acknowledges the prompt; updates arrive independently.
+            // The response only acknowledges the prompt. Updates arrive independently.
             session.send_prompt(&prompt).block_task().await?;
             let mut active = false;
             loop {
@@ -101,9 +101,9 @@ async fn converse(workload: Workload) -> Result<String, Error> {
                         // The stop reason is an internally tagged enum, so its name is under
                         // `stopReason`.
                         let reason = serde_json::to_value(&idle.stop_reason).unwrap_or(Value::Null);
-                        // An idle that ends foreground work carries a stop reason even if the
-                        // session never reported running (immediate refusal); one without is just
-                        // the ready state and counts only after the session was active.
+                        // An idle that ends foreground work includes a stop reason even if the
+                        // session never reported running (immediate refusal). An idle without a stop
+                        // reason is the ready state and counts only after the session was active.
                         if active || reason["stopReason"].is_string() {
                             return Ok(reason["stopReason"].as_str().unwrap_or("idle").to_owned());
                         }

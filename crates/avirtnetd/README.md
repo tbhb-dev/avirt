@@ -1,14 +1,14 @@
 ---
 type: README
 title: avirtnetd
-description: "The guest networking daemon: the client end of the workload's HTTP/2 connection to its mediator, the forward proxy, the reverse proxy, the stub DNS resolver and the guest control API."
+description: "The guest networking daemon provides the client end of the workload's HTTP/2 connection to its mediator. It also provides the forward and reverse proxies, the stub DNS resolver, and the guest control API."
 tags: [avirt, crate, avirtnetd]
 implementation: planned
-generated: { by: claude-code/claude-sonnet-5-5, at: 2026-10-17T19:16:42Z }
+generated: { by: codex/gpt-6, at: 2026-10-18T02:56:31Z }
 ---
 
 # avirtnetd
 
-The guest networking daemon: the client end of the workload's HTTP/2 connection to its mediator, the forward proxy, the reverse proxy, the stub DNS resolver and the guest control API. It runs in the workload container.
+The guest networking daemon provides the client end of the workload's HTTP/2 connection to its mediator. It also provides the forward and reverse proxies, the stub DNS resolver, and the guest control API. It runs in the workload container.
 
 Status: planned. See [docs/components.md](../../docs/components.md).

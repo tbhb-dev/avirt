@@ -1,8 +1,8 @@
-//! Codex keeps its login in `auth.json`. `ChatGPT` logins carry a refresh token that rotates when
+//! Codex keeps its login in `auth.json`. `ChatGPT` logins contain a refresh token that rotates when
 //! Codex refreshes, so a container that refreshes can invalidate the host's copy. Each workload
-//! gets a private copy in a temp `CODEX_HOME`; afterwards a refreshed copy is written back.
+//! gets a private copy in a temp `CODEX_HOME`. Afterwards, write back a refreshed copy.
 //!
-//! The agent has write access to the mounted directory, so everything read back from it is
+//! The agent has write access to the mounted directory. Treat everything read back from it as
 //! untrusted. No function here logs or returns text that may quote file contents.
 
 use std::collections::BTreeSet;
@@ -19,22 +19,22 @@ use chrono::{DateTime, FixedOffset};
 use serde_json::{Value, json};
 use tempfile::TempDir;
 
-/// Upper bound on the size of a workload's `auth.json`; real files are a few KiB.
+/// Upper bound on the size of a workload's `auth.json`. Real files are a few KiB.
 const MAX_AUTH_BYTES: u64 = 1 << 20;
 
 pub struct HostAuth {
     path: PathBuf,
 }
 
-/// How far into the future a `last_refresh` may be before it is treated as forged.
+/// How far into the future a `last_refresh` may be before it's treated as forged.
 const MAX_CLOCK_SKEW: chrono::Duration = chrono::Duration::minutes(5);
 
-/// Who the credentials belong to: the stable fields only. They are compared, never logged.
+/// Who the credentials belong to: the stable fields only. They're compared, never logged.
 #[derive(Debug, Default, PartialEq, Eq)]
 struct Identity {
     account_id: Option<String>,
-    /// From the `id_token`'s payload, which is decoded but not verified: it only has to match
-    /// what the seed said.
+    /// From the `id_token`'s payload. The parser decodes it without verification:
+    /// it only has to match what the seed said.
     sub: Option<String>,
     email: Option<String>,
 }
@@ -53,7 +53,7 @@ fn claim(payload: &Value, name: &str) -> Option<String> {
 }
 
 fn parse(bytes: &[u8]) -> Option<Meta> {
-    // A serde error message can quote the input, so it is dropped here.
+    // A serde error message can quote the input, so it's dropped here.
     let v: Value = serde_json::from_slice(bytes).ok()?;
     let object = v.as_object()?;
     let tokens = v.get("tokens");
@@ -87,7 +87,7 @@ impl HostAuth {
     }
 
     /// Reads the host credentials now and seeds a private `CODEX_HOME` with them: the directory
-    /// is 0700 and the file 0600, and it is the only thing the container mounts for auth.
+    /// is 0700 and the file 0600, and it's the only thing the container mounts for auth.
     pub fn prepare(&self, scratch: &Path) -> Result<Prepared> {
         let seed = match fs::read(&self.path) {
             Ok(seed) => seed,
@@ -109,7 +109,7 @@ impl HostAuth {
         let mut file = OpenOptions::new().write(true).create_new(true).mode(0o600).open(&workload_file)?;
         file.write_all(&seed)?;
         drop(file);
-        // Owns the directory and the seed; if setup fails after this point, dropping it still
+        // Retains ownership of the directory and the seed. If setup fails after this point, dropping it still
         // writes back and removes the directory, and the seed goes with it.
         let host = self.path.clone();
         let cleanup = Cleanup::new(move || Some(finish(&host, home, &workload_file, &seed)));
@@ -127,7 +127,7 @@ fn finish(host: &Path, home: TempDir, workload_file: &Path, seed: &[u8]) -> Valu
         Ok(reason) => reason.to_owned(),
         Err(err) => format!("failed: {}", err.kind()),
     };
-    // The agent owns the directory and may have made parts of it unreadable.
+    // The directory belongs to the agent, which may have made parts of it unreadable.
     let path = home.keep();
     if let Err(e) = remove_tree(&path) {
         eprintln!("could not remove {}: {e}", path.display());
@@ -135,10 +135,10 @@ fn finish(host: &Path, home: TempDir, workload_file: &Path, seed: &[u8]) -> Valu
     json!({ "event": "auth_writeback", "result": result })
 }
 
-/// Reads the workload's `auth.json` without following symlinks and only if it is a small regular
+/// Reads the workload's `auth.json` without following symlinks and only if it's a small regular
 /// file. `Ok(None)` means there is no file.
 fn read_workload_file(path: &Path) -> io::Result<Option<Result<Vec<u8>, &'static str>>> {
-    // O_NONBLOCK keeps a planted FIFO from hanging the open; O_NOFOLLOW refuses a symlink.
+    // O_NONBLOCK keeps a planted FIFO from hanging the open. O_NOFOLLOW refuses a symlink.
     let opened = OpenOptions::new().read(true).custom_flags(libc::O_NOFOLLOW | libc::O_NONBLOCK).open(path);
     let file = match opened {
         Ok(file) => file,
@@ -159,7 +159,7 @@ fn read_workload_file(path: &Path) -> io::Result<Option<Result<Vec<u8>, &'static
     Ok(Some(Ok(bytes)))
 }
 
-/// Copies the workload's `auth.json` over the host's only if Codex refreshed it there and it is
+/// Copies the workload's `auth.json` over the host's only if Codex refreshed it there and it's
 /// strictly newer than the host's current file. Returns a fixed reason string.
 fn write_back(host: &Path, workload_file: &Path, seed: &[u8]) -> io::Result<&'static str> {
     let after = match read_workload_file(workload_file)? {
@@ -174,9 +174,9 @@ fn write_back(host: &Path, workload_file: &Path, seed: &[u8]) -> io::Result<&'st
         return Ok("refused: invalid auth.json");
     };
     let Some(new_refresh) = new.last_refresh else { return Ok("refused: invalid auth.json") };
-    // The agent can write anything into its copy, so the copy only replaces the host's if it is
-    // plausibly the same login, refreshed: same shape, same mode, same account, and not claiming
-    // to have been refreshed in the future (which would also freeze every later write-back).
+    // The agent can write anything into its copy. Replace the host's copy only if the refreshed
+    // login plausibly has the same keys, mode, and account and doesn't claim a future refresh
+    // timestamp (which would also freeze every later write-back).
     if new.keys != old.keys {
         return Ok("refused: auth.json keys changed");
     }
@@ -197,8 +197,8 @@ fn write_back(host: &Path, workload_file: &Path, seed: &[u8]) -> io::Result<&'st
         OpenOptions::new().write(true).create(true).truncate(false).mode(0o600).open(dir.join("auth.json.lock"))?;
     lock.lock()?;
 
-    // Judge the host file as it is now, under the lock: if it is unreadable as an auth file, or
-    // the login was switched to another mode meanwhile, leave it alone.
+    // Judge the current host file under the lock: if it's unreadable as an auth file, or
+    // the login now uses another mode, leave it alone.
     let current = fs::read(host)?;
     let Some(host_meta) = parse(&current) else { return Ok("refused: host auth.json changed") };
     if host_meta.auth_mode != new.auth_mode || host_meta.identity != new.identity {
@@ -208,7 +208,7 @@ fn write_back(host: &Path, workload_file: &Path, seed: &[u8]) -> io::Result<&'st
         return Ok("host newer");
     }
 
-    // Keep only the first backup. It is written complete to a temp file and then hard-linked
+    // Keep only the first backup. It's written complete to a temp file and then hard-linked
     // into place, so a failure partway never leaves a truncated backup that blocks a real one.
     let backup = dir.join("auth.json.pre-avirt-backup");
     let tmp = write_private_temp(dir, &current)?;
@@ -377,7 +377,7 @@ mod tests {
         let f = fixture(&seed, &login("9999-12-31T23:59:59Z", "acct-1", "user-1"));
         assert_eq!(write_back(&f.host, &f.workload, &seed).unwrap(), "refused: last_refresh in the future");
         assert_eq!(fs::read(&f.host).unwrap(), seed);
-        // Slightly ahead of the clock is tolerated.
+        // Accept a time slightly ahead of the clock.
         let soon = (chrono::Utc::now() + chrono::Duration::minutes(2)).to_rfc3339();
         fs::write(&f.workload, login(&soon, "acct-1", "user-1")).unwrap();
         assert_eq!(write_back(&f.host, &f.workload, &seed).unwrap(), "wrote refreshed auth.json back to host");

@@ -38,8 +38,8 @@ use crate::envelope::{Dir, Envelope, Item, LineSplitter};
 use crate::h2c::Body;
 use crate::state::{CONTAINER_LABEL, StateRoot, WORKLOAD_LABEL, private_dir};
 
-/// A launch avirthostd refuses for a reason the caller can fix (missing credentials, say);
-/// reported as a 400 with this message. Any other `prepare` error is a 500.
+/// A launch avirthostd refuses for a reason the caller can fix (missing credentials, say).
+/// avirthostd reports a 400 with this message. Any other `prepare` error is a 500.
 #[derive(Debug)]
 pub struct Refused(pub String);
 
@@ -51,7 +51,7 @@ impl std::fmt::Display for Refused {
 
 impl std::error::Error for Refused {}
 
-/// Returned by `launch` while avirthostd is shutting down; reported as a 503.
+/// Returned by `launch` while avirthostd is shutting down. Reports a 503.
 #[derive(Debug)]
 struct ShuttingDown;
 
@@ -68,7 +68,7 @@ pub trait Profile: Send + Sync {
     fn image(&self) -> &str;
 
     /// Per-launch setup: extra `container run` arguments plus the cleanup to run once the
-    /// container is gone. Dropping the returned [`Prepared`] without launching runs the cleanup.
+    /// container no longer exists. Dropping the returned [`Prepared`] without launching runs the cleanup.
     ///
     /// `scratch` is a directory under avirthostd's state root for per-launch temp files, so that
     /// an avirthostd process killed uncleanly leaves them where the next one sweeps them.
@@ -78,7 +78,7 @@ pub trait Profile: Send + Sync {
 pub struct Prepared {
     pub args: Vec<OsString>,
     /// Names of avirthostd environment variables to hand to `container run` (the `-e NAME` args
-    /// above read them from there). Nothing else of avirthostd's environment is inherited.
+    /// read them from that environment). Only these avirthostd environment variables pass through.
     pub inherit: Vec<&'static str>,
     pub cleanup: Cleanup,
 }
@@ -99,14 +99,14 @@ impl Cleanup {
 
     /// Gives up on the cleanup without running it, and without dropping what it owns, so a
     /// temp directory it holds stays on disk for the next startup's sweep. Used when the
-    /// container could not be confirmed gone: a write-back then could race a live agent.
+    /// caller couldn't confirm that the container no longer exists. A write-back then could race a live agent.
     pub fn abandon(&mut self) {
         if let Some(f) = self.0.take() {
             std::mem::forget(f);
         }
     }
 
-    /// Runs the cleanup; the returned meta message, if any, belongs in the workload log.
+    /// Runs the cleanup. The returned meta message, if any, belongs in the workload log.
     pub fn run(&mut self) -> Option<Value> {
         self.0.take().and_then(|f| f())
     }
@@ -128,16 +128,16 @@ pub struct Config {
 
 enum Entry {
     Live(Arc<Workload>),
-    /// Exit note written and stream drained; kept so a late stream POST gets 410, not 404.
+    /// The log has the exit note and the stream has drained. Keep this state so a late stream POST gets 410, not 404.
     Exited,
 }
 
 struct Workload {
-    /// Presented by avirtinitd on its stream POST. The runtime's vsock relays can be dialed
-    /// by anything in the container, so the sockets' permissions alone do not prove who is on
-    /// the other end; this secret is only ever in avirtinitd's environment.
+    /// avirtinitd presents this on its stream POST. Anything in the container can dial
+    /// the runtime's vsock relays. The sockets' permissions alone don't prove who is on
+    /// the other end. This secret is only ever in avirtinitd's environment.
     token: String,
-    /// Presented by this workload's mediator in its connection preambles. It is passed to the
+    /// Presented by this workload's mediator in its connection preambles. It's passed to the
     /// mediator's environment only, never to the container.
     mediator_secret: String,
     /// Set by the first (and only) accepted event connection.
@@ -179,7 +179,7 @@ impl Workload {
         self.write(&Envelope::new(Dir::Meta, msg).to_line());
     }
 
-    /// Writes the held exit note once the container has exited and the stream is done.
+    /// Writes the held exit note once the container has exited and the stream has ended.
     /// Returns true if this call completed the workload.
     fn flush_exit(&self, state: &mut State) -> bool {
         if state.exited && !state.streaming {
@@ -236,8 +236,8 @@ pub async fn serve(profiles: HashMap<String, Box<dyn Profile>>, config: Config) 
         eprintln!("sweep could not remove {failure}");
     }
 
-    // The control API (`/launch`) is for the CLI on this machine only. Containers have no
-    // network and cannot reach it; a workload's mediator dials avirthostd's own socket instead.
+    // The control API (`/launch`) is for the command-line interface on this machine only. Containers have no
+    // network and can't reach it. A workload's mediator dials avirthostd's own socket instead.
     let listener = TcpListener::bind(("127.0.0.1", config.port)).await?;
     let hostd_sock = state.hostd().join("hostd.sock");
     let mediators = UnixListener::bind(&hostd_sock)?;
@@ -275,7 +275,7 @@ pub async fn serve(profiles: HashMap<String, Box<dyn Profile>>, config: Config) 
 async fn accept_loop(hostd: Arc<Hostd>, listener: TcpListener) {
     loop {
         let Ok((stream, _)) = listener.accept().await else {
-            // E.g. out of file descriptors: back off instead of spinning.
+            // For errors such as running out of file descriptors, back off instead of spinning.
             tokio::time::sleep(Duration::from_millis(100)).await;
             continue;
         };
@@ -302,7 +302,7 @@ fn error(status: StatusCode, message: &str) -> Response<Body> {
     reply(status, &json!({ "error": message }))
 }
 
-/// The control API, served on the loopback port for the CLI.
+/// The control API, served on the loopback port for the command-line interface.
 async fn handle_control(hostd: Arc<Hostd>, req: Request<Incoming>) -> Result<Response<Body>, Infallible> {
     Ok(match (req.method(), req.uri().path()) {
         (&Method::POST, LAUNCH_PATH) => launch_route(&hostd, req).await,
@@ -311,8 +311,8 @@ async fn handle_control(hostd: Arc<Hostd>, req: Request<Incoming>) -> Result<Res
     })
 }
 
-/// What a workload's connection may ask for: that workload's own stream and nothing else,
-/// so a container cannot write into another workload's log or launch anything.
+/// Allows a workload's connection to request only its own stream. A container can't
+/// write into another workload's log or launch anything.
 fn handle_workload(hostd: &Arc<Hostd>, id: &str, req: Request<Incoming>) -> Response<Body> {
     match (req.method(), req.uri().path()) {
         (&Method::POST, p) if p == format!("/workloads/{id}/stream") => stream_route(hostd, id, req),
@@ -324,8 +324,8 @@ fn handle_workload(hostd: &Arc<Hostd>, id: &str, req: Request<Incoming>) -> Resp
 const MAX_LAUNCH_BODY: usize = 64 * 1024;
 
 async fn launch_route(hostd: &Arc<Hostd>, req: Request<Incoming>) -> Response<Body> {
-    // An aborted or oversized request body surfaces as an error here, so no handler is left
-    // pending and nothing unbounded is buffered.
+    // An aborted request body or one over the limit returns an error here without leaving a handler
+    // pending. Buffering always has a limit.
     let Ok(body) = Limited::new(req.into_body(), MAX_LAUNCH_BODY).collect().await else {
         return error(StatusCode::BAD_REQUEST, "request body aborted or too large");
     };
@@ -393,8 +393,8 @@ fn stream_route(hostd: &Arc<Hostd>, id: &str, req: Request<Incoming>) -> Respons
     let id = id.to_owned();
     let (done_tx, done_rx) = tokio::sync::mpsc::unbounded_channel::<Bytes>();
 
-    // Response headers go out now, so avirtinitd learns at once that the stream was
-    // accepted; the body (`{"lines": N}`) follows once the request body has drained.
+    // Send response headers now so avirtinitd learns at once that avirthostd accepted the stream.
+    // The body (`{"lines": N}`) follows once the request body has drained.
     tokio::spawn(async move {
         let _drain = drain;
         let mut body = req.into_body();
@@ -405,11 +405,11 @@ fn stream_route(hostd: &Arc<Hostd>, id: &str, req: Request<Incoming>) -> Respons
                 workload.write(&(line + "\n"));
                 lines += 1;
             }
-            // Written by avirthostd, so an agent cannot make it look like anything else.
+            // Written by avirthostd, so an agent can't make it look like anything else.
             Item::Truncated(bytes) => workload.note(json!({ "event": "line_truncated", "bytes": bytes })),
         };
         // An aborted stream (RST_STREAM, killed container) ends in an error rather than a clean
-        // end; either way the trailing partial line is flushed below.
+        // end. Either way, flush the trailing partial line.
         while let Some(Ok(frame)) = body.frame().await {
             if let Ok(data) = frame.into_data() {
                 splitter.push(&data).into_iter().for_each(&mut emit);
@@ -445,7 +445,7 @@ impl Hostd {
 
     async fn launch(self: &Arc<Self>, agent: &str, prompt: &str, cwd: Option<&Path>) -> Result<String> {
         // Take the token before checking for shutdown: `serve` cancels, then closes the tracker,
-        // so a launch that passes the check is always waited for.
+        // so it always waits for a launch that passes the check.
         let token = self.tracker.token();
         if self.shutdown.is_cancelled() {
             return Err(ShuttingDown.into());
@@ -563,8 +563,8 @@ impl Hostd {
                 }
                 Err(err) => Err(err),
             };
-            // While the mediator still splices: give a stream the container opened just before
-            // dying time to be routed (it would be refused with 410 otherwise), and an open stream
+            // While the mediator still splices, allow time to route a stream the container opened
+            // just before dying (routing would otherwise refuse it with 410). Give an open stream
             // time to drain into the log.
             if !workload.state.lock().expect("state lock").streamed {
                 tokio::time::sleep(Duration::from_secs(1)).await;
@@ -583,7 +583,7 @@ impl Hostd {
                 // Cleanup may block on a file lock.
                 tokio::task::spawn_blocking(move || cleanup.run()).await.ok().flatten()
             } else {
-                // A write-back could race an agent that is still running; leave the temp
+                // A write-back could race an agent that's still running. Leave the temp
                 // directory for the next startup's sweep.
                 cleanup.abandon();
                 workload.hold(json!({
@@ -605,7 +605,7 @@ impl Hostd {
         let container_log = Self::create_private(&self.config.logs_dir.join(format!("{id}.container.log")))?;
         let mut cmd = Command::new("container");
         // Start from nothing: avirthostd's environment holds credentials for every agent, and a
-        // launch gets only the variables its profile names plus what the CLI itself needs.
+        // launch gets only the variables its profile names plus what the command-line interface itself needs.
         cmd.env_clear();
         for name in ["HOME", "PATH", "TMPDIR", "USER", "LOGNAME"].iter().chain(inherit) {
             if let Some(value) = std::env::var_os(name) {
@@ -614,7 +614,7 @@ impl Hostd {
         }
         // No network at all. The runtime relays a mounted socket *file* to its host listener, so
         // the two mediator sockets, which must already exist, are the container's only way out.
-        // (Mounting their directory instead would go over virtiofs, which cannot connect them.)
+        // (Mounting their directory instead would go over virtiofs, which can't connect them.)
         let mount = |host: &Path, guest: &str| {
             let mut spec = OsString::from(host);
             spec.push(":");
@@ -644,7 +644,7 @@ impl Hostd {
         if let Some(cwd) = cwd {
             cmd.arg("-v").arg(mount(cwd, "/workspace"));
         }
-        // `-e NAME` with no value makes the container CLI read it from its own environment, so
+        // `-e NAME` with no value makes the container command-line interface read it from its own environment, so
         // the prompt never appears on argv.
         cmd.args(["-e", "AVIRT_PROMPT", "-e", "AVIRT_CWD", "-e", "AVIRT_CONNECTION_TOKEN"])
             .arg("-e")
@@ -656,7 +656,7 @@ impl Hostd {
             .stdin(Stdio::null())
             .stdout(container_log.try_clone()?)
             .stderr(container_log)
-            // Own process group, so a terminal Ctrl-C reaches avirthostd and not the CLI.
+            // A separate process group prevents terminal Ctrl-C from reaching the command-line interface while avirthostd receives it.
             .process_group(0);
         Ok(cmd)
     }
@@ -664,7 +664,7 @@ impl Hostd {
     /// Picks an unused id (redrawn on collision) and registers the workload with its log.
     fn register(&self) -> Result<(String, Arc<Workload>)> {
         let mut workloads = self.workloads.lock().expect("workloads lock");
-        // A fresh id that is also unused on disk (earlier runs leave logs behind).
+        // A fresh id that's also unused on disk (earlier runs leave logs behind).
         let (id, log) = loop {
             let id = format!("{:08x}", rand::random::<u32>());
             if workloads.contains_key(&id) {
@@ -692,8 +692,8 @@ impl Hostd {
         self.workloads.lock().expect("workloads lock").remove(id);
     }
 
-    /// Records the container's exit. `container_error` is written at once; `container_exit` is
-    /// held until the stream has drained (or written now if none was ever accepted).
+    /// Records the container's exit. Writes `container_error` at once and holds `container_exit`
+    /// until the stream has drained (or writes it now if avirthostd never accepted a stream).
     fn finish(&self, id: &str, workload: &Workload, status: std::io::Result<Value>) {
         let completed = {
             let mut state = workload.state.lock().expect("state lock");
@@ -728,27 +728,27 @@ impl Hostd {
     }
 }
 
-/// How many finished workloads are remembered for the 410 answer.
+/// How many finished workloads avirthostd remembers for the 410 answer.
 const MAX_TOMBSTONES: usize = 1024;
 
-/// Runs a `container` subcommand with a time limit; true if it succeeded.
+/// Runs a `container` subcommand with a time limit. Returns true if it succeeded.
 async fn container_cmd(args: &[&str], limit: Duration) -> bool {
     let run = Command::new("container")
         .args(args)
         .stdout(Stdio::null())
         .stderr(Stdio::null())
-        // Own process group, so a second Ctrl-C does not kill it; dropped (killed) on timeout.
+        // A separate process group prevents a second Ctrl-C from stopping it. Drop and stop it on timeout.
         .process_group(0)
         .kill_on_drop(true)
         .status();
     matches!(tokio::time::timeout(limit, run).await, Ok(Ok(status)) if status.success())
 }
 
-/// Stops the container and waits for the `container run` CLI to exit. A stop that arrives before
-/// the container exists fails fast, so it is retried at a short interval. As a last resort the
-/// container is killed and deleted by name before the CLI client is killed. The flag says whether
-/// the container is confirmed gone; if not, the caller must not touch what the agent could still
-/// be using.
+/// Stops the container and waits for the `container run` command-line interface to exit. A stop that arrives before
+/// the container exists fails fast, so this function retries it at a short interval. As a last resort,
+/// it kills and deletes the container by name before killing the command-line interface client. The flag
+/// confirms whether the container no longer exists. Without that confirmation, the caller must not change
+/// what the agent could still be using.
 async fn stop_and_wait(id: &str, child: &mut Child) -> (std::io::Result<ExitStatus>, bool) {
     let name = format!("avirt-{id}-workload");
     for _ in 0..40 {
@@ -770,10 +770,10 @@ async fn stop_and_wait(id: &str, child: &mut Child) -> (std::io::Result<ExitStat
     (status, gone)
 }
 
-/// Accepts mediator connections on avirthostd's socket. Each starts with one line naming its
-/// kind and the workload it belongs to (the mediator was started for that workload, so the
-/// container cannot pick another): `WORKLOAD <id>` is followed by the workload's HTTP/2 stream,
-/// spliced through from avirtinitd, and `EGRESS <id>` by NDJSON proxy events.
+/// Accepts mediator connections on avirthostd's socket. Each starts with one line specifying its
+/// kind and the workload it belongs to. avirthostd started the mediator for that workload, so the
+/// container can't pick another. The workload's HTTP/2 stream follows `WORKLOAD <id>`, with the
+/// mediator forwarding avirtinitd's bytes unchanged. NDJSON proxy events follow `EGRESS <id>`.
 async fn mediator_loop(hostd: Arc<Hostd>, listener: UnixListener) {
     loop {
         let Ok((conn, _)) = listener.accept().await else {
@@ -794,8 +794,8 @@ async fn mediator_connection(hostd: Arc<Hostd>, mut conn: UnixStream) {
         Some(Entry::Live(workload)) => Arc::clone(workload),
         _ => return,
     };
-    // Only this workload's mediator knows the secret; a same-user process that merely knows
-    // the workload id cannot inject events or end the event stream early.
+    // Only this workload's mediator knows the secret. A same-user process that merely knows
+    // the workload id can't inject events or end the event stream early.
     if !constant_time_eq(secret.as_bytes(), workload.mediator_secret.as_bytes()) {
         return;
     }
@@ -838,7 +838,7 @@ async fn mediator_connection(hostd: Arc<Hostd>, mut conn: UnixStream) {
     }
 }
 
-/// Reads the preamble line one byte at a time, so nothing after it is consumed.
+/// Reads the preamble line one byte at a time without consuming any following bytes.
 async fn read_preamble(conn: &mut UnixStream) -> Option<String> {
     let read = async {
         let mut line = Vec::new();
@@ -857,7 +857,7 @@ async fn read_preamble(conn: &mut UnixStream) -> Option<String> {
 }
 
 /// Compares two byte strings without stopping at the first difference. `black_box` keeps the
-/// optimizer from turning the loop back into an early-exit comparison.
+/// optimizer from turning the loop back into a comparison that exits early.
 fn constant_time_eq(a: &[u8], b: &[u8]) -> bool {
     a.len() == b.len() && std::hint::black_box(a.iter().zip(b).fold(0u8, |acc, (x, y)| acc | (x ^ y))) == 0
 }

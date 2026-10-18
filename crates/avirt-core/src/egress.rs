@@ -13,12 +13,12 @@ use std::time::Duration;
 use anyhow::{Context, Result, bail};
 use tokio::process::{Child, ChildStdin, Command};
 
-/// A workload's private directory (0700), `workloads/<workload-id>/`, holding the proxy socket and the
-/// mediator socket. It is removed, with whatever is still in it, when dropped.
+/// A workload's private directory (0700), `workloads/<workload-id>/`. It holds the proxy socket and the
+/// mediator socket. Dropping it removes the directory and whatever is still in it.
 #[derive(Debug)]
 pub struct WorkloadDir(PathBuf);
 
-/// Longest path `sockaddr_un` can hold on macOS, including the terminating NUL.
+/// Longest path `sockaddr_un` can hold on macOS, including the final NUL.
 const SUN_PATH_MAX: usize = 104;
 
 impl WorkloadDir {
@@ -58,7 +58,7 @@ impl Drop for WorkloadDir {
     }
 }
 
-/// A running `avirtmediatord`. Its stdin is never written; closing it (or avirthostd dying)
+/// A running `avirtmediatord`. Never write to its stdin. Closing it (or avirthostd dying)
 /// shuts it down.
 #[derive(Debug)]
 pub struct Proxy {
@@ -68,8 +68,8 @@ pub struct Proxy {
 
 impl Proxy {
     /// Starts the mediator for `dir` and waits up to 3 s for both sockets to accept
-    /// connections. The sockets must exist before the container is started, because the runtime
-    /// only mounts a socket file that is already there.
+    /// connections. The sockets must exist before avirthostd starts the container, because the runtime
+    /// only mounts a socket file that's already there.
     pub async fn spawn(
         bin: &Path,
         id: &str,
@@ -97,7 +97,7 @@ impl Proxy {
             .stdout(Stdio::null())
             .stderr(stderr)
             .kill_on_drop(true)
-            // Own process group, so a terminal Ctrl-C reaches avirthostd and not the mediator.
+            // A separate process group prevents terminal Ctrl-C from reaching the mediator while avirthostd receives it.
             .process_group(0)
             .spawn()
             .with_context(|| format!("spawn {}", bin.display()))?;
@@ -106,7 +106,7 @@ impl Proxy {
 
         let deadline = tokio::time::Instant::now() + Duration::from_secs(3);
         loop {
-            // A probe connects and closes without a byte; the mediator ignores it.
+            // A probe connects and closes without a byte. The mediator ignores it.
             let ready = tokio::net::UnixStream::connect(dir.proxy_socket()).await.is_ok()
                 && tokio::net::UnixStream::connect(dir.mediator_socket()).await.is_ok();
             if ready {

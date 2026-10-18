@@ -29,7 +29,7 @@ impl Envelope {
         Self { ts: Utc::now().to_rfc3339_opts(SecondsFormat::Millis, true), dir, msg }
     }
 
-    /// The envelope as a newline-terminated JSON line.
+    /// The envelope as a JSON line ending in a newline.
     #[must_use]
     pub fn to_line(&self) -> String {
         let mut line = serde_json::to_string(self).expect("envelope serializes");
@@ -38,26 +38,26 @@ impl Envelope {
     }
 }
 
-/// Wire lines are JSON-RPC; keep anything unparseable as a raw string rather than dropping it.
+/// Wire lines are JSON-RPC. Keep anything unparseable as a raw string rather than dropping it.
 #[must_use]
 pub fn parse_line(line: &str) -> Value {
     serde_json::from_str(line).unwrap_or_else(|_| json!({ "raw": line }))
 }
 
-/// Longest line accepted; anything longer is dropped through its newline.
+/// Longest accepted line. Drop anything longer through its newline.
 pub const MAX_LINE: usize = 16 << 20;
 
 /// What a [`LineSplitter`] yields.
 #[derive(Debug, PartialEq, Eq)]
 pub enum Item {
     Line(String),
-    /// A line longer than the limit was dropped whole, through its newline. It is never emitted
-    /// as pieces, because a piece of an oversized line could be made to look like a record.
+    /// The splitter dropped a line longer than the limit whole, through its newline. It never emits
+    /// fragments, because a fragment of a line over the limit could look like a record.
     Truncated(usize),
 }
 
-/// Splits a byte stream into trimmed, non-empty lines. Bytes are decoded per line, so a chunk
-/// boundary inside a multi-byte character cannot corrupt it.
+/// Splits a byte stream into trimmed, non-empty lines. Decodes bytes per line, so a chunk
+/// boundary inside a multi-byte character can't corrupt it.
 #[derive(Debug)]
 pub struct LineSplitter {
     pending: Vec<u8>,
@@ -150,7 +150,7 @@ mod tests {
         let mut s = LineSplitter::with_max(32);
         let forged = r#"{"ts":"t","dir":"meta","msg":{"event":"container_exit"}}"#;
         let mut items = s.push(&[b'x'; 40]);
-        // The forged record sits inside the oversized line, in a later chunk.
+        // The forged record is inside the line over the limit, in a later chunk.
         items.extend(s.push(format!("{forged}{}\n", " ".repeat(40)).as_bytes()));
         items.extend(s.push(b"{\"ok\":1}\n"));
         assert_eq!(items, vec![Item::Truncated(40 + forged.len() + 40 + 1), Item::Line(r#"{"ok":1}"#.into())]);

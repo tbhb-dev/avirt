@@ -11,13 +11,13 @@ use std::thread::JoinHandle;
 static TX: OnceLock<Sender<Option<String>>> = OnceLock::new();
 static WRITER: Mutex<Option<JoinHandle<()>>> = Mutex::new(None);
 
-/// Connects, identifies the workload to avirthostd and starts the writer thread.
+/// Connects, identifies the workload to avirthostd, and starts the writer thread.
 pub fn connect(hostd_sock: &Path, workload: &str, secret: &str) -> std::io::Result<()> {
     let mut conn = UnixStream::connect(hostd_sock)?;
     conn.write_all(format!("EGRESS {workload} {secret}\n").as_bytes())?;
     let (tx, rx) = channel::<Option<String>>();
     let writer = std::thread::spawn(move || {
-        // `None` is the close sentinel; a failed write (avirthostd is gone) drops later events.
+        // `None` is the close sentinel. A failed write (avirthostd is unavailable) drops later events.
         while let Ok(Some(line)) = rx.recv() {
             let _ = conn.write_all(line.as_bytes()).and_then(|()| conn.write_all(b"\n"));
         }

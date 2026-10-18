@@ -72,7 +72,7 @@ pub fn bootstrap(socket: &Path, module: &Path) -> Value {
 }
 
 /// A small guardian process gives Envoy a parent-death lifeline on macOS as well as Linux.
-/// Its stdin is held only by avirtmediatord; it never inherits the mediator secret.
+/// Only avirtmediatord retains its stdin. It never inherits the mediator secret.
 pub fn supervise() -> i32 {
     let mut args = std::env::args_os().skip(2);
     let (Some(binary), Some(config)) = (args.next(), args.next()) else { return 2 };
@@ -148,7 +148,7 @@ impl Envoy {
                     events::send(event.to_string());
                 }
             }
-            // The pipe closes when Envoy exits, including a forced shutdown or a crash.
+            // The pipe closes when Envoy exits. This includes a forced shutdown or a crash.
             for mut event in pending.into_values() {
                 event["error"] = json!("shutdown");
                 events::send(event.to_string());
@@ -185,7 +185,7 @@ impl Envoy {
         }
         self.stopped = true;
         drop(self.child.stdin.take());
-        // The group survives the guardian, so this also kills an orphaned Envoy.
+        // The group remains after the guardian exits. This also sends SIGKILL to an orphaned Envoy.
         match nix::sys::signal::killpg(nix::unistd::Pid::from_raw(self.guardian_pid), nix::sys::signal::Signal::SIGKILL)
         {
             Ok(()) | Err(nix::errno::Errno::ESRCH) => {}
@@ -220,7 +220,7 @@ fn accept_event(record: &Value, workload: &str, pending: &mut HashMap<u64, Value
     }
 }
 
-/// Pingora supplies only the existing socket accept loop in Envoy mode; HTTP stays in Envoy.
+/// Pingora supplies only the existing socket accept loop in Envoy mode. HTTP stays in Envoy.
 pub struct ForwardApp(pub PathBuf);
 #[async_trait]
 impl ServerApp for ForwardApp {
