@@ -50,10 +50,10 @@ jobs:
           fetch-depth: 0
 
       - name: Set up the toolchain
-        uses: jdx/mise-action@2d8d4cafcbd33be2ea37d2b6f5ad595363d1f1ca # v5.1.1
+        uses: jdx/mise-action@08ae2a091c038e1e05ec6f5115dc5c69d5a2a6b8 # v5.1.2
         with:
           # renovate: datasource=github-releases depName=jdx/mise
-          version: 2026.10.3
+          version: 2026.10.9
 
       # mise installs the vale binary but does not fetch the style packages
       # .vale.ini declares.
@@ -97,10 +97,10 @@ jobs:
           persist-credentials: false
 
       - name: Set up the toolchain
-        uses: jdx/mise-action@2d8d4cafcbd33be2ea37d2b6f5ad595363d1f1ca # v5.1.1
+        uses: jdx/mise-action@08ae2a091c038e1e05ec6f5115dc5c69d5a2a6b8 # v5.1.2
         with:
           # renovate: datasource=github-releases depName=jdx/mise
-          version: 2026.10.3
+          version: 2026.10.9
 
       # The ci profile in .config/nextest.toml: no retries, a flaky pass fails.
       - name: Check
@@ -143,10 +143,10 @@ jobs:
           persist-credentials: false
 
       - name: Set up the toolchain
-        uses: jdx/mise-action@2d8d4cafcbd33be2ea37d2b6f5ad595363d1f1ca # v5.1.1
+        uses: jdx/mise-action@08ae2a091c038e1e05ec6f5115dc5c69d5a2a6b8 # v5.1.2
         with:
           # renovate: datasource=github-releases depName=jdx/mise
-          version: 2026.10.3
+          version: 2026.10.9
           install_args: rust github:EmbarkStudios/cargo-deny
 
       - name: Check RustSec advisories
@@ -170,10 +170,10 @@ jobs:
           persist-credentials: false
 
       - name: Set up the toolchain
-        uses: jdx/mise-action@2d8d4cafcbd33be2ea37d2b6f5ad595363d1f1ca # v5.1.1
+        uses: jdx/mise-action@08ae2a091c038e1e05ec6f5115dc5c69d5a2a6b8 # v5.1.2
         with:
           # renovate: datasource=github-releases depName=jdx/mise
-          version: 2026.10.3
+          version: 2026.10.9
           install_args: rust github:EmbarkStudios/cargo-deny
 
       - name: Check dependencies
@@ -193,10 +193,10 @@ jobs:
           persist-credentials: false
 
       - name: Set up the toolchain
-        uses: jdx/mise-action@2d8d4cafcbd33be2ea37d2b6f5ad595363d1f1ca # v5.1.1
+        uses: jdx/mise-action@08ae2a091c038e1e05ec6f5115dc5c69d5a2a6b8 # v5.1.2
         with:
           # renovate: datasource=github-releases depName=jdx/mise
-          version: 2026.10.3
+          version: 2026.10.9
 
       - name: Measure coverage
         env:
@@ -222,10 +222,10 @@ jobs:
           persist-credentials: false
 
       - name: Set up the toolchain
-        uses: jdx/mise-action@2d8d4cafcbd33be2ea37d2b6f5ad595363d1f1ca # v5.1.1
+        uses: jdx/mise-action@08ae2a091c038e1e05ec6f5115dc5c69d5a2a6b8 # v5.1.2
         with:
           # renovate: datasource=github-releases depName=jdx/mise
-          version: 2026.10.3
+          version: 2026.10.9
           install_args: vendir
 
       - name: Check the vendored payload
