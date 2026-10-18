@@ -43,7 +43,7 @@ dependencies:
   - .claude/skills/agent-merge-pr/scripts/review.sh
   - .claude/skills/agent-merge-pr/tests/agent-merge-pr.bats
   deployed_file_hashes:
-    .claude/skills/agent-merge-pr/SKILL.md: sha256:2643d8ca236910eba72679f06358c95dd188e0bbc1269c62a86919631edab0d8
+    .claude/skills/agent-merge-pr/SKILL.md: sha256:4aaac35a7a83b63188513f56810cdc90880645c02fda5efb174d2017d0d0e689
     .claude/skills/agent-merge-pr/apm.yml: sha256:23ab6ec3190daaac7722630a15f06054fac6aea474029109a730baa80d7c6960
     .claude/skills/agent-merge-pr/scripts/common.sh: sha256:47d6a9109d6887579cb448e2bfcb2f722f5af0a7579d2189a60021040e6cca70
     .claude/skills/agent-merge-pr/scripts/guard.sh: sha256:35a540eccf54fbfe71506f33ec323d1c3ad721a30aaff76eb3fd6b2d13b88851
@@ -630,7 +630,7 @@ deployments:
   owners:
   - ./.agents/skills/agent-merge-pr
   active_owner: ./.agents/skills/agent-merge-pr
-  content_hash: sha256:2643d8ca236910eba72679f06358c95dd188e0bbc1269c62a86919631edab0d8
+  content_hash: sha256:4aaac35a7a83b63188513f56810cdc90880645c02fda5efb174d2017d0d0e689
 - kind: project-relative
   target: claude
   value: .claude/skills/agent-merge-pr/apm.yml
