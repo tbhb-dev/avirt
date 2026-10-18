@@ -11,7 +11,7 @@ generated: { by: codex/gpt-6, at: 2026-10-18T05:20:59Z }
 
 `avirt` runs ACP agents (Claude through claude-agent-acp, Codex through codex-acp, see [ACP](./acp.md)) inside isolated containers on an Apple silicon Mac. A mediator handles and logs all network egress. Each avirt binary is Rust, and the ACP client uses the official `agent-client-protocol` crate. The planned data plane consists of avirtmediatord and avirtedgeproxyd.
 
-Status: implemented. The current code has these components. See [topology](#status-implemented) and [components](./components.md) for the planned design.
+Status: implemented. The current code has these components. See [topology](#status-planned) and [components](./components.md) for the planned design.
 
 | Component | Binary | Runs | Role |
 | --- | --- | --- | --- |
