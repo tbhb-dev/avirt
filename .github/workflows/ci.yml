@@ -1,10 +1,11 @@
 ---
 # Main quality gate. avirt is a Rust workspace, so the gates are the full
-# lint bar, the check aggregate (fmt, clippy and tests, plus the docs
-# checks) on Linux and macOS, the vendor-drift check, and a RustSec
-# advisory scan. Every job installs the pinned toolchain through mise and
-# runs its gate through `mise run`, so the mise config stays the single
-# definition of what each gate runs.
+# lint bar, the check aggregate (fmt, clippy, rustdoc, shear, deny and the
+# tests, plus the docs checks) on Linux and macOS, the vendor-drift check,
+# a RustSec advisory scan, cargo-deny, and the coverage floors. Every job
+# installs the pinned toolchain through mise and runs its gate through
+# `mise run`, so the mise config stays the single definition of what each
+# gate runs.
 
 name: ci
 
@@ -101,7 +102,10 @@ jobs:
           # renovate: datasource=github-releases depName=jdx/mise
           version: 2026.10.3
 
+      # The ci profile in .config/nextest.toml: no retries, a flaky pass fails.
       - name: Check
+        env:
+          NEXTEST_PROFILE: ci
         run: mise run check
 
   # The matrix job reports as `test (ubuntu-24.04)` and `test (macos-15)`.
@@ -149,6 +153,55 @@ jobs:
         env:
           MISE_TASK_RUN_AUTO_INSTALL: "0"
         run: mise run vuln
+
+  # cargo-deny: advisories, bans and sources, under deny.toml.
+  deny:
+    name: deny
+    runs-on: ubuntu-24.04
+    steps:
+      - name: Harden the runner
+        uses: step-security/harden-runner@ccd8616d44fd3846e67624a50d5aad6d37bf2d25 # v2.22.1
+        with:
+          egress-policy: audit
+
+      - name: Checkout
+        uses: actions/checkout@3d3c42e5aac5ba805825da76410c181273ba90b1 # v7.0.1
+        with:
+          persist-credentials: false
+
+      - name: Set up the toolchain
+        uses: jdx/mise-action@2d8d4cafcbd33be2ea37d2b6f5ad595363d1f1ca # v5.1.1
+        with:
+          # renovate: datasource=github-releases depName=jdx/mise
+          version: 2026.10.3
+          install_args: rust github:EmbarkStudios/cargo-deny
+
+      - name: Check dependencies
+        env:
+          MISE_TASK_RUN_AUTO_INSTALL: "0"
+        run: mise run deny
+
+  # The coverage floors in the mise coverage task. The baseline was measured on
+  # macOS, so the gate runs there; cfg(target_os) code changes the totals.
+  coverage:
+    name: coverage
+    runs-on: macos-15
+    steps:
+      - name: Checkout
+        uses: actions/checkout@3d3c42e5aac5ba805825da76410c181273ba90b1 # v7.0.1
+        with:
+          persist-credentials: false
+
+      - name: Set up the toolchain
+        uses: jdx/mise-action@2d8d4cafcbd33be2ea37d2b6f5ad595363d1f1ca # v5.1.1
+        with:
+          # renovate: datasource=github-releases depName=jdx/mise
+          version: 2026.10.3
+
+      - name: Measure coverage
+        env:
+          NEXTEST_PROFILE: ci
+        run: mise run coverage
 
   # Resyncs the devtools payload in place from vendir.yml and fails on any
   # difference from the committed tree. That catches a vendored file edited

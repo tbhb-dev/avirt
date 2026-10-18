@@ -80,7 +80,7 @@ mise run mutants         # cargo-mutants baseline; no gate
 mise run fuzz-smoke      # every fuzz target for 20 seconds; needs the pinned nightly
 ```
 
-Pre-commit hooks run rustfmt, cargo-shear and cargo-deny on the files they cover, and pre-push hooks run clippy, rustdoc, and the tests. Coverage, mutants, and fuzzing run in no hook.
+Pre-commit hooks run rustfmt, cargo-shear and cargo-deny on the files they cover, and pre-push hooks run clippy, rustdoc, and the tests. Coverage, mutants, and fuzzing run in no hook. CI fails a pull request that falls below the coverage floors, and a daily schedule measures mutants, coverage history, and fuzzing.
 
 ## Conventions
 

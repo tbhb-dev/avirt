@@ -1,0 +1,120 @@
+---
+# Measurements that do not gate a pull request: the mutation baseline, the
+# coverage history, and a short fuzz run of every target. Each job uploads its
+# result as an artifact. A run is a trend, so a failure here means the tool
+# broke or a fuzz target found a crash, not that a threshold moved.
+
+name: scheduled
+
+on:
+  schedule:
+    - cron: "17 4 * * *"
+  workflow_dispatch:
+
+permissions:
+  contents: read
+
+env:
+  MISE_LOCKED: "1"
+
+concurrency:
+  group: ${{ github.workflow }}-${{ github.ref }}
+  cancel-in-progress: false
+
+jobs:
+  mutants:
+    name: mutants
+    runs-on: ubuntu-24.04
+    timeout-minutes: 360
+    steps:
+      - name: Harden the runner
+        uses: step-security/harden-runner@ccd8616d44fd3846e67624a50d5aad6d37bf2d25 # v2.22.1
+        with:
+          egress-policy: audit
+
+      - name: Checkout
+        uses: actions/checkout@3d3c42e5aac5ba805825da76410c181273ba90b1 # v7.0.1
+        with:
+          persist-credentials: false
+
+      - name: Set up the toolchain
+        uses: jdx/mise-action@2d8d4cafcbd33be2ea37d2b6f5ad595363d1f1ca # v5.1.1
+        with:
+          # renovate: datasource=github-releases depName=jdx/mise
+          version: 2026.10.3
+
+      # cargo-mutants exits 2 when mutants survive and 3 on timeouts. Neither
+      # fails the job: the outcomes are the product, not a gate. A run that
+      # wrote no outcomes file still fails.
+      - name: Run cargo-mutants
+        run: mise run mutants || test -f mutants.out/outcomes.json
+
+      - name: Upload the outcomes
+        if: always()
+        uses: actions/upload-artifact@043fb46d1a93c77aae656e7c1c64a875d1fc6a0a # v7.0.1
+        with:
+          name: mutants
+          path: mutants.out/
+          if-no-files-found: warn
+
+  coverage-history:
+    name: coverage-history
+    runs-on: macos-15
+    steps:
+      - name: Checkout
+        uses: actions/checkout@3d3c42e5aac5ba805825da76410c181273ba90b1 # v7.0.1
+        with:
+          persist-credentials: false
+
+      - name: Set up the toolchain
+        uses: jdx/mise-action@2d8d4cafcbd33be2ea37d2b6f5ad595363d1f1ca # v5.1.1
+        with:
+          # renovate: datasource=github-releases depName=jdx/mise
+          version: 2026.10.3
+
+      - name: Measure coverage
+        env:
+          NEXTEST_PROFILE: ci
+        run: |
+          cargo llvm-cov nextest --workspace --locked --no-report
+          cargo llvm-cov report --json --summary-only --output-path coverage-summary.json
+          cargo llvm-cov report --html
+
+      - name: Upload the reports
+        uses: actions/upload-artifact@043fb46d1a93c77aae656e7c1c64a875d1fc6a0a # v7.0.1
+        with:
+          name: coverage
+          path: |
+            coverage-summary.json
+            target/llvm-cov/html/
+
+  fuzz-smoke:
+    name: fuzz-smoke
+    runs-on: ubuntu-24.04
+    steps:
+      - name: Harden the runner
+        uses: step-security/harden-runner@ccd8616d44fd3846e67624a50d5aad6d37bf2d25 # v2.22.1
+        with:
+          egress-policy: audit
+
+      - name: Checkout
+        uses: actions/checkout@3d3c42e5aac5ba805825da76410c181273ba90b1 # v7.0.1
+        with:
+          persist-credentials: false
+
+      - name: Set up the toolchain
+        uses: jdx/mise-action@2d8d4cafcbd33be2ea37d2b6f5ad595363d1f1ca # v5.1.1
+        with:
+          # renovate: datasource=github-releases depName=jdx/mise
+          version: 2026.10.3
+
+      - name: Fuzz every target
+        run: mise run fuzz-smoke
+
+      - name: Upload crashing inputs
+        if: failure()
+        uses: actions/upload-artifact@043fb46d1a93c77aae656e7c1c64a875d1fc6a0a # v7.0.1
+        with:
+          name: fuzz-artifacts
+          path: fuzz/artifacts/
+          if-no-files-found: warn
