@@ -4,23 +4,22 @@
 extends: substitution
 message: "'%[2]s' is a rejected term. Instead: %[1]s."
 level: error
-ignorecase: true
 swap:
-  control keys?: the private key of avirtmediatord's SVID
-  broker lease: lease
-  mediator-bound credentials?: mediator-injected credentials
-  admission budget: stream limit
-  native host listener: avirtedgeproxyd's local client listener
-  peered names?: an internal name under a peer's host name
-  workload helpers?: name the process
-  local provenance: an image built from local sources
-  event provenance: the event's `src` field
-  guest root: root in the sandbox container
-  off-host rules?: state the rule
-  non-policy checks: the checks that apply in both policy modes
-  required-allow invariants?: describe the condition
-  permissions boundar(?:y|ies): describe the condition
-  broker streams?: describe what the stream holds
-  local client sockets?: edgeproxy.sock
-  native host process(?:es)?: host process
-  native host binar(?:y|ies): host binary
+  (?i)control keys?: the private key of avirtmediatord's SVID
+  (?i)broker lease: lease
+  (?i)mediator-bound credentials?: mediator-injected credentials
+  (?i)admission budget: stream limit
+  (?i)native host listener: avirtedgeproxyd's local client listener
+  (?i)peered names?: an internal name under a peer's host name
+  (?i)workload helpers?: name the process
+  (?i)local provenance: an image built from local sources
+  (?i)event provenance: the event's `src` field
+  (?i)guest root: root in the sandbox container
+  (?i)off-host rules?: state the rule
+  (?i)non-policy checks: the checks that apply in both policy modes
+  (?i)required-allow invariants?: describe the condition
+  (?i)permissions boundar(?:y|ies): describe the condition
+  (?i)broker streams?: describe what the stream holds
+  (?i)local client sockets?: edgeproxy.sock
+  (?i)native host process(?:es)?: host process
+  (?i)native host binar(?:y|ies): host binary

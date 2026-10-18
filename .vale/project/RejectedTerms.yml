@@ -4,37 +4,36 @@
 extends: existence
 message: "'%s' is a rejected term. Say what it names in plain words."
 level: error
-ignorecase: true
 tokens:
-  - peer card
-  - link splice
-  - uplink
-  - mediator instance number
-  - control routes
-  - control process
-  - data process
-  - binding lease
-  - native edge proxy
-  - native peer listener
-  - exact-ID verifier
-  - control heartbeat
-  - identity lifetime bound
-  - the usual workload writers
-  - avirtmediationd
-  - avirt names?
-  - helpers?
-  - peered names?
-  - local provenance
-  - guest root
-  - event provenance
-  - provenance labels?
-  - off-host rules?
-  - off-host enforcement
-  - policy invariants?
-  - non-policy checks?
-  - required-allow invariants?
-  - guardrails?
-  - permissions boundar(?:y|ies)
-  - mediator-bound credentials?
-  - SPIFFE bundles?
-  - prebuild polic(?:y|ies)
+  - (?i)peer card
+  - (?i)link splice
+  - (?i)uplink
+  - (?i)mediator instance number
+  - (?i)control routes
+  - (?i)control process
+  - (?i)data process
+  - (?i)binding lease
+  - (?i)native edge proxy
+  - (?i)native peer listener
+  - (?i)exact-ID verifier
+  - (?i)control heartbeat
+  - (?i)identity lifetime bound
+  - (?i)the usual workload writers
+  - (?i)avirtmediationd
+  - (?i)avirt names?
+  - (?i)helpers?
+  - (?i)peered names?
+  - (?i)local provenance
+  - (?i)guest root
+  - (?i)event provenance
+  - (?i)provenance labels?
+  - (?i)off-host rules?
+  - (?i)off-host enforcement
+  - (?i)policy invariants?
+  - (?i)non-policy checks?
+  - (?i)required-allow invariants?
+  - (?i)guardrails?
+  - (?i)permissions boundar(?:y|ies)
+  - (?i)mediator-bound credentials?
+  - (?i)SPIFFE bundles?
+  - (?i)prebuild polic(?:y|ies)
