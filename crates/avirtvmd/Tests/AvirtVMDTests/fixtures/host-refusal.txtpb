@@ -1,0 +1,1 @@
+refusal { code: REFUSAL_CODE_STALE_INCARNATION message: "the incarnation is not the one avirthostd started" }

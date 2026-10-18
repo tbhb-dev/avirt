@@ -52,6 +52,7 @@ avirtpolicyd
 avirtregistryd
 avirtsecrets
 avirtsecretsd
+avirtvmd
 avirtwebd
 backoff
 backpressure
@@ -136,7 +137,9 @@ EOF
 EOPNOTSUPP
 EPERM
 errno
+esac
 ESRCH
+EWOULDBLOCK
 EXDEV
 execve
 execveat
@@ -253,10 +256,12 @@ NEWUSER
 nextest
 nftables
 NIC
+NIOBSD
 NLGRP
 nocapture
 NONBLOCK
 nonblocking
+nonisolated
 nullglob
 noproxy
 nossl
@@ -320,6 +325,7 @@ QUIC
 quiesces
 rcgen
 rcode
+RDWR
 reachability
 READLOG
 READMEs
@@ -402,6 +408,7 @@ SVIDs
 SWIFTSHIM
 syscall
 syscalls
+sysexits
 sysread
 systemd
 taiki
@@ -423,6 +430,7 @@ TSYNC
 TTL
 TUI
 TXT
+txtpb
 UCUM
 UDP
 UEFI
@@ -480,6 +488,7 @@ xattr
 Xcode
 xcrun
 XPC
+xucred
 xwin
 zerocopy
 zeroizes
