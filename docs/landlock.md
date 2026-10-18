@@ -60,7 +60,7 @@ The **lowest supported ABI is 6**. avirtinitd refuses to start any workload proc
 | `SCOPE_ABSTRACT_UNIX_SOCKET`, `SCOPE_SIGNAL`, in each ruleset | 6 | Mandatory | avirtinitd refuses the launch |
 | Denial logging (`LOG_NEW_EXEC_ON`, `LOG_SUBDOMAINS_OFF`) | 7 | Best effort | Denials surface only as errno in the process |
 | `RESOLVE_UNIX` rules on the sockets each process may connect to | 9 | Best effort | Unix socket file modes and `SO_PEERCRED` checks alone govern connects |
-| UDP port rules | 10 | Not requested | Loopback-only networking and the seccomp socket-domain allowlist govern UDP |
+| UDP port rules | 10 | Not requested | UDP passes through the TUN and avirtnetd under mediator and edge policy checks, alongside the seccomp socket-domain allowlist |
 
 ## Library and launcher
 
