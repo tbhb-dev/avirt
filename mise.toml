@@ -142,7 +142,7 @@ extends = "devtools:lint-pr-description"
 run = [
   "bash .claude/skills/pr/scripts/validate-description.sh",
   "vale --output=ai-tells-agent.tmpl PR_AGENTDESC.md",
-  "cspell --config .cspell.jsonc --no-summary --no-progress PR_AGENTDESC.md",
+  "cspell --config .cspell.jsonc --no-summary --no-progress --no-gitignore PR_AGENTDESC.md",
   "bash $DEVTOOLS_DIR/scripts/check-leaks.sh PR_AGENTDESC.md",
 ]
 
