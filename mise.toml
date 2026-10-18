@@ -10,6 +10,7 @@ vendir = "0.46.1"
 apm = "0.33.0"
 shfmt = "3.14.1"
 jq = "1.8.2"
+"github:EmbarkStudios/cargo-deny" = "0.20.2"
 "go:github.com/tbhb-dev/devtools/cmd/guard-markdown" = "v0.12.0"
 # The one source of truth for the Rust version: the crates' `rust-version` and the images'
 # builder stage (`rust:1.97.1-bookworm`) follow it.
@@ -22,6 +23,7 @@ DEVTOOLS_PROSE_GLOB = "*.{md,rs}"
 
 [task_config]
 includes = [
+  ".devtools/tasks/apm.toml",
   ".devtools/tasks/fix.toml",
   ".devtools/tasks/format.toml",
   ".devtools/tasks/git-hooks.toml",
@@ -33,6 +35,25 @@ includes = [
   ".devtools/tasks/toolchain.toml",
   ".devtools/tasks/vendir.toml",
 ]
+
+[tasks.bootstrap]
+description = "Sync the vendored payload, install the toolchain, and install git hooks"
+alias = "setup"
+run = [
+  "vendir sync",
+  "mise run install-toolchain",
+  "mise run install-tools",
+  "mise run devtools:prek-install",
+  "mise run devtools:install-leak-hook",
+]
+
+[tasks.install-toolchain]
+description = "Install the pinned toolchain from mise.toml and the vendored conf.d"
+run = "mise install"
+
+[tasks.install-tools]
+description = "Download the Vale style packages .vale.ini names"
+run = "vale sync"
 
 [tasks.build]
 description = "Build every crate"
@@ -60,14 +81,26 @@ uv run --no-project --with pyyaml python scripts/okf-check.py docs
 uv run --no-project --with pyyaml python scripts/okf-check.py --repo .
 """
 
+[tasks.test-skills]
+description = "Run the bats suites of the repository-local agent skills"
+run = "bats .agents/skills/agent-commit/tests .agents/skills/agent-pr/tests .agents/skills/agent-merge-pr/tests"
+
 [tasks.check]
-description = "fmt --check, clippy -D warnings, the tests and check-docs"
-depends = ["check-docs"]
+description = "fmt --check, clippy -D warnings, the tests, the skill suites and check-docs"
+depends = ["check-docs", "test-skills"]
 run = [
   "cargo fmt --check",
   "cargo clippy --workspace --all-targets -- -D warnings",
   "cargo test --workspace",
 ]
+
+[tasks.check-all]
+description = "Deeper bar: check and lint plus the full-history gitleaks scan"
+run = ["mise run check", "mise run lint", "mise run devtools:gitleaks"]
+
+[tasks.vuln]
+description = "Fail when Cargo.lock holds a dependency with a published RustSec advisory"
+run = "cargo deny check advisories"
 
 [tasks.build-image]
 description = "Build one workload image (claude or codex); the repository root is the build context"
@@ -105,6 +138,18 @@ run = [
   "cargo test --locked --manifest-path crates/avirtenvoy/Cargo.toml --target-dir target/envoy-module",
 ]
 
+[tasks.lint-draft]
+extends = "devtools:lint-draft"
+
+[tasks.lint-pr-description]
+extends = "devtools:lint-pr-description"
+run = [
+  "bash .claude/skills/pr/scripts/validate-description.sh",
+  "vale --output=ai-tells-agent.tmpl PR_AGENTDESC.md",
+  "cspell --config .cspell.jsonc --no-summary --no-progress --no-gitignore PR_AGENTDESC.md",
+  "bash $DEVTOOLS_DIR/scripts/check-leaks.sh PR_AGENTDESC.md",
+]
+
 [tasks.lint-prose]
 extends = "devtools:lint-prose"
 
@@ -114,11 +159,31 @@ extends = "devtools:lint-commit-msg"
 [tasks.lint-squash-msg]
 extends = "devtools:lint-squash-msg"
 
+# devtools:lint-source-files excludes .claude, .agents and .codex wholesale,
+# since devtools deploys its primitives there. The repository-local skills
+# are authored in .agents/skills/agent-*, and the rules deployed into
+# .claude/rules should still meet the prose bar, so this task selects them
+# by name. Remove it once devtools offers a supported way to include paths.
+[tasks.lint-skills]
+shell = "bash -c"
+description = "Lint the repository-local skills' sources and .claude/rules, which devtools' file selection skips"
+run = """
+set -euo pipefail
+shopt -s nullglob
+docs=(.agents/skills/agent-*/SKILL.md .claude/rules/*.md)
+scripts=(.agents/skills/agent-*/scripts/*.sh)
+vale --output=ai-tells-agent.tmpl "${docs[@]}"
+guard-markdown "${docs[@]}"
+shellcheck -o check-extra-masked-returns "${scripts[@]}"
+shfmt -d "${scripts[@]}"
+"""
+
 [tasks.lint]
 extends = "devtools:lint"
 run = [
   "mise run devtools:check-vendored",
   "mise run devtools:check-pins",
+  "mise run devtools:lint-apm",
   "mise run devtools:lint-leaks",
   "mise run devtools:check-leak-hook",
   "mise run lint-prose",
@@ -132,6 +197,7 @@ run = [
   "mise run devtools:lint-workflows",
   "mise run devtools:lint-shell",
   "mise run devtools:lint-shell-fmt",
+  "mise run lint-skills",
   "mise run devtools:lint-curl",
   "mise run lint-rust",
 ]

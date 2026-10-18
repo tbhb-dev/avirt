@@ -1,0 +1,33 @@
+{
+  $schema: "https://docs.renovatebot.com/renovate-schema.json",
+
+  // The repository-level policy comes from the shared devtools preset:
+  // renovate-config.json5 has the rules, grouping, and the custom managers
+  // for pin sites no built-in manager reads. It is pinned to the devtools
+  // commit. devtools:check-pins reads the trailing version comment on the
+  // line, and devtools:update-pins moves it together with the other pin
+  // sites. There is no Rust preset upstream, so the cargo grouping is inline.
+  //
+  // The global-only options (identity, limits, requireConfig) are inlined
+  // here rather than taken from globalExtends, which Renovate resolves
+  // before host rules exist, so that fetch would run unauthenticated.
+  requireConfig: "ignored",
+  username: "tbhb-dev-renovate[bot]",
+  gitAuthor: "tbhb-dev-renovate[bot] <289255489+tbhb-dev-renovate[bot]@users.noreply.github.com>",
+  prConcurrentLimit: 0,
+  prHourlyLimit: 0,
+  extends: [
+    "github>tbhb-dev/devtools//.github/renovate-config.json5#7a880f49f2bfc912f757eda4e320168b8c8fa855", // v0.12.0
+  ],
+
+  packageRules: [
+    // One review surface for every Cargo dependency bump, with the
+    // lockfile refreshed in the same pull request.
+    {
+      groupName: "cargo-deps",
+      matchManagers: ["cargo"],
+    },
+  ],
+
+  repositories: ["tbhb-dev/avirt-poc"],
+}

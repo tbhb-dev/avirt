@@ -77,6 +77,8 @@
 [Qq]uiesces
 [Rr]code
 [Rr]eachability
+[Rr]ebase
+[Rr]epos
 [Rr]esyncs
 [Rr]etryable
 [Rr]ollout
@@ -124,6 +126,8 @@
 [Vv]minitd
 [Ww]ebsocket
 [Ww]ebsockets
+[Ww]orktree
+[Ww]orktrees
 [Xx]attr
 [Zz]eroizes
 ACLs
