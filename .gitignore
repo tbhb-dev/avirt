@@ -23,5 +23,3 @@ tmp/
 !.vale/config/vocabularies/project/
 mutants.out*/
 *.profraw
-__pycache__/
-.pytest_cache/

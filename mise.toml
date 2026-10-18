@@ -112,13 +112,9 @@ uv run --no-project --with pyyaml python scripts/okf-check.py --repo .
 description = "Run the bats suites of the repository-local agent skills"
 run = "bats .agents/skills/agent-commit/tests .agents/skills/agent-pr/tests .agents/skills/agent-merge-pr/tests"
 
-[tasks.test-jargon]
-description = "Unit tests for the new-term check"
-run = "uv run --no-project --with pytest==8.4.2 --with markdown-it-py==4.0.0 pytest scripts/tests -q"
-
 [tasks.check]
-description = "The full local gate: fmt, clippy, rustdoc, shear, deny, the tests, the skill suites, check-docs and the new-term tests"
-depends = ["check-docs", "test-skills", "test-jargon"]
+description = "The full local gate: fmt, clippy, rustdoc, shear, deny, the tests, the skill suites and check-docs"
+depends = ["check-docs", "test-skills"]
 run = [
   "mise run fmt-check",
   "mise run lint-rust",
@@ -225,10 +221,6 @@ run = [
   "cspell --config .cspell.jsonc --no-summary --no-progress --no-gitignore PR_AGENTDESC.md",
   "bash $DEVTOOLS_DIR/scripts/check-leaks.sh PR_AGENTDESC.md",
 ]
-
-[tasks.lint-jargon]
-description = "Report candidate terms in added prose for human review; always exits 0"
-run = "uv run --script scripts/jargon_check.py"
 
 [tasks.lint-prose]
 extends = "devtools:lint-prose"
