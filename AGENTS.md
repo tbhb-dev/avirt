@@ -23,6 +23,7 @@ Every crate lives directly under `crates/`, and each directory uses its package 
 | `avirthostd` | Binary | Host | The host daemon: control API, workload launch and teardown, logs, Codex `auth.json` write-back |
 | `avirt` | Binary `avirt` | Host | The operator CLI: `avirt launch` |
 | `avirtmediatord` | Binary | Host (one per workload) | The implemented host mediator. Planned: one process for workload traffic and lifecycle. Holds its SVID and handles rotation. |
+| `avirtvmd` | Binary (Swift) | Host (one per workload) | The per-workload VM host helper, a Swift package built on Containerization. It serves the control channel on `v.sock` and doesn't host the workload VM yet |
 | `avirtinitd` | Binary | Linux guest only (the workload) | The ACP client spawns the adapter and taps JSON-RPC. It drops to uid 1000 under seccomp |
 | `avirt-connect` | Library | Both | CONNECT authority parsing and destination checks for the Pingora CONNECT app |
 | `avirt-core` | Library | Both | Shared code for the `api` module and the `avirthostd` server. Includes the `avirtinitd` harness and the client for the workload's HTTP/2 connection to its mediator. Also includes the log envelope and runtime directory |

@@ -3,6 +3,7 @@
 //! what they left.
 
 pub mod container_cli;
+pub mod containerization;
 
 use crate::egress::WorkloadDir;
 use crate::hostd::profile::Share;

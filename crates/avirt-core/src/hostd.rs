@@ -2,7 +2,7 @@
 //! per workload and writes each workload's NDJSON log.
 
 mod container;
-mod mediator;
+pub(crate) mod mediator;
 pub mod profile;
 mod routes;
 #[cfg(test)]
