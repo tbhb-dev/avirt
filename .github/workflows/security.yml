@@ -52,7 +52,7 @@ jobs:
           fetch-depth: 0
           # The task scans the history reachable from HEAD. On a pull
           # request GitHub checks out a synthetic merge commit by default,
-          # which carries a signature and an author line no contributor
+          # which has a signature and an author line no contributor
           # wrote. Checking out the pull request head ends the scan range
           # at the commits the author pushed. A push or a dispatch has no
           # pull request, so it falls back to the commit that triggered

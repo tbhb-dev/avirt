@@ -2,7 +2,7 @@
 # below are placeholders only; real host names, addresses and account names
 # belong in the gitignored mise.local.toml. The leak check
 # (.devtools/scripts/check-leaks.sh) reads the real values from there and
-# fails a commit or push that carries one.
+# fails a commit or push that has one.
 [env]
 # Comma-separated strings to keep out of the repository, such as host names,
 # account names or project identifiers. May be empty. An entry under four

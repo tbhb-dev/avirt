@@ -1,6 +1,6 @@
 ---
 # Self-hosted Renovate. Authenticates as the tbhb-dev-renovate[bot]
-# GitHub App so commits carry a DCO sign-off matching the committer (the
+# GitHub App so commits get a DCO sign-off matching the committer (the
 # stock Mend hosted App commits as renovate[bot], which can't match this
 # repo's gitAuthor + gitSignOff pair).
 #
@@ -10,7 +10,7 @@
 # SHA; the trailing tag comment marks the matching release for Renovate.
 #
 # Execution depends on the tbhb-dev-renovate App credentials reaching the
-# run: this repository carries RENOVATE_CLIENT_ID and
+# run: this repository holds RENOVATE_CLIENT_ID and
 # RENOVATE_PRIVATE_KEY as its own Actions secrets.
 #
 # This workflow runs on a schedule and on demand only. A push or pull
