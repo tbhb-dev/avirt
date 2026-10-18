@@ -146,7 +146,7 @@ elif [ "$(git rev-parse "$made^{tree}")" != "$tree" ]; then
 elif [ "$(git cat-file commit "$made" | sed '1,/^$/d' | git stripspace)" != "$(git stripspace <"$message")" ]; then
   why="a hook changed the message, and the commit's message isn't the reviewed message"
 elif ! as_signed_by "$made" "$key" "$state/commit.signers"; then
-  why="the commit carries no good signature from the configured key"
+  why="the commit has no good signature from the configured key"
 elif [ "$(git symbolic-ref -q HEAD || true)" != "$ref" ]; then
   why="a hook moved HEAD off ${ref#refs/heads/} during the commit"
 fi

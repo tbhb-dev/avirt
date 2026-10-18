@@ -206,7 +206,7 @@ as_signing_key() {
   printf '%s\n' "$key" | awk 'NF >= 2 { print $1, $2 }'
 }
 
-# as_signed_by <commit> <key> <file>: succeed when the commit carries a
+# as_signed_by <commit> <key> <file>: succeed when the commit has a
 # good SSH signature from the key. The file is scratch space for the
 # allowed-signers list. Verification runs ssh-keygen itself, whatever
 # program the configuration signs with.

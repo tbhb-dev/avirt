@@ -53,7 +53,7 @@ inputs=$(as_new_inputs pr)
 snapshot=$inputs/PR_AGENTDESC.md
 cp "$draft" "$snapshot"
 base=$(pr_field "$snapshot" base)
-[ -n "$base" ] || as_die "the draft's frontmatter carries no base:"
+[ -n "$base" ] || as_die "the draft's frontmatter has no base:"
 base_ref=$(pr_base_ref "$base")
 head=$(git rev-parse HEAD)
 mergebase=$(git merge-base "$base_ref" "$head") || as_die "no merge base between $base_ref and HEAD"

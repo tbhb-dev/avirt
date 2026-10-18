@@ -62,7 +62,7 @@ in_progress=$(as_in_progress)
 branch=$(git branch --show-current)
 [ -n "$branch" ] || as_die "HEAD is detached; check out the branch to publish"
 base=$(pr_field "$draft" base)
-[ -n "$base" ] || as_die "the draft's frontmatter carries no base:"
+[ -n "$base" ] || as_die "the draft's frontmatter has no base:"
 [ "$branch" != "$base" ] || as_die "$branch is the base branch; publish a topic branch"
 base_ref=$(pr_base_ref "$base")
 git merge-base "$base_ref" HEAD >/dev/null || as_die "no merge base between $base_ref and HEAD"
@@ -100,7 +100,7 @@ true | false) ;;
 esac
 labels=$(pr_sequence "$(pr_field "$copy" labels)")
 milestone=$(pr_field "$copy" milestone)
-[ -n "$(pr_title "$copy")" ] || as_die "the draft carries no level 1 heading to use as the title"
+[ -n "$(pr_title "$copy")" ] || as_die "the draft has no level 1 heading to use as the title"
 [ -n "$(pr_body "$copy")" ] || as_die "the description has a title but no body"
 
 # gh adds labels and the milestone as it opens the pull request, so an

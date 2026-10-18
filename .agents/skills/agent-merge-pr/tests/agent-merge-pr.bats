@@ -611,7 +611,7 @@ hook_command() {
   [ "$(merged_calls)" = 1 ]
   run grep -c -F -- "pr merge 7 --squash --subject feat: add a second note (#7) --body-file $(state_dir)/merge.body --match-head-commit $head" "$fx/calls"
   [ "$output" = 1 ]
-  # The commit on the base branch carries the reviewed message.
+  # The commit on the base branch holds the reviewed message.
   run git --git-dir="$origin" log -1 --format=%B main
   [[ ${lines[0]} == "feat: add a second note (#7)" ]] || false
   [[ $output == *"context for the one beside it."* ]] || false

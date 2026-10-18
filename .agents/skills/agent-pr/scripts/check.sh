@@ -78,7 +78,7 @@ title_cmd=$(as_conf pr_title_check_cmd)
 if [ -n "$title_cmd" ]; then
   base=$(pr_field "$draft" base)
   if [ -z "$base" ]; then
-    finding "the draft's frontmatter carries no base:, so the title check can't run"
+    finding "the draft's frontmatter has no base:, so the title check can't run"
   elif ! output=$(AS_BASE=$(pr_base_ref "$base") AS_HEAD=HEAD AS_TITLE=$(pr_title "$draft") bash -c "$title_cmd" 2>&1); then
     [ -z "$output" ] || printf '%s\n' "$output"
     finding "the title check fails; fix the title above"
