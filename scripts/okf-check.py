@@ -9,12 +9,13 @@ entries have the `* [Title](link) - description` form; concept id segments are v
 `status` is draft, stable or deprecated; `generated` has `by`; relative links resolve.
 
 With `--repo ROOT`, every Markdown file under ROOT outside `docs/` and the build, dependency, log and
-hidden directories needs the same frontmatter (`type`, valid `status` and `generated`), and none of
-them needs a place in a docs index.
+hidden directories needs the same frontmatter (`type`, valid `status` and `generated`) unless git
+ignores the file, and none of them needs a place in a docs index.
 """
 
 import os
 import re
+import subprocess
 import sys
 from pathlib import Path
 
@@ -67,7 +68,25 @@ def repo_markdown(root: Path) -> list[Path]:
     for dirpath, dirnames, filenames in os.walk(root):
         dirnames[:] = sorted(d for d in dirnames if d not in SKIP_DIRS and not d.startswith("."))
         found.extend(Path(dirpath) / f for f in sorted(filenames) if f.endswith(".md"))
-    return found
+    ignored = ignored_by_git(root, found)
+    return [md for md in found if md not in ignored]
+
+
+def ignored_by_git(root: Path, paths: list[Path]) -> set[Path]:
+    """The paths that .gitignore covers, so an ignored draft such as PR_AGENTDESC.md is never checked."""
+    if not paths:
+        return set()
+    done = subprocess.run(
+        ["git", "-C", str(root), "check-ignore", "-z", "--stdin"],
+        input="\0".join(str(p.relative_to(root)) for p in paths),
+        capture_output=True,
+        text=True,
+        check=False,
+    )
+    # Exit 1 means none is ignored. Any other failure, such as a directory outside a repository, ignores nothing.
+    if done.returncode not in (0, 1):
+        return set()
+    return {root / name for name in done.stdout.split("\0") if name}
 
 
 def check_repo(root: Path) -> list[str]:
