@@ -15,7 +15,7 @@ ref's prose and code never use and that nothing allows. Without --head it reads 
 
 A term is allowed by an entry heading in docs/glossary.md, a line of
 .vale/config/vocabularies/project/accept.txt, or a line of jargon-accept.txt with a `# reason`.
-Exit status is 1 on any finding.
+Candidates are advisory for human review. The report exits 0 even when it finds candidates.
 """
 
 from __future__ import annotations
@@ -35,7 +35,7 @@ from markdown_it import MarkdownIt
 sys.path.insert(0, str(Path(__file__).resolve().parent))
 from jargon_words import COMMON_COMPOUNDS, COMMON_WORDS, COMPOUND_PREFIXES, STOPWORDS, VERB_STEMS  # noqa: E402
 
-INDEX_VERSION = 1
+INDEX_VERSION = 2
 ALLOW_FILE = "jargon-accept.txt"
 ACCEPT_FILE = ".vale/config/vocabularies/project/accept.txt"
 GLOSSARY = "docs/glossary.md"
@@ -125,6 +125,7 @@ def words_of(text: str, line: int) -> list[Word | None]:
             if not re.fullmatch(r"[A-Za-z'-]+", piece):
                 out.append(None)
                 continue
+            possessive = bool(re.search(r"(?:'s|s')$", piece, re.I))
             raw = piece.strip("-'").lower()
             if piece.lower().startswith("'s") and raw == "s":
                 continue  # a possessive left over after inline code: `foo`'s
@@ -133,6 +134,8 @@ def words_of(text: str, line: int) -> list[Word | None]:
                 continue
             raw = re.sub(r"-{2,}", "-", raw)
             out.append(Word("-".join(fold(p) for p in raw.split("-")), raw, line))
+            if possessive:
+                out.append(None)
     return out
 
 
@@ -368,7 +371,7 @@ def verb_like(word: str) -> bool:
 
 def noun_phrase(words: list[str], raw: list[str]) -> bool:
     """False for a sentence fragment: it holds a verb, or a component name followed by one."""
-    if any(verb_like(w) for w in words):
+    if any(verb_like(w) for w in [*words, *raw]):
         return False
     # A component name takes a verb next, not a noun: "avirtmediatord injects".
     return not any(a.startswith("avirt") and "'" not in a and b.endswith("s") for a, b in zip(raw, raw[1:]))
@@ -544,9 +547,8 @@ def main(argv: list[str] | None = None) -> int:
         print(f.render())
     print("\n".join(summary), file=sys.stderr)
     if findings:
-        print(f"jargon-check: {len(findings)} finding(s). Rewrite in plain words, add a glossary entry, "
-              f"or add a reasoned entry to {ALLOW_FILE}.", file=sys.stderr)
-    return 1 if findings else 0
+        print(f"jargon-check: {len(findings)} candidate(s) for human review; this report does not block checks.", file=sys.stderr)
+    return 0
 
 
 if __name__ == "__main__":

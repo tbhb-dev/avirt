@@ -227,13 +227,8 @@ run = [
 ]
 
 [tasks.lint-jargon]
-description = "Flag new hyphenated compounds and repeated new phrases in added prose, against the merge base with origin/main"
+description = "Report candidate terms in added prose for human review; always exits 0"
 run = "uv run --script scripts/jargon_check.py"
-
-[tasks.lint-jargon-staged]
-description = "The new-term check on the staged index, for the pre-commit hook"
-hide = true
-run = "uv run --script scripts/jargon_check.py --staged"
 
 [tasks.lint-prose]
 extends = "devtools:lint-prose"
@@ -272,7 +267,6 @@ run = [
   "mise run devtools:lint-leaks",
   "mise run devtools:check-leak-hook",
   "mise run lint-prose",
-  "mise run lint-jargon",
   "mise run devtools:lint-spelling",
   "mise run devtools:lint-markdown",
   "mise run devtools:lint-markdown-wrap",

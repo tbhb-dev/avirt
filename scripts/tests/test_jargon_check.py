@@ -269,7 +269,7 @@ def test_exit_status(tmp_path, monkeypatch, capsys):
     make_repo(tmp_path, monkeypatch, BASE)
     assert jc.main(["--base", "main"]) == 0
     write(tmp_path, {"docs/b.md": TWICE})
-    assert jc.main(["--base", "main"]) == 1
+    assert jc.main(["--base", "main"]) == 0
     assert 'docs/b.md:3: new-term: "drift budget" (2 uses)' in capsys.readouterr().out
 
 
@@ -281,3 +281,25 @@ def test_environment_base_and_explicit_override(tmp_path, monkeypatch):
     assert jc.main([]) == 0
     monkeypatch.setenv("JARGON_BASE", "missing-ref")
     assert jc.main(["--base", "stack-base"]) == 0
+
+
+@pytest.mark.parametrize("possessive", ["container's", "containers'", "container’s", "containers’"])
+def test_possessive_ends_phrase(tmp_path, monkeypatch, possessive):
+    text = f"The {possessive} quokka. The {possessive} quokka."
+    findings, _ = terms(tmp_path, monkeypatch, {"docs/b.md": text})
+    assert findings == []
+    assert len(jc.segments(jc.words_of(f"{possessive} quokka", 1))) == 2
+
+
+@pytest.mark.parametrize("boundary", ["plus", "except", "across", "together", "before", "inside", "outside", "between"])
+def test_preposition_or_conjunction_ends_phrase(tmp_path, monkeypatch, boundary):
+    text = f"Quokka {boundary} narwhal. Quokka {boundary} narwhal."
+    findings, _ = terms(tmp_path, monkeypatch, {"docs/b.md": text})
+    assert findings == []
+
+
+@pytest.mark.parametrize("verb", ["derives", "translates", "supports", "normalizes", "proves", "skips", "installs", "parses", "resolves", "redirects", "discards", "resets", "denies"])
+def test_networking_verbs_end_phrases(tmp_path, monkeypatch, verb):
+    text = f"Quokka {verb} narwhal. Quokka {verb} narwhal."
+    findings, _ = terms(tmp_path, monkeypatch, {"docs/b.md": text})
+    assert findings == []

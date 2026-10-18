@@ -11,7 +11,7 @@ often on once one only onto or other others otherwise our ours out over own per 
 should shouldn't since so some something still such than that the their theirs them then there therefore these
 they this those though through thus to too toward towards under unless until up upon us very via was wasn't we
 were weren't what whatever when whenever where whereas whether which while who whom whose why will with within
-without won't would wouldn't yet you your yours
+without won't would wouldn't yet you your yours plus except across together inside outside
 """.split()
 )
 
@@ -120,6 +120,6 @@ stay stop store suggest take talk tell tend think treat try turn understand upda
 write
 authenticate authorize bind bypass compose conform deliver deny dial emit enforce expire expose forward freeze
 log manage mount operate persist publish refer renew restart resume retain revoke rotate route sign spawn
-supervise transmit validate
+supervise transmit validate derive translate support normalize prove skip install parse resolve redirect discard reset
 """.split()
 )
