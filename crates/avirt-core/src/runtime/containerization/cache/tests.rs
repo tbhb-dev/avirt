@@ -270,11 +270,41 @@ async fn an_init_image_with_another_digest_is_refused() -> Result<()> {
 async fn a_root_filesystem_is_keyed_by_its_manifest_and_built_once() -> Result<()> {
     let fake = Arc::new(Fake::default());
     let (cache, _dir) = artifacts(&fake)?;
-    let first = cache.rootfs("abc123", &layers()).await?;
-    let second = cache.rootfs("abc123", &layers()).await?;
-    ensure!(first == second && first.ends_with("rootfs/abc123/rootfs.ext4"), "the entry is at {}", first.display());
+    let manifest = "ab".repeat(32);
+    let first = cache.rootfs(&manifest, &layers()).await?;
+    let second = cache.rootfs(&manifest, &layers()).await?;
+    ensure!(
+        first == second && first.ends_with(format!("rootfs/{manifest}/rootfs.ext4")),
+        "the entry is at {}",
+        first.display()
+    );
     ensure!(fake.rootfs_builds.load(Ordering::SeqCst) == 1, "the filesystem was built twice");
     ensure!(cache.rootfs("../escape", &layers()).await.is_err(), "a path-like key was accepted");
+    Ok(())
+}
+
+/// A manifest that isn't a lowercase sha256 digest is refused before the cache touches anything.
+///
+/// With an empty key the entry directory is the whole root filesystem cache, and a mismatch there would delete every entry.
+///
+/// # Errors
+///
+/// Fails when a bad key passes or a cached entry goes.
+///
+/// # Panics
+///
+/// Panics if the async runtime fails to start.
+#[tokio::test]
+async fn a_manifest_that_is_not_a_lowercase_digest_leaves_the_cache_alone() -> Result<()> {
+    let fake = Arc::new(Fake::default());
+    let (cache, _dir) = artifacts(&fake)?;
+    let manifest = "ab".repeat(32);
+    let kept = cache.rootfs(&manifest, &layers()).await?;
+    let (upper, short, long) = ("AB".repeat(32), "abab", "ab".repeat(33));
+    for bad in ["", upper.as_str(), short, long.as_str()] {
+        ensure!(cache.rootfs(bad, &layers()).await.is_err(), "{bad:?} was accepted");
+    }
+    ensure!(kept.is_file(), "a cached entry was removed");
     Ok(())
 }
 

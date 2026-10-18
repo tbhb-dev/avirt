@@ -6,7 +6,7 @@
 #[cfg(test)]
 mod tests;
 
-use super::digest::copy_hashing;
+use super::digest::{copy_hashing, is_sha256_hex};
 use super::temp::{PREFIX, Temp};
 use crate::state::private_dir;
 use anyhow::{Context as _, Result, bail, ensure};
@@ -181,11 +181,6 @@ fn store_blobs(archive: &Path, blobs: &Path) -> Result<Vec<u8>> {
         }
     }
     index.context("the archive has no index.json")
-}
-
-/// Whether `text` is 64 lowercase hexadecimal characters.
-fn is_sha256_hex(text: &str) -> bool {
-    text.len() == 64 && text.bytes().all(|byte| byte.is_ascii_digit() || (b'a'..=b'f').contains(&byte))
 }
 
 /// Writes one blob to `blobs/<name>`, replacing a blob already there, if its bytes hash to `name`.

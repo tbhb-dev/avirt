@@ -388,7 +388,7 @@ impl Artifacts {
     ///
     /// Returns an error if unpacking the layers fails.
     pub async fn rootfs(&self, manifest: &str, layers: &[Layer]) -> Result<PathBuf> {
-        ensure!(manifest.bytes().all(|byte| byte.is_ascii_hexdigit()), "{manifest} isn't a digest");
+        ensure!(digest::is_sha256_hex(manifest), "{manifest} isn't a sha256 digest");
         let entry = Entry {
             dir: self.root.join("rootfs").join(manifest),
             file: "rootfs.ext4",

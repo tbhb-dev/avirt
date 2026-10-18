@@ -6,6 +6,12 @@ use std::fs::File;
 use std::io::{self, Read, Write};
 use std::path::Path;
 
+/// Whether `text` is 64 lowercase hexadecimal characters.
+#[must_use]
+pub fn is_sha256_hex(text: &str) -> bool {
+    text.len() == 64 && text.bytes().all(|byte| byte.is_ascii_digit() || (b'a'..=b'f').contains(&byte))
+}
+
 /// Copies `source` to `sink` and returns the SHA-256 of the bytes.
 ///
 /// # Errors
