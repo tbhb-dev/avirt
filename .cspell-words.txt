@@ -203,6 +203,7 @@ Landlock
 launchd
 libc
 libclang
+libfuzzer
 libuv
 linuxkit
 liveness

@@ -15,6 +15,7 @@ jq = "1.8.2"
 "github:Boshen/cargo-shear" = "1.14.0"
 "github:taiki-e/cargo-llvm-cov" = "0.9.1"
 "cargo:cargo-mutants" = "27.1.0"
+"cargo:cargo-fuzz" = "0.13.2"
 "go:github.com/tbhb-dev/devtools/cmd/guard-markdown" = "v0.12.0"
 # The one source of truth for the Rust version: the crates' `rust-version` and the images'
 # builder stage (`rust:1.97.1-bookworm`) follow it.
@@ -24,6 +25,8 @@ rust = { version = "1.97.1", profile = "minimal", components = "clippy,rustfmt,l
 DEVTOOLS_LOCK_PLATFORMS = "linux-x64,macos-arm64"
 DEVTOOLS_GENERATED_PATHS = ".devtools/\n.config/mise/\ntarget/\ntmp/\nspikes/\nlogs/\n.vale/"
 DEVTOOLS_PROSE_GLOB = "*.{md,rs}"
+# Fuzzing needs a nightly compiler; this pin is used by the fuzz tasks only. Stable stays at the rust tool above.
+AVIRT_FUZZ_TOOLCHAIN = "nightly-2026-08-01"
 
 [task_config]
 includes = [
@@ -142,6 +145,33 @@ run = [
 [tasks.mutants]
 description = "Run cargo-mutants over the workspace with nextest; writes mutants.out and gates nothing"
 run = "cargo mutants --workspace --test-tool nextest --jobs 2 --no-shuffle"
+
+[tasks.install-fuzz-toolchain]
+description = "Install the pinned nightly that cargo-fuzz needs"
+run = "rustup toolchain install $AVIRT_FUZZ_TOOLCHAIN --profile minimal"
+
+[tasks.fuzz]
+description = "Run one fuzz target until stopped: mise run fuzz connect_authority -- -max_total_time=60"
+depends = ["install-fuzz-toolchain"]
+dir = "fuzz"
+usage = '''
+arg "<target>" help="a target under fuzz/fuzz_targets"
+arg "[flags]" var=#true help="libFuzzer flags after --"
+'''
+run = 'RUSTUP_TOOLCHAIN=$AVIRT_FUZZ_TOOLCHAIN cargo fuzz run "${usage_target}" -- ${usage_flags}'
+
+[tasks.fuzz-smoke]
+description = "Run every fuzz target for 20 seconds each"
+depends = ["install-fuzz-toolchain"]
+dir = "fuzz"
+run = '''
+#!/usr/bin/env bash
+set -euo pipefail
+export RUSTUP_TOOLCHAIN=$AVIRT_FUZZ_TOOLCHAIN
+for target in $(cargo fuzz list); do
+  cargo fuzz run "$target" -- -max_total_time=20
+done
+'''
 
 [tasks.check-all]
 description = "Deeper bar: check and lint plus the full-history gitleaks scan"

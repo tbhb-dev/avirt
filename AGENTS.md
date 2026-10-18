@@ -77,9 +77,10 @@ mise run deny            # cargo-deny: advisories, bans, sources
 mise run test            # nextest, then the doc tests
 mise run coverage        # cargo-llvm-cov with the line and region floors
 mise run mutants         # cargo-mutants baseline; no gate
+mise run fuzz-smoke      # every fuzz target for 20 seconds; needs the pinned nightly
 ```
 
-Pre-commit hooks run rustfmt, cargo-shear and cargo-deny on the files they cover, and pre-push hooks run clippy, rustdoc, and the tests. Coverage and mutants run in no hook.
+Pre-commit hooks run rustfmt, cargo-shear and cargo-deny on the files they cover, and pre-push hooks run clippy, rustdoc, and the tests. Coverage, mutants, and fuzzing run in no hook.
 
 ## Conventions
 
