@@ -66,7 +66,7 @@ The mediator runs in its own container with no network interface other than loop
 - **Workload container.** avirtnetd provides its HTTP/2 connection to its mediator. avirtnetd holds the workload SVID and serves the agent's forward proxy.
 - **Mediator.** avirtmediatord is one process with one UID, Landlock ruleset, and SVID. It serves workload and ingress listeners, with TLS interception and credential injection in-process. The same process maintains the connection to avirthostd and calls `GET /workload`, `GET /workload/control`, and `POST /workload/svid`.
 - **Host.** avirthostd owns workload lifecycle and the SPIFFE issuer, avirtsecretsd stores the real credentials (see [secrets](./secrets.md)), avirtpolicyd distributes policy snapshots, avirtmodelgwd and avirtmcpgwd inject model and MCP credentials, avirtregistryd stores and indexes workspace images, and avirtedgeproxyd is the only global policy enforcement point and the only host service that opens connections off the host (see [components](./components.md#avirtedgeproxyd)).
-- **Names and namespaces.** Each workload is in one host-local namespace, and avirtdnsd resolves internal names to the edge proxy of the host that serves them (see [DNS](./dns.md#internal-names)).
+- **Names and namespaces.** Each workload is in one host-local namespace, and avirtdnsd resolves avirt hostnames to the edge proxy of the host that serves them (see [DNS](./dns.md#avirt-hostnames)).
 
 ```mermaid
 flowchart LR
@@ -128,11 +128,11 @@ Status: planned. These hold for each runtime and each phase once the planned des
 
 - [Components](./components.md) - the component inventory, where each component runs, what it owns, its startup and failure semantics, its status, and how the current binaries map onto it
 - [Trust boundaries and reachability](./trust-boundaries.md) - each listener's caller identity and allowed operations, and what each kind of compromise can reach
-- [Networking](./networking.md) - the whole network design: topology, addressing, each traffic class and its hops, runtime transports, listeners, and restrictions on host connections
+- [Networking](./networking.md) - the whole network design: topology, addressing, each traffic class and its hops, runtime transports, listeners, and restrictions on connections off the host
 - [Workload topology and connections](./workload-topology.md) - the runtime-provided sockets, SNI routing, the HTTP/2 streams, launch handshake, freeze, reconnect, and ingress
 - [DNS](./dns.md) - the avirt DNS zone, the name forms, and how workloads resolve names
 - [Identity and mTLS](./identity.md) - authentication on each hop, the SPIFFE trust domain and IDs, SVID issuance, rotation, and federation
-- [Egress and TLS termination](./egress.md) - the CONNECT proxy, how avirtmediatord handles egress, edge proxy egress and `private-dest` checks, workload DNS, TLS termination, and the MITM CA
+- [Egress and TLS termination](./egress.md) - the CONNECT proxy, how avirtmediatord handles egress, edge proxy egress and private-address blocks, workload DNS, TLS termination, and the MITM CA
 - [Egress policies](./egress-policies.md) - the Cedar schema, enforcement points, name canonicalization, modes, policy snapshots, revocation, the prover, and failure behavior
 - [Egress credentials](./egress-credentials.md) - how the agent receives Claude and Codex credentials, bindings and credential injectors, placeholders, the gateways, Codex token refresh, rotation, and revocation
 - [Secrets](./secrets.md) - avirtsecretsd, providers, refresh, write-back, and the broker

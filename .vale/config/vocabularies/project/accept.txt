@@ -50,8 +50,8 @@
 [Ii]nitfs
 [Ii]nodes
 [Ii]nterceptable
-[Kk]eep[Aa]live
-[Kk]eep[Aa]lives
+[Kk]eepalive
+[Kk]eepalives
 [Kk]eyctl
 [Ll]andlock
 [Ll]iveness

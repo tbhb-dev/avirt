@@ -1,4 +1,4 @@
-//! Client functions for HTTP/2 with prior knowledge and without TLS.
+//! Client helpers for HTTP/2 with prior knowledge and without TLS.
 
 use core::convert::Infallible;
 

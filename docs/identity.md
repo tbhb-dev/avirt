@@ -52,7 +52,7 @@ SVIDs contain:
 - `serverAuth` and `clientAuth` extended key usage,
 - a 1 h lifetime.
 
-The root and issuing CA certificates constrain names. Their permitted URI subtree is `<td>`. They permit only the dNSName subtrees in `peering.hosts`, or none when it's empty. avirtedgeproxyd's SVID alone contains those names, as DNS SANs beside its one URI SAN, which the SPIFFE X509-SVID format allows (see [peers' host names](./peering.md#peers-host-names)). `avirtadmin ca rotate` rotates either tier on demand (see [admin CLI](./admin-cli.md#trust-domain-and-ca)).
+The root and issuing CA certificates constrain names. Their permitted URI subtree is `<td>`. They permit only the dNSName subtrees in `peering.hosts`, or none when it's empty. avirtedgeproxyd's SVID alone contains those names, as DNS SANs beside its one URI SAN, which the SPIFFE X509-SVID format allows (see [peer host names](./peering.md#peer-host-names)). `avirtadmin ca rotate` rotates either tier on demand (see [admin CLI](./admin-cli.md#trust-domain-and-ca)).
 
 The startup cleanup still ends every workload that an earlier avirthostd process left, because workload state doesn't persist across an avirthostd restart. The SPIFFE root and bundle do persist, so host services and peers keep verifying the host's SVIDs across restarts.
 
@@ -133,8 +133,8 @@ sequenceDiagram
 
 Peered hosts federate explicitly, and never share a CA key (see [peering](./peering.md)).
 
-- **Enrollment.** Operators enroll each other's hosts out of band, from enrollment files compared by fingerprint (see [enrollment](./peering.md#enrollment) and [admin CLI](./admin-cli.md#peers-and-enrollment)). avirthostd stores the enrollment records, avirtedgeproxyd installs each peer's bundle in its verifier, and avirtdnsd answers internal names under an active peer's host name.
-- **Bundle refresh.** avirtedgeproxyd serves the host's bundle, in the trust bundle format, on the mutual TLS peer listener, and avirthostd refreshes each enrolled peer's bundle from it (see [trust bundles](./peering.md#trust-bundles)). Constraint: the endpoint requires client authentication. This differs from SPIFFE's endpoint specification for trust bundles, which forbids client authentication.
+- **Enrollment.** Operators enroll each other's hosts out of band, from enrollment files compared by fingerprint (see [enrollment](./peering.md#enrollment) and [admin CLI](./admin-cli.md#peers-and-enrollment)). avirthostd stores the enrollment records, avirtedgeproxyd installs each peer's bundle in its verifier, and avirtdnsd answers an active peer's internal names.
+- **Bundle refresh.** avirtedgeproxyd serves the host's bundle, in the SPIFFE bundle format, on the mutual TLS peer listener, and avirthostd refreshes each enrolled peer's bundle from it (see [trust bundles](./peering.md#trust-bundles)). Constraint: the endpoint requires client authentication. This differs from the SPIFFE bundle endpoint specification, which forbids client authentication.
 - **Authorization after authentication.** A valid SVID from an enrolled trust domain authenticates its holder only. avirtedgeproxyd's peer listener (port 8788 by default, and absent unless configuration sets `peering.listen`) accepts only `spiffe://<peer td>/service/avirtedgeproxyd`, and evaluates the host policy snapshot for the peer identity in `x-avirt-caller`, accepting only identities in that peer's own trust domain. avirtapid accepts peer callers only for the routes their enrollment allows.
 
 ## Two separate CAs

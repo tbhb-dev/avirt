@@ -1,7 +1,7 @@
 ---
 type: Security Design
 title: Workload hardening
-description: How avirtinitd confines the agent inside the workload container, covering its user, capabilities, environment and seccomp filters, the reserved paths, the security contexts of avirtnetd, avirtacp, avirtagent, avirtexec, and avirtguestd with links to their Landlock rulesets, and what runs as root.
+description: How avirtinitd confines the agent inside the workload container, covering its user, capabilities, environment and seccomp filters, the reserved paths, the security contexts of the workload helpers with links to their Landlock rulesets, and what runs as root.
 tags: [avirt, workload, seccomp, landlock, capabilities, security]
 implementation: partial
 generated: { by: codex/gpt-6, at: 2026-10-18T04:29:26Z }
@@ -78,7 +78,7 @@ The workload container's image layers are the avirt base, a harness base, the wo
 | Path | Owned by | Holds |
 | --- | --- | --- |
 | `/usr/local/bin/avirt*` | The avirt base | The workload guest binaries, owned by uid 0 |
-| `/etc/passwd`, `/etc/group`, `/etc/shadow`, `/etc/gshadow` | The avirt base | uid 1000 `agent`, the per-process UIDs and the `avirt-ws` group |
+| `/etc/passwd`, `/etc/group`, `/etc/shadow`, `/etc/gshadow` | The avirt base | uid 1000 `agent`, the helper UIDs and the `avirt-ws` group |
 | `/etc/ssl/certs`, `/usr/local/share/ca-certificates`, `/usr/share/ca-certificates` | The avirt base | The system CA bundle, to which avirtinitd appends the MITM CA at boot |
 | `/etc/resolv.conf`, `/etc/hosts` | The avirt base | Name resolution files, which avirtinitd rewrites at boot |
 | `/opt/agent` | The harness base | The harness, its adapter and `harness.toml` |
@@ -102,11 +102,11 @@ avirtinitd launches every workload process with that process's own security cont
 
 A build job runs under the build security context instead, which permits the namespaces and mounts BuildKit's OCI worker needs and runs the build runner as root inside the build VM (see [workspaces](./workspace-build.md#build-jobs)). Only build jobs use this security context, and only on a runtime with a VM per workload. These jobs lack `guest-cli` access and a MITM CA for build commands.
 
-Each process's Landlock ruleset is in [per-process rulesets](./sandbox.md#per-process-rulesets). `no_new_privs` applies to all processes. avirtnetd, avirtacp, avirtagent, avirtexec, and avirtguestd run with per-process UIDs distinct from 0 and 1000. uid 1000 can't send signals to these processes. It also can't trace these processes or read their memory. avirtnetd, avirtacp, avirtagent, avirtexec, and avirtguestd can't read each other's sockets. The agent and every tool it starts run in the agent cgroup, which avirtinitd freezes and kills as a unit (see [workload topology](./workload-topology.md#freeze-and-reconnect)). These processes run outside it.
+Each process's Landlock ruleset is in [per-process rulesets](./sandbox.md#per-process-rulesets). `no_new_privs` applies to all processes. All helper UIDs differ from 0 and 1000. uid 1000 can't signal or trace a helper, or read its memory. Helpers can't read each other's sockets. The agent and every tool it starts run in the agent cgroup, which avirtinitd freezes and kills as a unit (see [workload topology](./workload-topology.md#freeze-and-reconnect)). The helpers run outside it.
 
 The agent (uid 1000) and avirtguestd share only the workspace group `avirt-ws`. avirtinitd makes each declared workspace root setgid to that group with default POSIX ACLs that grant the group read and write, allowing avirtguestd to write files the agent creates. As their owner, the agent can still remove the group's access to its own files, and avirtguestd reports such a file as unreadable rather than overriding it: avirtguestd lacks `CAP_DAC_OVERRIDE` and `CAP_FOWNER`.
 
-avirtinitd mounts `/proc` with `hidepid=invisible` before it starts any child, so uid 1000 can't see the processes, command lines, or file descriptors of avirtnetd, avirtacp, avirtagent, avirtexec, and avirtguestd.
+avirtinitd mounts `/proc` with `hidepid=invisible` before it starts any child, so uid 1000 can't see the helpers' processes, command lines, or file descriptors.
 
 ## What runs as root
 

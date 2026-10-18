@@ -9,7 +9,7 @@ generated: { by: codex/gpt-6, at: 2026-10-18T05:20:59Z }
 
 # Status: planned
 
-The current code has no policy engine. The CONNECT app allows every destination that passes the `private-dest` check and logs it under rule `allow-all` (see [egress](./egress.md#pingora-connect-app)).
+The current code has no policy engine. The CONNECT app allows every destination that passes the private-address block and logs it under rule `allow-all` (see [egress](./egress.md#pingora-connect-app)).
 
 Egress, ingress, and control-plane policy uses Cedar. avirtpolicyd stores policies and validates them against the avirt Cedar schema. It runs the Cedar policy prover before compiling the policies and distributing versioned policy snapshots. Each enforcement point stores a policy snapshot and checks it locally with the embedded `cedar-policy` crate. Requests proceed without waiting on a policy call. Credential bindings are records in avirtsecretsd (see [egress credentials](./egress-credentials.md#bindings)). Policy governs only which workloads may attach them (`attach_binding`).
 
@@ -92,8 +92,8 @@ Every control-plane action includes `via` in its context, except avirtsecretsd's
 
 | Action | Evaluated by | Principal | Resource | Context |
 | --- | --- | --- | --- | --- |
-| `resolve` | avirtmediatord, avirtedgeproxyd | `Workload`, `HostService` | The entity for an internal name (`Workload`, `Service`, or a peer's `Namespace`), or a `DnsName` | `qtype` (the query type, such as `A`, `AAAA` or `HTTPS`), `via` |
-| `connect` | avirtmediatord, avirtedgeproxyd | `Workload`, `HostService` | The entity for an internal name, a peer's `Namespace`, `Peer::"<host>"` for a control-plane call to a peer (see [peering](./peering.md)), `HostService::"avirtapid"` for the `/guest-cli` stream, or a `Destination` | `port`, `via` |
+| `resolve` | avirtmediatord, avirtedgeproxyd | `Workload`, `HostService` | An avirt hostname's entity (`Workload`, `Service`, or a peer's `Namespace`), or a `DnsName` | `qtype` (the query type, such as `A`, `AAAA` or `HTTPS`), `via` |
+| `connect` | avirtmediatord, avirtedgeproxyd | `Workload`, `HostService` | An avirt hostname's entity, a peer's `Namespace`, `Peer::"<host>"` for a control-plane call to a peer (see [peering](./peering.md)), `HostService::"avirtapid"` for the `/guest-cli` stream, or a `Destination` | `port`, `via` |
 | `intercept` | avirtmediatord | `Workload` | `Destination` on port 443 | None |
 | `passthrough` | avirtmediatord | `Workload` | `Destination` | `plaintext` |
 | `request` | avirtmediatord | `Workload` | `Destination` | `method`, `path` (canonicalized), `query` (whether the target had a query string) |
@@ -493,10 +493,10 @@ Before evaluating any policy, the enforcing process (avirtedgeproxyd for workloa
 - the `default` namespace's short form, `7e759259.workload.host.avirt.internal`, resolves to the same entity as its long form.
 - `db.team-a.svc.host.avirt.internal` and every alias of that service resolve to `Service::"team-a/db"`.
 - An internal name under a peer's host name, `7e759259.team-a.workload.<host>` or `db.team-a.svc.<host>`, resolves locally to the peer's `Namespace::"<host>/team-a"`, because only the peer maps its own short IDs and aliases. The peer's avirtedgeproxyd resolves the name to its own entity and checks its own host policy snapshot.
-- An invalid label or a length exceeding the caps in [DNS](./dns.md#internal-names) makes a name malformed.
+- An invalid label or a length exceeding the caps in [DNS](./dns.md#avirt-hostnames) makes a name malformed.
 - Both modes deny a name that resolves to no known entity before policy evaluation.
 
-Namespace rules use entities, such as `principal in Namespace::"team-a"` and `resource in Namespace::"team-a"`, never string patterns over internal names. `Namespace::"<host>/team-a" in Namespace::"<host>/team-a"` holds, so `resource in Namespace::"<host>/team-a"` matches every internal name under a peer's host name in that namespace. A peer's namespaces are in its `Peer`, so `resource in Peer::"<host>"` matches every internal name under that peer's host name.
+Namespace rules use entities, such as `principal in Namespace::"team-a"` and `resource in Namespace::"team-a"`, never string patterns over avirt hostnames. `Namespace::"<host>/team-a" in Namespace::"<host>/team-a"` holds, so `resource in Namespace::"<host>/team-a"` matches every internal name under a peer's host name in that namespace. A peer's namespaces are in its `Peer`, so `resource in Peer::"<host>"` matches every internal name under that peer's host name.
 
 An authority that specifies an avirt host service, such as `avirtsecretsd.svc.<td>`, never reaches policy: avirtmediatord refuses it with 403 (see [egress](./egress.md#how-avirtmediatord-handles-egress)).
 
@@ -508,7 +508,7 @@ The parser canonicalizes each external host once. Later checks always use the ca
 2. After converting the authority to lowercase, the parser strips one trailing dot.
 3. A valid label is 1 to 63 characters of `a`-`z`, `0`-`9`, `-`, and `_`, and the whole name is at most 253 characters. Anything outside these constraints makes the name malformed.
 4. A name whose last label is all digits must be a canonical dotted quad and becomes an IP literal. Examples of malformed authorities include `2130706433`, `0177.0.0.1`, `0x7f000001`, and `127.1`.
-5. An IPv6 literal arrives bracketed (`[2001:db8::1]:443`). Parsing converts it into an `ipaddr`. The `private-dest` check refuses IPv4-mapped or IPv4-compatible IPv6 literals.
+5. An IPv6 literal arrives bracketed (`[2001:db8::1]:443`). Parsing converts it into an `ipaddr`. The private-address block refuses IPv4-mapped or IPv4-compatible IPv6 literals.
 
 An IP literal becomes a `Destination` with `ip` and no `host`, so no hostname rule and no `like` pattern can match it: it's permitted only by a policy that compares `resource.ip`, by equality or with `isInRange`.
 
@@ -535,7 +535,7 @@ The prover rejects any policy that uses `like` anywhere except these two operand
 | `resource.host` of a `Destination` or `DnsName` | An exact name with no `*`, or `*.` followed by a suffix of at least two labels, with no other `*`. `*.github.com` matches every name under `github.com` and not `github.com` itself. |
 | `context.path` of `request` | Any pattern. `*` matches any characters, `/` included. |
 
-The host form maps each pattern to exactly one DNS subtree, which makes the MITM CA's name constraints exact (see [MITM CA name constraints](#mitm-ca-name-constraints)). Patterns never apply to internal names or to label values. IP literals also fall outside their scope.
+The host form maps each pattern to exactly one DNS subtree, which makes the MITM CA's name constraints exact (see [MITM CA name constraints](#mitm-ca-name-constraints)). Patterns never apply to avirt hostnames or to label values. IP literals also fall outside their scope.
 
 ## Decision semantics
 
@@ -543,7 +543,7 @@ Cedar's own semantics apply to every decision: a request requires an applicable 
 
 - A Cedar evaluation error is a deny, in both modes, even when the policy that fails is a `permit`.
 - Each policy contains a unique `@id`. The event's `rule` is the `@id` of a determining policy, the lexicographically first when more than one determines the decision.
-- A decision without a determining policy records a reserved rule name instead: `default-deny` (no permit applied), `unknown-name` (an internal name that resolves to no entity), `evaluation-error`, or `snapshot-expired`. The prover rejects a policy whose `@id` is a reserved rule name.
+- A decision without a determining policy records a reserved rule name instead: `default-deny` (no permit applied), `unknown-name` (an avirt hostname that resolves to no entity), `evaluation-error`, or `snapshot-expired`. The prover rejects a policy whose `@id` is a reserved rule name.
 
 For one agent connection, avirtmediatord evaluates, in order:
 
@@ -559,7 +559,7 @@ Constraints:
 
 - The `connect` check must permit access even when `intercept` permits TLS interception. An `intercept` permission alone can't grant access to a destination.
 - The `intercept` check runs only on port 443. On any other port, an external connection requires permission from `passthrough`.
-- An internal name always takes TLS passthrough without step 3. avirtedgeproxyd and the destination workload's avirtmediatord run the authorization checks.
+- An avirt hostname always takes TLS passthrough without step 3. avirtedgeproxyd and the destination workload's avirtmediatord run the authorization checks.
 - A model API host under TLS passthrough goes to avirtedgeproxyd like any external endpoint, without a credential. The injectors add credentials only on intercepted requests (see [egress credentials](./egress-credentials.md#credential-injectors)).
 - The `request` check applies only to intercepted connections. Only `connect` and `passthrough` determine whether a passthrough connection may proceed. The system never inspects the bytes of a passthrough connection.
 - Publication doesn't grant ingress permission. The host policy snapshot and the destination's `ingress` policy must both permit the caller.
@@ -577,7 +577,7 @@ These apply as evaluated in both modes:
 - every action that avirthostd, avirtbuilderd, avirtregistryd, and avirtsecretsd check, so audit mode never widens control-plane authority or credential access.
 - a deny for `unknown-name`, `evaluation-error` or `snapshot-expired`.
 
-The following checks apply in both policy modes: authority parsing and canonicalization (400), the `private-dest` check (403 `private-dest`), `Host` and SNI matching (421 and close), the `credential-misplaced` check (403 `credential-misplaced`), credential bindings (the injector uses a credential only on its own binding), the Codex refresh intercept's exact match, caller authentication, and generation fencing.
+The checks that apply in both policy modes aren't policy and apply in both modes: authority parsing and canonicalization (400), the private-address block (403 `private-dest`), `Host` and SNI matching (421 and close), the placeholder misuse check (403 `credential-misplaced`), credential bindings (a credential is injected only on its own binding), the Codex refresh intercept's exact match, caller authentication, and generation fencing.
 
 ## Policy snapshots
 
@@ -592,7 +592,7 @@ A policy snapshot has a scope, one workload or the host, and contains:
 - `issued` and `lifetime`.
 - the compiled policy set and its sha256.
 - the entity revision used to build it, and the entities it contains.
-- the peer table, which maps each enrolled peer's trust domain to the peer's host name, so that a caller's SPIFFE ID in `x-avirt-caller` resolves to a qualified entity. Every workload policy snapshot and the host policy snapshot include it.
+- the peer table, which maps each enrolled peer's trust domain to its peer host name, so that a caller's SPIFFE ID in `x-avirt-caller` resolves to a qualified entity. Every workload policy snapshot and the host policy snapshot include it.
 
 ### Building
 
@@ -659,21 +659,21 @@ The prover runs inside avirtpolicyd on every candidate policy set, before avirtp
 1. **Validation.** The set validates against the schema in strict mode.
 2. **Ids.** Each policy has an `@id`, unique across every set that can apply together. Reserved rule names can't serve as policy IDs.
 3. **`like`.** Every `like` is on an allowed operand with an allowed pattern form (see [restrictions on `like`](#restrictions-on-like)).
-4. **Invariants.** The set passes the checks for all invariants that the host policy declares.
+4. **Conditions on policy sets.** The set passes the checks for all invariants that the host policy declares.
 
 By reasoning symbolically over the schema, the prover obtains results that hold for every request and every entity state the schema admits, including precise results for entity-hierarchy membership such as `in Namespace::"team-a"`.
 
-### Invariants
+### Conditions on policy sets
 
-An invariant is itself written in Cedar, as one of:
+A condition on policy sets is itself written in Cedar, as one of:
 
 | Kind | Holds when |
 | --- | --- |
-| Limit on permitted requests | Within the invariant's scope, the candidate set permits only requests that the boundary set also permits. |
+| Limits on permitted requests | Within the invariant's scope, the candidate set permits only requests that the boundary set also permits. |
 | Required allow | Within the invariant's scope, the candidate set permits every request that the required set permits. |
-| Condition that requires denial | Within the invariant's scope, the candidate set denies all requests. |
+| Denial of all requests | Within the invariant's scope, the candidate set denies all requests. |
 
-Each invariant has an id and a scope: one or more actions, and the principal and resource entity types it covers. The prover omits a candidate policy annotated `@exempt("<invariant id>")` from that invariant's check. Only host administration writes policies. A limit on permitted requests scoped to `connect` from a `Workload` to a `Workload` or `Service` can permit only connections within a namespace. Connections from outside the namespace require a policy exempt from that invariant. A condition that requires permission can keep the model API reachable for every agent workload, preventing any referenced set from forbidding it. With a condition that requires denial, an invariant scoped to `create_workload` can rule out workload creation everywhere.
+Each invariant has an id and a scope: one or more actions, and the principal and resource entity types it covers. The prover omits a candidate policy annotated `@exempt("<invariant id>")` from that invariant's check. Only host administration writes policies. A condition limiting permitted requests scoped to `connect` from a `Workload` to a `Workload` or `Service` can permit only connections within a namespace. Connections from outside the namespace require a policy exempt from that invariant. A condition requiring the set to permit specified requests can keep the model API reachable for every agent workload, preventing any referenced set from forbidding it. A condition denying all requests scoped to `create_workload` can rule out workload creation everywhere.
 
 ### MITM CA name constraints
 
@@ -701,9 +701,9 @@ The constraints remain fixed for the workload's life, because the CA serves ever
 - When a new policy snapshot applies, or the current one expires, avirtmediatord and avirtedgeproxyd each re-evaluates its open flows (see [revocation of open flows](#revocation-of-open-flows)).
 - If a candidate policy set fails the prover, avirtpolicyd leaves the current policy snapshot in use without building a new one.
 - A Cedar evaluation error is a deny, in both modes.
-- An internal name that resolves to no entity is a deny, in both modes, before evaluation.
+- An avirt hostname that resolves to no entity is a deny, in both modes, before evaluation.
 - In audit mode, the enforcement point allows a decision with no permit or with a forbid and logs it as `would-deny`, except for the exemptions in [modes](#modes). In enforce mode it denies the decision.
-- The checks listed in [modes](#modes) apply regardless of policy mode.
+- The checks that apply in both policy modes in [modes](#modes) apply in both modes.
 - avirtedgeproxyd applies the same rules to the host policy snapshot.
 
 ## Worked examples
@@ -798,7 +798,7 @@ when { resource has host && (resource.host == "registry.npmjs.org" || resource.h
 
 ### DNS
 
-The mediator always enforces `resolve`. Each name a workload looks up needs a permit, separately from `connect`. Here `team-a` resolves only its own internal names and the public names it may access.
+The mediator always enforces `resolve`. Each name a workload looks up needs a permit, separately from `connect`. Here `team-a` resolves only its own avirt hostnames and the public names it may access.
 
 ```cedar
 @id("team-a-resolve-internal")
@@ -895,7 +895,7 @@ permit (principal in Namespace::"team-a", action == Action::"connect", resource 
 
 # Open questions
 
-1. **Internal names under a peer's host name below the namespace.** The local host resolves an internal name under a peer's host name to that peer's namespace, so local policy can't distinguish one peer workload from another. It remains open whether avirtedgeproxyd should look up the name at the peer to resolve it to the peer's entities (see [peering](./peering.md#evaluation-on-each-side)).
-2. **Limits on permitted requests over every namespace.** A limit on permitted requests is a Cedar policy set. Cedar lacks a variable that binds the principal's namespace to the resource's, which requires the example to name `team-a`. avirtpolicyd could generate one boundary per namespace from the entity revision. Or the prover could gain a built-in namespace isolation invariant. The choice remains open.
+1. **Internal names under a peer's host name below the namespace.** An internal name under a peer's host name resolves locally to the peer's namespace, so local policy can't distinguish one peer workload from another. It remains open whether avirtedgeproxyd should look up the name at the peer to resolve it to the peer's entities (see [peering](./peering.md#evaluation-on-each-side)).
+2. **Limits on permitted requests over every namespace.** A set limiting permitted requests is a Cedar policy set. Cedar lacks a variable that binds the principal's namespace to the resource's, which requires the example to name `team-a`. avirtpolicyd could generate one boundary per namespace from the entity revision. Or the prover could gain a built-in namespace isolation invariant. The choice remains open.
 3. **Per-namespace modes for host services.** A host service's off-host connection uses the host default mode. The choice remains open for a component acting for a workload, such as avirtmodelgwd: should it use the workload's namespace mode?
-4. **Policy authorship.** Policy writes are host administration through avirtadmin. It remains open whether namespace owners may write their own policy sets within a limit on permitted requests.
+4. **Policy authorship.** Policy writes are host administration through avirtadmin. It remains open whether namespace owners may write their own policy sets within limits on permitted requests.
