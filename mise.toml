@@ -164,6 +164,7 @@ extends = "devtools:lint-squash-msg"
 shell = "bash -c"
 description = "Lint the repository-local skills' sources and .claude/rules, which devtools' file selection skips"
 run = """
+set -euo pipefail
 shopt -s nullglob
 docs=(.agents/skills/agent-*/SKILL.md .claude/rules/*.md)
 scripts=(.agents/skills/agent-*/scripts/*.sh)
