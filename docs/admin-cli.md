@@ -131,7 +131,7 @@ avirtadmin has no `--context` and no `--host`. It administers only the host it r
 
 | Command | Does |
 | --- | --- |
-| `avirtadmin host info` | Prints the trust domain, the install id, the peer listener's addresses, the SPIFFE bundle's fingerprint, the runtime, and the protocol versions avirthostd supports |
+| `avirtadmin host info` | Prints the trust domain, the install id, the peer listener's addresses, the trust bundle's fingerprint, the runtime, and the protocol versions avirthostd supports |
 | `avirtadmin host drain` | Refuses new launches, waits up to `--deadline` for running workloads to end, then ends the rest (see [operational ownership](./components.md#operational-ownership)) |
 | `avirtadmin host resume` | Opens admission again after a drain |
 
@@ -139,7 +139,7 @@ avirtadmin has no `--context` and no `--host`. It administers only the host it r
 
 | Command | Does |
 | --- | --- |
-| `avirtadmin namespace create NS` | Creates a namespace. `NS` is a lowercase DNS label of at most 63 characters, rejected rather than truncated (see [avirt names](./dns.md#avirt-names)). |
+| `avirtadmin namespace create NS` | Creates a namespace. `NS` is a lowercase DNS label of at most 63 characters, rejected rather than truncated (see [internal names](./dns.md#internal-names)). |
 | `avirtadmin namespace list`, `inspect NS` | As `avirt namespace list` and `inspect` |
 | `avirtadmin namespace rm NS` | Removes an empty namespace. avirtadmin refuses a namespace with a live workload, a service, or a workspace repository with exit 5. It never removes `default`. |
 
@@ -174,7 +174,7 @@ The SPIFFE CA and its rotation schedule are in [issuer](./identity.md#issuer). T
 | Command | Does |
 | --- | --- |
 | `avirtadmin ca status` | Shows each root in the bundle and the current issuing CA, with their validity, and the next scheduled rotation of each |
-| `avirtadmin ca bundle` | Prints the SPIFFE bundle as PEM. A peer enrolls from the enrollment file, which contains the bundle, never from this output. |
+| `avirtadmin ca bundle` | Prints the trust bundle as PEM. A peer enrolls from the enrollment file, which contains the bundle, never from this output. |
 | `avirtadmin ca rotate --issuing` | Generates a new issuing CA now. New SVIDs chain to it, and existing SVIDs remain valid until expiry. |
 | `avirtadmin ca rotate --root` | Generates a new root now and adds it to the bundle, as the scheduled rotation does. Peers pick it up on their next bundle refresh. |
 
@@ -202,7 +202,7 @@ avirtsecretsd stores each real credential and each secret record (see [secrets](
 
 ## Audit
 
-Administration calls, workload management calls, and break-glass commands each produce events. avirthostd writes workload-scoped events to that workload's log for avirtauditd to deliver as OCSF (see [event provenance](./trust-boundaries.md#event-provenance)). It sends host-scoped events to avirtoteld (see [audit events](./secrets.md#audit-events)). These include namespace changes, policy writes, and break-glass commands.
+Administration calls, workload management calls, and break-glass commands each produce events. avirthostd writes workload-scoped events to that workload's log for avirtauditd to deliver as OCSF (see [the event's `src` field](./trust-boundaries.md#src)). It sends host-scoped events to avirtoteld (see [audit events](./secrets.md#audit-events)). These include namespace changes, policy writes, and break-glass commands.
 
 | Command | Does |
 | --- | --- |

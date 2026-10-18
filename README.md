@@ -23,7 +23,7 @@ Agents working in this repository should read [AGENTS.md](AGENTS.md). See [docs/
 - `crates/avirtadmin/` contains the `avirtadmin` binary, the local admin CLI (not implemented).
 - `crates/avirtwebd/` contains the `avirtwebd` binary, the backend for the avirt web UI (not implemented).
 - `crates/avirtapid/` contains the `avirtapid` binary, the REST and gRPC proxy to the local avirthostd and to peers' avirtapid (not implemented).
-- `crates/avirtdnsd/` contains the `avirtdnsd` binary, the DNS resolver for `<name>.<ns>.svc.host.avirt.internal` and `<name>.<ns>.workload.host.avirt.internal`, which answers with the local avirtedgeproxyd or, for peered names, their host's avirtedgeproxyd (not implemented).
+- `crates/avirtdnsd/` contains the `avirtdnsd` binary, the DNS resolver for `<name>.<ns>.svc.host.avirt.internal` and `<name>.<ns>.workload.host.avirt.internal`, which answers with the local avirtedgeproxyd or, for internal names under a peer's host name, their host's avirtedgeproxyd (not implemented).
 - `crates/avirtmcpgwd/` contains the `avirtmcpgwd` binary, the MCP gateway (not implemented).
 - `crates/avirtmodelgwd/` contains the `avirtmodelgwd` binary. The model gateway injects model credentials (not implemented).
 - `crates/avirtbuilderd/` contains the `avirtbuilderd` binary. The builder watches VCS and builds repository OCI artifacts for fast workload startup (not implemented).

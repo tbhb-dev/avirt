@@ -30,7 +30,7 @@ Every crate lives directly under `crates/`, and each directory uses its package 
 | `avirtwebd` | Binary | Host | The backend for the avirt web UI (not implemented) |
 | `avirtapid` | Binary | Host | The API server: the gRPC and REST API in front of the local avirthostd and peers' API servers, reached through the edge proxy (not implemented) |
 | `avirtedgeproxyd` | Binary | Host | The edge proxy: host policy evaluation, external resolution, private-address checks and upstream connections (not implemented) |
-| `avirtdnsd` | Binary | Host | The DNS resolver for `<name>.<ns>.svc.host.avirt.internal` and `<name>.<ns>.workload.host.avirt.internal`, which answers with the local avirtedgeproxyd or, for peered names, their host's avirtedgeproxyd (not implemented) |
+| `avirtdnsd` | Binary | Host | The DNS resolver for `<name>.<ns>.svc.host.avirt.internal` and `<name>.<ns>.workload.host.avirt.internal`, which answers with the local avirtedgeproxyd or, for internal names under a peer's host name, their host's avirtedgeproxyd (not implemented) |
 | `avirtmcpgwd` | Binary | Host | The MCP gateway (not implemented) |
 | `avirtmodelgwd` | Binary | Host | The model gateway, which injects model credentials (not implemented) |
 | `avirtbuilderd` | Binary | Host | The builder, which watches VCS and builds repository OCI artifacts for fast workload startup (not implemented) |

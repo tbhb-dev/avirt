@@ -1,7 +1,7 @@
 ---
 type: Security Design
 title: Egress credentials
-description: Where Claude and Codex credentials live and how they reach the agent today, with the Codex auth.json seed and write-back, and the planned credential injection at egress, covering bindings and credential injectors, the avirtsecretsd broker, placeholders and placeholder misuse checks, avirtmediatord HTTP and gRPC injection, the model and MCP gateways, Claude Code, Codex and Codex refresh, generation fencing, rotation and revocation, what the workload can and can't see, and credentials for build jobs and for workloads that create workloads.
+description: Where Claude and Codex credentials live and how they reach the agent today, with the Codex auth.json seed and write-back, and the planned credential injection at egress, covering bindings and credential injectors, the avirtsecretsd broker, placeholders and `credential-misplaced` checks, avirtmediatord HTTP and gRPC injection, the model and MCP gateways, Claude Code, Codex and Codex refresh, generation fencing, rotation and revocation, what the workload can and can't see, and credentials for build jobs and for workloads that create workloads.
 tags: [avirt, credentials, egress, oauth, claude, codex, security]
 implementation: partial
 generated: { by: codex/gpt-6, at: 2026-10-18T05:21:55Z }
@@ -99,7 +99,7 @@ bind: [{host: api.anthropic.com, port: 443, paths: ["/v1/*", "/api/*"]}]
 Constraints:
 
 - Bindings are host administration: only avirtadmin can create bindings or change or remove them. Workload principals lack these permissions.
-- A binding's `bind` hosts are external hosts. Bindings exclude avirt names and host services.
+- A binding's `bind` hosts are external hosts. Bindings exclude internal names and host services.
 - A launch attaches bindings by id. avirthostd authorizes `attach_binding` for each one against the host policy snapshot (see [egress policies](./egress-policies.md#actions)), and then registers the workload's bindings with avirtsecretsd.
 - Bindings attached to one workload must have disjoint matches over host, port, and path.
 
@@ -115,7 +115,7 @@ Constraints:
 
 ```mermaid
 flowchart LR
-    agent["agent (placeholders only)"] -->|"CONNECT, HTTP/2 to the mediator"| me["avirtmediatord: placeholder misuse check, refresh intercept"]
+    agent["agent (placeholders only)"] -->|"CONNECT, HTTP/2 to the mediator"| me["avirtmediatord: `credential-misplaced` check, refresh intercept"]
     me -->|"model API hosts, mTLS"| mg["avirtmodelgwd: model credentials"]
     me -->|"/mcp stream"| mcp["avirtmcpgwd: MCP credentials"]
     me -->|"mediator-injected bindings, own TLS to the upstream"| fd["avirtedgeproxyd (no credentials)"]
@@ -137,7 +137,7 @@ avirtsecretsd serves credential injectors through its workload-scoped broker API
 
 | Operation | Caller | Returns |
 | --- | --- | --- |
-| `placeholders` | avirtmediatord | A stream of its workload's issued placeholders and placeholder copies of files, for `confirm` and for the placeholder misuse check |
+| `placeholders` | avirtmediatord | A stream of its workload's issued placeholders and placeholder copies of files, for `confirm` and for the `credential-misplaced` check |
 | `resolve_placeholder` | avirtmodelgwd | A lease on the credential value of one placeholder, for one request |
 | `mcp_credential` | avirtmcpgwd | A lease on the upstream credential for one of the workload's MCP bindings and one MCP server, with no placeholder involved |
 | `codex_refresh` | avirtmodelgwd, presenting the workload's refresh placeholder | Codex tokens with placeholders after a refresh (see [Codex refresh](#codex-refresh)) |
@@ -165,12 +165,12 @@ A gateway keeps a resolved value in memory only, and no longer than its lease's 
 - **Delivery.** avirtmediatord fetches the workload's placeholders and sends them in `confirm` (`env` and `files`, see [launch handshake](./workload-topology.md#launch-handshake)). avirtinitd puts each value at the environment variable or path that the configuration layer names (see [workload lifecycle](./workload-lifecycle.md#configuration-layer)).
 - **Substitution.** It happens only inside the one bound header of a request whose host, port and path match the credential's binding, at the credential injector the binding names.
 - **TLS passthrough.** Credential injectors never inject credentials under TLS passthrough.
-- **Placeholder misuse check.** avirtmediatord rejects, with `403 credential-misplaced` in both policy modes, any issued placeholder, or the bare `avirtph` marker, found anywhere else in a request. That covers other headers, the request target before and after percent-decoding, the first 1 MiB of the body, and any host: the CONNECT authority, the SNI and `Host`. avirtmediatord checks the Codex refresh intercept's exact match before scanning.
+- **`credential-misplaced` check.** avirtmediatord rejects, with `403 credential-misplaced` in both policy modes, any issued placeholder, or the bare `avirtph` marker, found anywhere else in a request. That covers other headers, the request target before and after percent-decoding, the first 1 MiB of the body, and any host: the CONNECT authority, the SNI and `Host`. avirtmediatord checks the Codex refresh intercept's exact match before scanning.
 - **DNS.** A DNS query whose name holds the `avirtph` marker gets `NXDOMAIN` and a `dns` event with `rcode` `NXDOMAIN` and `rule: "credential-misplaced"`. avirtmediatord compares host and DNS names without case distinctions, converting both to lowercase before the check.
 - **Scope of the scan.** This check detects misuse within its scope. It can't prevent exfiltration through body content past 1 MiB, encoded placeholders, websocket frames, or passthrough connections.
 - **Control characters.** Credential injectors never substitute a credential value containing CR, LF, or NUL.
 - **No other locations.** Credential injectors support substitution only in headers, excluding bodies, queries, and paths.
-- **Logs.** avirt events exclude placeholder values. Log export redacts content matching the placeholder misuse check's patterns (see [content and redaction](./observability.md#content-and-redaction)).
+- **Logs.** avirt events exclude placeholder values. Log export redacts content matching the `credential-misplaced` check's patterns (see [content and redaction](./observability.md#content-and-redaction)).
 
 ## Mediator injection
 
@@ -187,7 +187,7 @@ avirtmediatord then opens its own TLS connection to the upstream through avirted
 
 ### gRPC
 
-A binding with `protocol: grpc` makes avirtmediatord offer ALPN `h2` and `http/1.1` downstream for its destination, so the agent's gRPC client can speak h2 on the intercepted connection. Injection works per call. Binding paths match the call's canonical `:path`. Bound headers appear as gRPC metadata on the call's HEADERS frame. Trailers remain unchanged. The placeholder misuse check covers the call's metadata, its `:path` and its first 1 MiB of messages. avirtmediatord offers only `http/1.1` to destinations without a gRPC binding. An h2 downstream connection doesn't support an h1 `Upgrade`.
+A binding with `protocol: grpc` makes avirtmediatord offer ALPN `h2` and `http/1.1` downstream for its destination, so the agent's gRPC client can speak h2 on the intercepted connection. Injection works per call. Binding paths match the call's canonical `:path`. Bound headers appear as gRPC metadata on the call's HEADERS frame. Trailers remain unchanged. The `credential-misplaced` check covers the call's metadata, its `:path` and its first 1 MiB of messages. avirtmediatord offers only `http/1.1` to destinations without a gRPC binding. An h2 downstream connection doesn't support an h1 `Upgrade`.
 
 ## avirtmodelgwd
 
@@ -242,7 +242,7 @@ The workload and its logs reveal the account's email and plan, which the real JW
 
 Codex refreshes before expiry and on a 401. After a 401, it reloads `auth.json` from disk and tries to refresh before giving up. The refresh is a JSON POST to `https://auth.openai.com/oauth/token` with `{client_id, grant_type: "refresh_token", refresh_token}`. Every response field (`id_token`, `access_token`, `refresh_token`) is optional. Codex re-parses the `id_token` before saving the tokens and setting `last_refresh`. Refresh tokens rotate, and reusing an old one is a permanent failure, so exactly one owner, avirtsecretsd, holds the refresh token.
 
-avirtmediatord's refresh intercept matches exactly a `POST` to `auth.openai.com:443` path `/oauth/token` whose JSON body has `grant_type` equal to `refresh_token` and `refresh_token` equal to this workload's refresh placeholder. avirtmediatord sends the intercepted request only to avirtmodelgwd's refresh endpoint. That endpoint calls the broker's `codex_refresh`. Any other request that contains the refresh placeholder meets the placeholder misuse check. avirtsecretsd then refreshes through its write-back (see [write-back](./secrets.md#write-back)): under `auth.json.lock` it uses the host's tokens if another workload or the host command-line tool already refreshed, and otherwise performs one real refresh shared across workloads. With `auth.json.lock` still held, avirtsecretsd writes the host file atomically and marks the secret `needs-login` on any uncertain outcome. The broker then issues new id and access tokens with placeholders. It keeps old placeholders valid for 60 s and sends new placeholders on avirtmediatord's `placeholders` stream.
+avirtmediatord's refresh intercept matches exactly a `POST` to `auth.openai.com:443` path `/oauth/token` whose JSON body has `grant_type` equal to `refresh_token` and `refresh_token` equal to this workload's refresh placeholder. avirtmediatord sends the intercepted request only to avirtmodelgwd's refresh endpoint. That endpoint calls the broker's `codex_refresh`. Any other request that contains the refresh placeholder meets the `credential-misplaced` check. avirtsecretsd then refreshes through its write-back (see [write-back](./secrets.md#write-back)): under `auth.json.lock` it uses the host's tokens if another workload or the host command-line tool already refreshed, and otherwise performs one real refresh shared across workloads. With `auth.json.lock` still held, avirtsecretsd writes the host file atomically and marks the secret record `needs-login` on any uncertain outcome. The broker then issues new id and access tokens with placeholders. It keeps old placeholders valid for 60 s and sends new placeholders on avirtmediatord's `placeholders` stream.
 
 avirtmodelgwd answers the agent with `{"id_token","access_token","refresh_token"}` (the refresh placeholder unchanged) plus `expires_in`. When two workloads refresh at once, both succeed. If interception fails for a client, `CODEX_REFRESH_TOKEN_URL_OVERRIDE` can point Codex at a mediator-served path instead.
 
@@ -254,7 +254,7 @@ sequenceDiagram
     participant S as avirtsecretsd
     participant H as host ~/.codex/auth.json
     A->>E: POST auth.openai.com/oauth/token (refresh placeholder)
-    E->>E: exact-match refresh intercept, before the placeholder misuse check
+    E->>E: exact-match refresh intercept, before the `credential-misplaced` check
     E->>G: refresh endpoint (mTLS, avirtmediatord SVID)
     G->>S: codex_refresh (workload, gen, binding, refresh placeholder)
     S->>H: flock auth.json.lock, re-read
@@ -285,7 +285,7 @@ avirtsecretsd's rotation and revocation of secrets are in [secrets](./secrets.md
 - **Rotation.** A gateway resolves per request and uses a new version on its next request. avirtmediatord renews its lease and uses the new version on its next request. The workload's placeholders don't change.
 - **Revocation.** avirtsecretsd ends the revoked secret's leases and notifies each injector on its `revocations` stream. Each injector then drops its cached value. Credential injectors refuse requests to the binding's destinations with 403 `credential-rejected`. The workload's placeholder can't grant access.
 - **Policy change.** When a new host policy snapshot takes effect, avirthostd re-evaluates `attach_binding` for every live workload's bindings, and withdraws each binding the new policy snapshot denies from that workload's registration. The workload keeps running without it.
-- **Placeholder rotation.** Placeholders change only on a Codex refresh. The old ones remain valid for 60 s, and then meet the placeholder misuse check as any other unknown `avirtph` value does.
+- **Placeholder rotation.** Placeholders change only on a Codex refresh. The old ones remain valid for 60 s, and then meet the `credential-misplaced` check as any other unknown `avirtph` value does.
 - **Workload end.** Deregistration at teardown ends every lease and placeholder of the workload and closes the streams of placeholders and revocation notices on the broker API for that workload.
 - **Login loss.** A secret in `needs-login` refuses every refresh and resolve until an operator logs in again.
 
@@ -301,7 +301,7 @@ These changes leave open connections intact. Credential injectors check each req
 | The MITM CA certificate | The MITM CA key |
 | Which requests get 403 `credential-misplaced` or `credential-rejected` | Which binding a request matched, beyond what its own requests reveal |
 
-Guest root has the same visibility as uid 1000. Real credentials never enter the workload container. A full compromise of the container yields only placeholders (see [trust boundaries](./trust-boundaries.md#compromise-scope)). A compromised mediator gains the workload's placeholders and its mediator-injected short-lived credentials, and no model or MCP credential.
+Root in the workload container has the same visibility as uid 1000. Real credentials never enter the workload container. A full compromise of the container yields only placeholders (see [trust boundaries](./trust-boundaries.md#compromise-scope)). A compromised mediator gains the workload's placeholders and its mediator-injected short-lived credentials, and no model or MCP credential.
 
 ## Build jobs
 
@@ -317,7 +317,7 @@ A build job is a workload with the build security context (see [workspace builds
 
 A workload that creates another workload through the guest CLI (see [workload management](./components.md#workload-management)) can attach to it only bindings it holds itself, and avirthostd still authorizes `attach_binding` for each one with the creator as the principal.
 
-- **Separate placeholders.** The child gets its own placeholders for each binding, issued to its own workload. The creator never sees them, and a creator's placeholder used in the child's requests is unknown to the child's avirtmediatord and meets the placeholder misuse check.
+- **Separate placeholders.** The child gets its own placeholders for each binding, issued to its own workload. The creator never sees them, and a creator's placeholder used in the child's requests is unknown to the child's avirtmediatord and meets the `credential-misplaced` check.
 - **Delegation chain.** avirtsecretsd records each child binding's creator. Withdrawing a workload's binding also withdraws it from every descendant that obtained it through that workload.
 - **Lifetime.** avirthostd deregisters a child that ends with its creator like any workload. Detached children keep their bindings until workload completion or binding withdrawal.
 

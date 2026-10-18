@@ -64,7 +64,7 @@ Metrics don't have code yet. [Performance metrics](./performance.md) describes t
 
 ### Workload log
 
-The workload log remains avirthostd's durable record of a workload. In the planned design each line also includes `workload` (the canonical UUIDv7), `gen`, `seq` and `src`, stamped by avirthostd from the authenticated connection the line arrived on (see [event provenance](./trust-boundaries.md#event-provenance) and [log resume](./workload-topology.md#resuming-after-reconnect)), and `trace` and `span` when the producer recorded the line inside a span. avirthostd stamps `ts` on receipt and keeps the producer's time as `ts_src`.
+The workload log remains avirthostd's durable record of a workload. In the planned design each line also includes `workload` (the canonical UUIDv7), `gen`, `seq` and `src`, stamped by avirthostd from the authenticated connection the line arrived on (see [the event's `src` field](./trust-boundaries.md#src) and [log resume](./workload-topology.md#resuming-after-reconnect)), and `trace` and `span` when the producer recorded the line inside a span. avirthostd stamps `ts` on receipt and keeps the producer's time as `ts_src`.
 
 avirthostd never sends the whole workload log to avirtoteld. After writing a `meta`, `conn`, `http` or `dns` event, avirthostd emits a copy as an OpenTelemetry log record with the event's fields, and never a copy of an ACP line. If avirthostd can't hand a copy to avirtoteld, it counts the copy in `avirt.telemetry.shed`. The record remains in the workload log.
 
@@ -147,7 +147,7 @@ Each avirt daemon logs through `tracing` with a JSON formatter on stderr, one ob
 Workload logs, workload stdio and ACP content are secret. They can contain prompts and tool output, along with source code. The Codex account email and plan may appear too. Any credential the agent can read may appear in them.
 
 - **Never logged.** Secret values, placeholder values, header values, request and response bodies, query strings and the contents of `auth.json` never appear in an avirt event, a host service log, a span or a metric (see [events](./egress.md#events-1)). avirt's own events about credentials record fixed reason strings and binding names.
-- **Redaction.** Before export, avirtlogd and avirtoteld replace each match of the placeholder misuse check's patterns (see [placeholders](./egress-credentials.md#placeholders)) and of known credential formats, such as provider API key prefixes, JWTs and PEM private keys, with `[redacted:<kind>]`, and count each replacement in `avirt.log.redactions`. Redaction narrows exposure. It doesn't make content safe to share.
+- **Redaction.** Before export, avirtlogd and avirtoteld replace each match of the `credential-misplaced` check's patterns (see [placeholders](./egress-credentials.md#placeholders)) and of known credential formats, such as provider API key prefixes, JWTs and PEM private keys, with `[redacted:<kind>]`, and count each replacement in `avirt.log.redactions`. Redaction narrows exposure. It doesn't make content safe to share.
 - **Content off by default.** By default, avirt never records the `gen_ai.input.messages`, `gen_ai.output.messages`, `gen_ai.tool.call.arguments`, and `gen_ai.tool.call.result` attributes, which the semantic conventions mark Opt-In. A namespace can opt in to content in local telemetry, and remote export sends content only for a namespace that opts in to it separately.
 - **Remote export.** Export workload stdio log bodies only for namespaces the host configuration specifies. Export only the metadata of each other telemetry record.
 
@@ -190,7 +190,7 @@ Each component that makes audit events writes them to its own audit log (see [pe
 
 ### Audit events
 
-avirtauditd maps each audit event to an OCSF 1.9.0 class, keeps `src` (see [event provenance](./trust-boundaries.md#event-provenance)), and keeps the original event in `raw_data`.
+avirtauditd maps each audit event to an OCSF 1.9.0 class, keeps `src` (see [the event's `src` field](./trust-boundaries.md#src)), and keeps the original event in `raw_data`.
 
 | Events | OCSF class |
 | --- | --- |
@@ -220,7 +220,7 @@ ACP lines aren't audit events. avirtauditd maps the `start` event without its `p
 
 - Each audit log line and each workload log line includes `prev`, the SHA-256 of the previous line's bytes in the same file.
 - After every 1000 lines and every 60 s, the writer appends a `checkpoint` record with the `seq` and the hash of the chain's head, signed with its current SVID key and including the SVID chain.
-- avirtauditd verifies `seq` continuity, each `prev` and each checkpoint signature against the SPIFFE bundle, and delivers the checkpoints to each sink with the records they cover.
+- avirtauditd verifies `seq` continuity, each `prev` and each checkpoint signature against the trust bundle, and delivers the checkpoints to each sink with the records they cover.
 - A break is itself an audit event, at `ERROR`, naming the file, the `seq` and the expected and found hashes, and avirtauditd raises the `AuditChainBroken` alert.
 
 A compromised writer can rewrite what it hasn't yet delivered. The chain proves integrity only from the last checkpoint a sink stores. Delivery lag bounds that window.
@@ -398,7 +398,7 @@ One destination's backlog fills only its own queue. A remote destination that's 
 ### Destinations
 
 - **Default.** Telemetry doesn't leave the host. A direct host install without a configured destination doesn't start avirtoteld. Producers write to the workload log instead (see [without a collector](#without-a-collector)).
-- **Bundled monitoring stack.** The all-in-one server image's bundled monitoring stack runs Prometheus for metrics, Loki for logs, Tempo for traces and Grafana, each under its own UID and listening on loopback only, with retention of 15 days for metrics, 7 days for logs, and 3 days for traces. avirtoteld exports to each over OTLP. avirtinitd starts them with avirtoteld, and none of them is essential. avirtedgeproxyd's local client listener fronts Grafana.
+- **Bundled monitoring stack.** The all-in-one server image's bundled monitoring stack runs Prometheus for metrics, Loki for logs, Tempo for traces and Grafana, each under its own UID and listening on loopback only, with retention of 15 days for metrics, 7 days for logs, and 3 days for traces. avirtoteld exports to each over OTLP. avirtinitd starts them with avirtoteld, and none of them is essential. avirtedgeproxyd's `edgeproxy.sock` fronts Grafana.
 - **Remote export.** The host configuration can specify OTLP destinations. Each has a set of signals it receives, a sampling ratio, and the namespaces whose content it may include. avirtoteld connects to each remote destination through avirtedgeproxyd.
 
 ```mermaid
@@ -462,7 +462,7 @@ avirt includes its dashboards as Grafana dashboard JSON in the repository, provi
 | Host health | Each host service's up state, restarts and degraded state, avirthostd's CPU and memory, live workloads against the limit, launch refusals by reason, disk use of the runtime directory, caches and logs, SVID rotation and issuing CA lifetime, and avirtoteld's queue use, refusals and telemetry dropped with an explicit count |
 | Workload activity | Launches and exits by reason, `launch.agent_started` and `acp.first_update` against their objectives, turns, tool calls by kind and status, permission requests, reconnects of the workload's connection to its mediator and freezes, envelope latency and gaps, and per-workload resources for one selected workload |
 | Egress and policy | Decisions by decision, rule and mode, `would-deny` by rule as the enforce-mode readiness view, errors by kind, connect setup, DNS and dial latency, DNS answers by rcode, top destinations from the `avirt.egress.conn` log records, policy snapshot versions and time to expiry, prover rejections, active streams, TLS handshakes, and DNS cache outcomes |
-| Credential broker | Injections and rejections by location, hits from the placeholder misuse check, broker fetches and their latency, refresh outcomes, Codex refresh time, provider errors, and time to expiry of each refreshed credential |
+| Credential broker | Injections and rejections by location, hits from the `credential-misplaced` check, broker fetches and their latency, refresh outcomes, Codex refresh time, provider errors, and time to expiry of each refreshed credential |
 | Model and MCP gateways | Requests, latency and errors by provider and model, token usage, budget use per namespace, and MCP calls by method and outcome |
 | Builds | Queue depth, build duration by kind, failures by stage, cache hit ratio, promotions, and prebuild triggers |
 | Registry | Push, pull and resolve rates and latency, storage bytes, index reconciliation drift, and garbage collection |
@@ -478,7 +478,7 @@ avirt includes Grafana alert rules with its dashboards, provisioned from files, 
 | `LaunchesRefused` | avirthostd refused launches with 503 for 5 minutes | Warning |
 | `LaunchSlow` | p95 `launch.agent_started` exceeds its target for 15 minutes | Warning |
 | `PolicySnapshotExpiring` | Either proxy's `avirt.policy.snapshot_expiry` below 10 minutes | Critical |
-| `CredentialMisplaced` | Any placeholder misuse check hit | Warning |
+| `CredentialMisplaced` | Any `credential-misplaced` check hit | Warning |
 | `CredentialRefreshFailing` | A credential refresh failed and the credential expires within 30 minutes | Critical |
 | `EventRingRefusing` | `avirt.events.refused` increased in the last 5 minutes | Warning |
 | `WorkloadLogNearCap` | A workload log past its soft cap | Warning |

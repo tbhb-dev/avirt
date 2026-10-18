@@ -26,7 +26,7 @@ The seed, the write-back rules and the `auth_writeback` outcomes are in [egress 
 
 ### Secrets and references
 
-A **secret** is a named record in avirtsecretsd. It names where the value comes from and how avirtsecretsd treats it, and never holds the value itself.
+A **secret record** is a named record in avirtsecretsd. It names where the value comes from and how avirtsecretsd treats it, and never holds the value itself.
 
 ```yaml
 name: github-deploy
@@ -40,8 +40,8 @@ owner: provider                              # provider, or avirtsecretsd for a 
 
 | Field | Meaning |
 | --- | --- |
-| `name` | The secret's name, unique within its scope. Its Cedar entity is `Secret::"<scope>/<name>"`. |
-| `scope` | `host`, or a namespace on this host. A namespace-scoped secret can back only bindings attached to workloads in that namespace. |
+| `name` | The secret record's name, unique within its scope. Its Cedar entity is `Secret::"<scope>/<name>"`. |
+| `scope` | `host`, or a namespace on this host. A namespace-scoped secret record can back only bindings attached to workloads in that namespace. |
 | `provider` | The name of a provider instance in avirtsecretsd's configuration |
 | `ref` | The provider reference, in that provider's syntax (see [providers](#providers)) |
 | `kind` | `opaque` (one value), `oauth` (an access token with an optional refresh token, refreshed by avirtsecretsd), `document` (a structured value such as Codex's `auth.json`, from which avirtsecretsd derives fields), or `tls` (a certificate chain and key) |
@@ -50,7 +50,7 @@ owner: provider                              # provider, or avirtsecretsd for a 
 | `owner` | `provider` when the provider's copy is authoritative and avirtsecretsd only reads it, `avirtsecretsd` when avirtsecretsd refreshes the credential and writes it back (see [write-back](#write-back)) |
 | `tags` | String keys and values, which become the `Secret` entity's Cedar tags, such as `purpose: model` |
 
-A **secret reference** is how every other record specifies a secret: `secret:<scope>/<name>`. A binding's `secret` field is a secret reference (see [egress credentials](./egress-credentials.md#bindings)), and so is each credential in a host service's configuration, such as avirtregistryd's registry logins. A provider reference (`env:NAME`, `op://…`, `keychain://…`) appears only in a secret's own record, so no other component ever learns where a provider stores a value.
+A **secret reference** is how every other record specifies a secret record: `secret:<scope>/<name>`. A binding's `secret` field is a secret reference (see [egress credentials](./egress-credentials.md#bindings)), and so is each credential in a host service's configuration, such as avirtregistryd's registry logins. A provider reference (`env:NAME`, `op://…`, `keychain://…`) appears only in a secret record, so no other component ever learns where a provider stores a value.
 
 ### Versions
 
@@ -62,12 +62,12 @@ Each value avirtsecretsd hands out is scoped four ways:
 
 | Scope | Bound by |
 | --- | --- |
-| Namespace | The secret's `scope`. A binding backed by a namespace-scoped secret is attachable only to workloads in that namespace. |
+| Namespace | The secret record's `scope`. A binding backed by a namespace-scoped secret record is attachable only to workloads in that namespace. |
 | Workload | avirtsecretsd issues each **lease** for one workload's UUIDv7. Placeholders belong to one workload and one binding (see [egress credentials](./egress-credentials.md#placeholders)). |
 | Binding | A lease and a placeholder specify exactly one binding. Only that binding's credential injector honors them |
 | Generation | A lease issued to avirtmediatord or for a gateway serving it specifies the mediator generation. avirtsecretsd revokes a superseded generation's leases when successor confirmation completes. |
 
-A lease is `{lease_id, secret, version, workload, gen, binding, caller, expires}`. Its `expires` is at most the secret's `cache_ttl` remaining and the value's own expiry, so no caller holds a value longer than avirtsecretsd would cache it.
+A lease is `{lease_id, secret, version, workload, gen, binding, caller, expires}`. Its `expires` is at most the secret record's `cache_ttl` remaining and the value's own expiry, so no caller holds a value longer than avirtsecretsd would cache it.
 
 ## Providers
 
@@ -132,9 +132,9 @@ sequenceDiagram
 
 - **In memory only.** avirtsecretsd stores every value in memory, in pages locked against swap where the OS allows, and zeroizes it on eviction. avirtsecretsd never writes values to disk, logs, or events.
 - **Single flight.** Concurrent requests for the same secret share one `Resolve`. avirtsecretsd batches requests for different secrets of one provider instance into one `Resolve` when the provider has the `batch` capability.
-- **TTL.** A value is fresh for its secret's `cache_ttl`, capped by the provider's upper limit and by the value's own expiry. The default is 5 minutes, and each provider document sets its own default and cap.
+- **TTL.** A value is fresh for its secret record's `cache_ttl`, capped by the provider's upper limit and by the value's own expiry. The default is 5 minutes, and each provider document sets its own default and cap.
 - **Refresh.** avirtsecretsd fetches a secret with a live lease again at 80 % of its TTL, so callers rarely wait. Without a live lease, it fetches only on demand.
-- **Stale values.** When a provider is `unavailable` or `rate-limited`, avirtsecretsd serves the last value it fetched for up to the secret's `stale_ttl` past its expiry (default 1 hour), but stops at the value's own expiry or secret revocation. Each stale lease is an event.
+- **Stale values.** When a provider is `unavailable` or `rate-limited`, avirtsecretsd serves the last value it fetched for up to the secret record's `stale_ttl` past its expiry (default 1 hour), but stops at the value's own expiry or secret revocation. Each stale lease is an event.
 - **Negative caching.** avirtsecretsd caches `not-found` and `denied` results for 30 seconds.
 - **Watch.** A change notice from a provider with `watch` marks the value stale at once and triggers a fetch.
 
@@ -144,10 +144,10 @@ A secret whose `owner` is `avirtsecretsd` is a credential that avirtsecretsd its
 
 1. avirtsecretsd takes the provider's write lock where it has one (`auth.json.lock` for `codex`), and re-reads the value.
 2. If the provider's version is newer than the one it last read, another writer already refreshed it, and avirtsecretsd uses that value.
-3. Otherwise it records the secret as `refresh-pending` in its refresh state file (`state.journal`), performs the refresh upstream through avirtedgeproxyd, single-flight across workloads, and writes the result with `Write`, conditional on the version it read.
+3. Otherwise it records the secret record as `refresh-pending` in its refresh state file (`state.journal`), performs the refresh upstream through avirtedgeproxyd, single-flight across workloads, and writes the result with `Write`, conditional on the version it read.
 4. It records the outcome, issues new leases, and for a placeholder-backed binding sends the new values with placeholders on the `placeholders` stream (see [egress credentials](./egress-credentials.md#codex-refresh)).
 
-The upstream exchange consumes the old refresh token before avirtsecretsd can persist the new one. A crash or lost response in that interval leaves the outcome uncertain, as does a `conflict` or failed `Write`. avirtsecretsd then marks the secret `needs-login` instead of retrying. A `needs-login` secret refuses every refresh and every lease until an operator logs in again and clears it with `avirtadmin secret login`, and each transition is an event.
+The upstream exchange consumes the old refresh token before avirtsecretsd can persist the new one. A crash or lost response in that interval leaves the outcome uncertain, as does a `conflict` or failed `Write`. avirtsecretsd then marks the secret record `needs-login` instead of retrying. avirtsecretsd refuses refresh and lease requests for a secret record in `needs-login` until an operator logs in again and clears it with `avirtadmin secret login`, and each transition is an event.
 
 ```mermaid
 stateDiagram-v2
@@ -175,7 +175,7 @@ avirtsecretsd authorizes every call in three steps, and a call must pass all thr
 | Caller | SVID | Obtains | Through |
 | --- | --- | --- | --- |
 | avirthostd | `/service/avirthostd` | Only non-secret data. It registers workloads with bindings and generations and validates secret and binding references. It receives each workload's placeholders | Registration API |
-| avirtmediatord | `/ns/<ns>/workload/<uuid>/mediator/<gen>` | Its own workload's placeholders, for the placeholder misuse check, and the short-lived values of its workload's mediator-injected bindings | Broker API |
+| avirtmediatord | `/ns/<ns>/workload/<uuid>/mediator/<gen>` | Its own workload's placeholders, for the `credential-misplaced` check, and the short-lived values of its workload's mediator-injected bindings | Broker API |
 | avirtmodelgwd | `/service/avirtmodelgwd` | The credential value behind a placeholder, for one request of a workload it's serving, and Codex refreshes | Broker API |
 | avirtmcpgwd | `/service/avirtmcpgwd` | The upstream credential for one of a workload's MCP bindings | Broker API |
 | avirtregistryd | `/service/avirtregistryd` | The secrets its configuration names, such as off-host registry logins | Service API |
@@ -278,7 +278,7 @@ avirtsecretsd excludes secret values from persistent storage, including sealed v
 | --- | --- |
 | `secrets.d/` | Secret records and provider instance configurations, with no values |
 | `bindings.d/` | Binding records (see [egress credentials](./egress-credentials.md#bindings)) |
-| `state.journal` | Each owned secret's refresh state (`current`, `refresh-pending`, `needs-login`, `revoked`) and the last version read, fsynced on every transition |
+| `state.journal` | Each owned secret record's refresh state (`current`, `refresh-pending`, `needs-login`, `revoked`) and the last version read, fsynced on every transition |
 
 Only the Admin API writes records in `secrets.d/` and `bindings.d/`.
 
@@ -302,5 +302,5 @@ Only the Admin API writes records in `secrets.d/` and `bindings.d/`.
 
 1. **Binding namespace scope.** Secrets have host or namespace scopes. Whether bindings can also have namespace scope remains open (see [components](./components.md#open-questions)).
 2. **Host-scoped audit record.** Host-scoped events go to avirtoteld only. Whether host-scoped events also need a durable record beside the workload logs for avirtauditd to read remains open.
-3. **Plugin egress enforcement.** Connections to the 1Password desktop app use local IPC without egress. How the host restricts plugin connections to avirtsecretsd's egress socket remains open (see [off-host enforcement](./networking.md#off-host-enforcement)).
+3. **Plugin egress enforcement.** Connections to the 1Password desktop app use local IPC without egress. How the host restricts plugin connections to avirtsecretsd's egress socket remains open (see [restrictions on host connections](./networking.md#restrictions-on-host-connections)).
 4. **Memory locking.** Memory locking remains an open question. This includes whether avirtsecretsd needs locked pages for values and how it behaves when a host refuses to lock pages containing values.
