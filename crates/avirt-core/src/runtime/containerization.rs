@@ -9,6 +9,7 @@ pub mod lifecycle;
 pub mod proto;
 pub mod reconcile;
 pub mod request;
+pub mod temp;
 #[cfg(test)]
 mod testing;
 pub mod workload;

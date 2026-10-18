@@ -7,6 +7,7 @@
 mod tests;
 
 use super::digest::copy_hashing;
+use super::temp::{PREFIX, Temp};
 use crate::state::private_dir;
 use anyhow::{Context as _, Result, bail, ensure};
 use serde::{Deserialize, Serialize};
@@ -197,19 +198,12 @@ where
     R: Read,
 {
     ensure!(is_sha256_hex(name), "the archive holds a blob named {name}, which isn't a sha256 digest");
-    let temp = blobs.join(format!(".tmp-{:016x}", rand::random::<u64>()));
-    let mut file = OpenOptions::new().write(true).create_new(true).mode(0o600).open(&temp)?;
-    let hashed = copy_hashing(source, &mut file);
+    let temp = Temp::new(blobs.join(format!("{PREFIX}{:016x}", rand::random::<u64>())));
+    let mut file = OpenOptions::new().write(true).create_new(true).mode(0o600).open(temp.path())?;
+    let computed = copy_hashing(source, &mut file)?;
     drop(file);
-    let stored = hashed.map_err(anyhow::Error::from).and_then(|computed| {
-        ensure!(computed == name, "blob {name} hashes to {computed}");
-        Ok(())
-    });
-    if let Err(err) = stored {
-        drop(fs::remove_file(&temp));
-        return Err(err);
-    }
-    fs::rename(&temp, blobs.join(name))?;
+    ensure!(computed == name, "blob {name} hashes to {computed}");
+    temp.persist(&blobs.join(name))?;
     Ok(())
 }
 

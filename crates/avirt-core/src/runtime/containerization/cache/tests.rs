@@ -6,10 +6,13 @@ use crate::runtime::containerization::images::Layer;
 use alloc::sync::Arc;
 use anyhow::{Result, ensure};
 use async_trait::async_trait;
+use core::future;
 use core::sync::atomic::{AtomicUsize, Ordering};
+use core::time::Duration;
 use std::fs;
 use std::io;
 use std::path::{Path, PathBuf};
+use tokio::time;
 
 /// The tarball that the fake serves.
 const TARBALL: &[u8] = b"kernel tarball bytes";
@@ -29,6 +32,8 @@ struct Fake {
     fetches: AtomicUsize,
     /// How many root filesystem builds happened.
     rootfs_builds: AtomicUsize,
+    /// How many fetches never finish.
+    stalled_fetches: AtomicUsize,
     /// The digest that `initfs` reports.
     wrong_init_digest: bool,
 }
@@ -47,6 +52,9 @@ impl Preparer for Fake {
     async fn fetch(&self, _url: &str, out: &Path) -> Result<()> {
         self.fetches.fetch_add(1, Ordering::SeqCst);
         fs::write(out, TARBALL)?;
+        if self.stalled_fetches.load(Ordering::SeqCst) > 0 {
+            future::pending::<()>().await;
+        }
         Ok(())
     }
 
@@ -267,5 +275,34 @@ async fn a_root_filesystem_is_keyed_by_its_manifest_and_built_once() -> Result<(
     ensure!(first == second && first.ends_with("rootfs/abc123/rootfs.ext4"), "the entry is at {}", first.display());
     ensure!(fake.rootfs_builds.load(Ordering::SeqCst) == 1, "the filesystem was built twice");
     ensure!(cache.rootfs("../escape", &layers()).await.is_err(), "a path-like key was accepted");
+    Ok(())
+}
+
+/// A launch that stops in the middle of a build removes its temporary entry.
+///
+/// # Errors
+///
+/// Fails when a `.tmp-` entry remains under the kernel cache.
+///
+/// # Panics
+///
+/// Panics if the async runtime fails to start.
+#[tokio::test]
+async fn a_cancelled_build_removes_its_temporary_entry() -> Result<()> {
+    let fake = Arc::new(Fake { stalled_fetches: AtomicUsize::new(1), ..Fake::default() });
+    let (caches, dir) = artifacts(&fake)?;
+    let pool = Arc::new(caches);
+    let build = tokio::spawn({
+        let worker = Arc::clone(&pool);
+        async move { worker.kernel().await }
+    });
+    while fake.fetches.load(Ordering::SeqCst) == 0 {
+        time::sleep(Duration::from_millis(5)).await;
+    }
+    ensure!(fs::read_dir(dir.path().join("cache/kernel"))?.count() == 1, "the build left no temporary entry to test");
+    build.abort();
+    ensure!(build.await.is_err(), "the build finished");
+    let left = fs::read_dir(dir.path().join("cache/kernel"))?.count();
+    ensure!(left == 0, "{left} entries remain under the kernel cache");
     Ok(())
 }

@@ -1,13 +1,13 @@
 //! Unit tests for the teardown paths of a workload handle, against a fake helper behind a stand-in
 //! process.
 
-use super::Handle;
+use super::{Containerization, Handle};
 use crate::egress::WorkloadDir;
 use crate::runtime::containerization::intent::{Intent, State};
 use crate::runtime::containerization::lifecycle::{ChildSupervisor, Incarnation};
 use crate::runtime::containerization::proto::StartWorkload;
 use crate::runtime::containerization::testing::{FakeHelper, hello};
-use crate::runtime::{MediatorSpec, WorkloadHandle as _, WorkloadSpec};
+use crate::runtime::{MediatorSpec, Runtime as _, WorkloadHandle as _, WorkloadSpec};
 use crate::state::Root;
 use alloc::sync::Arc;
 use anyhow::{Context as _, Result, bail, ensure};
@@ -202,5 +202,38 @@ async fn a_helper_that_fails_the_handshake_is_killed() -> Result<()> {
     Box::new(fixture.handle).release(true).await;
     ensure!(!fixture.workload_dir.is_dir(), "release left the workload directory");
     ensure!(!fixture.container_dir.is_dir(), "release left the VM state");
+    Ok(())
+}
+
+/// The startup sweep removes temporary entries from the caches and the image store, and keeps the rest.
+///
+/// # Errors
+///
+/// Fails when a stale entry remains, a finished entry goes, or the sweep reports a failure.
+///
+/// # Panics
+///
+/// Panics if the async runtime fails to start.
+#[tokio::test]
+async fn the_startup_sweep_removes_stale_temporary_entries() -> Result<()> {
+    let base = short_dir()?;
+    let state = Root::open_in(base.path())?;
+    let blobs = state.images().join("blobs").join("sha256");
+    let leftovers = [
+        state.cache().join("kernel").join(".tmp-0000000000000001"),
+        state.cache().join("initfs").join(".tmp-0000000000000002"),
+        state.cache().join("rootfs").join(".tmp-0000000000000003"),
+        blobs.join(".tmp-0000000000000004"),
+    ];
+    for path in &leftovers {
+        fs::create_dir_all(path)?;
+    }
+    let finished = state.cache().join("kernel").join("abc");
+    fs::create_dir_all(&finished)?;
+    let runtime = Containerization::new(&state, base.path().join("avirtvmd"), base.path().join("archives"));
+    let swept = runtime.sweep(&state).await;
+    ensure!(swept.failures.is_empty(), "the sweep reported {:?}", swept.failures);
+    ensure!(leftovers.iter().all(|path| !path.exists()), "a temporary entry remains");
+    ensure!(finished.is_dir(), "the sweep removed a finished entry");
     Ok(())
 }

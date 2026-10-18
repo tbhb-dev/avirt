@@ -10,6 +10,7 @@ use super::lifecycle::{ChildSupervisor, HelperHandle, HelperSpec, HelperSupervis
 use super::proto::{Event, EventKind, RequestOp, ResponseResult, StartWorkload};
 use super::reconcile::reap;
 use super::request::{Inputs, build};
+use super::temp::sweep_stale;
 use crate::egress::Proxy;
 use crate::runtime::{
     Exit, MediatorSpec, Runtime, Stopped, Swept, WorkloadExit, WorkloadHandle, WorkloadSpec, spawn_mediator,
@@ -129,7 +130,16 @@ impl Runtime for Containerization {
     }
 
     async fn sweep(&self, state: &state::Root) -> Swept {
-        reap(self.supervisor.as_ref(), state).await
+        let mut swept = reap(self.supervisor.as_ref(), state).await;
+        let (cache, images) = (state.cache(), state.images());
+        let failures = task::spawn_blocking(move || {
+            let blobs = images.join("blobs").join("sha256");
+            let dirs = [cache.join("initfs"), cache.join("kernel"), cache.join("rootfs"), blobs];
+            dirs.iter().flat_map(|dir| sweep_stale(dir)).collect::<Vec<String>>()
+        })
+        .await;
+        swept.failures.extend(failures.unwrap_or_else(|err| vec![format!("the temporary entry sweep failed: {err}")]));
+        swept
     }
 }
 

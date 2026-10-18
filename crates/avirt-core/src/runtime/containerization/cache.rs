@@ -10,6 +10,7 @@ mod tests;
 
 use super::digest;
 use super::images::Layer;
+use super::temp::{PREFIX, Temp};
 use crate::console;
 use crate::state::private_dir;
 use alloc::sync::Arc;
@@ -302,13 +303,10 @@ impl Artifacts {
         }
         let parent = entry.dir.parent().context("a cache entry has a parent")?;
         private_dir(parent)?;
-        let temp = parent.join(format!(".tmp-{:016x}", rand::random::<u64>()));
-        private_dir(&temp)?;
-        if let Err(err) = self.build(wanted, &temp).await {
-            drop(fs::remove_dir_all(&temp));
-            return Err(err.context(format!("build the {label} cache entry")));
-        }
-        fs::rename(&temp, &entry.dir)?;
+        let temp = Temp::new(parent.join(format!("{PREFIX}{:016x}", rand::random::<u64>())));
+        private_dir(temp.path())?;
+        self.build(wanted, temp.path()).await.with_context(|| format!("build the {label} cache entry"))?;
+        temp.persist(&entry.dir)?;
         self.verified.lock().unwrap_or_else(PoisonError::into_inner).insert(entry.dir.clone());
         Ok(entry.path())
     }

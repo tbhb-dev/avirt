@@ -1,6 +1,6 @@
 //! Unit tests for the image import, against archives the tests build.
 
-use super::{Imported, import};
+use super::{Imported, import, store_blob};
 use crate::runtime::containerization::digest::copy_hashing;
 use anyhow::{Context as _, Result, ensure};
 use serde_json::{Value, json};
@@ -204,5 +204,22 @@ async fn a_nested_index_is_followed() -> Result<()> {
     write_archive(&archive, &members)?;
     let imported: Imported = import(&archive, &dir.path().join("images")).await?;
     ensure!(imported.layers.len() == 1, "{} layers", imported.layers.len());
+    Ok(())
+}
+
+/// A blob whose rename fails doesn't keep its temporary file.
+///
+/// # Errors
+///
+/// Fails when the store succeeds or a temporary file remains.
+#[test]
+fn a_failed_rename_leaves_no_temporary_blob() -> Result<()> {
+    let dir = tempfile::tempdir()?;
+    let bytes = b"blob bytes";
+    let name = sha(bytes)?;
+    fs::create_dir_all(dir.path().join(&name).join("occupied"))?;
+    ensure!(store_blob(&mut io::Cursor::new(bytes.as_slice()), &name, dir.path()).is_err(), "the store succeeded");
+    let left: Vec<_> = fs::read_dir(dir.path())?.collect::<Result<_, _>>()?;
+    ensure!(left.len() == 1, "{} entries remain", left.len());
     Ok(())
 }
