@@ -3,43 +3,15 @@ type: Protocol Specification
 title: Workload topology and connections
 description: The connections inside one workload and between workloads (sandbox container, mediator, avirthostd, host services, avirtedgeproxyd), the runtime-provided Unix sockets and avirthostd's SNI routing, the HTTP/2 streams on the workload's connection to its mediator, launch handshake, freeze, reconnect, resuming the `/envelopes` stream and port publication.
 tags: [avirt, workload, protocol, http2]
-implementation: partial
+implementation: planned
 generated: { by: codex/gpt-6, at: 2026-10-18T05:20:59Z }
 ---
-
-# Status: implemented
-
-## Sockets
-
-The sandbox container uses `--network none`. The runtime mounts two Unix socket files into it with `-v` from the workload's private directory `workloads/<id>/` (0700). For each mounted socket file, the runtime forwards connections to the host process listening on it. Both files are mode 0600 on the host, which maps through, so only root in the sandbox container can open them.
-
-| Guest path | Host listener | Traffic |
-| --- | --- | --- |
-| `/run/avirt/mediator.sock` | Mediator | The workload's HTTP/2 connection to its mediator, which today transports only log envelopes, on its one request `POST /workloads/<id>/stream`. The mediator forwards its bytes unchanged to avirthostd. |
-| `/run/avirt/proxy.sock` | Mediator | The CONNECT proxy (see [egress](./egress.md)) |
-
-To connect to avirthostd, the mediator dials its socket `hostd/hostd.sock` (directory 0700, socket 0600). Each connection starts with a one-line connection header naming its kind, the workload and the mediator's secret (see [identity](./identity.md)), read within 5 s:
-
-- `WORKLOAD <id> <secret>`: `avirthostd` binds the connection to that workload and serves only that workload's `POST /workloads/<id>/stream` route over it. The mediator then forwards the HTTP/2 bytes unchanged between avirtinitd (client) and avirthostd's stream handler (server).
-- `EGRESS <id> <secret>`: plain NDJSON egress events, one per proxied connection. `avirthostd` wraps each in the log envelope with `dir: "egress"`. avirthostd accepts only one event connection per workload.
-
-At startup, the mediator opens the `EGRESS` connection. It dials a `WORKLOAD` connection only when the workload's first bytes arrive on `mediator.sock`, so a readiness probe (connect and close) costs avirthostd nothing.
-
-## Connection to the mediator
-
-`avirtinitd` connects to `mediator.sock` within 5 s and completes the HTTP/2 handshake within 5 s. It sends `POST /workloads/<id>/stream` with its connection token (`AVIRT_CONNECTION_TOKEN`), then waits 4 s for the response headers. Retries wait 300 ms. The total limit is 15 s. A 403, 404, 409, or 410 ends retries. A socket file without a listener accepts a connection but never responds, so each step has a timeout. Starting the TCP proxy to `proxy.sock` and the agent requires avirthostd's acceptance of that request. Otherwise, `avirtinitd` fails with a message that identifies the mediator.
-
-## TCP proxy to `proxy.sock`
-
-`avirtinitd` listens on an ephemeral `127.0.0.1` port. It forwards each connection to `proxy.sock`. The agent connects to it through `HTTPS_PROXY` and the related variables (see [workload hardening](./workload-hardening.md)).
-
-Forwarded sockets must never half-close. With a `-v` socket-file mount, sending `SHUT_WR` immediately after the last write loses the peer's reply. To avoid that loss, the TCP proxy omits forwarding a client's end-of-stream. After the client finishes, each read on the other direction has a 30 s idle timeout. When the host side ends or a read idles out, the proxy notifies the client and closes. The log can show a proxied connection lasting longer than the client's connection.
 
 # Status: planned
 
 ## Runtime-provided sockets
 
-The sandbox container and the mediator have no network interface other than loopback. Each connection they make is on a Unix socket that the compute runtime provides (see [compute runtimes](./compute-runtimes.md) and [networking](./networking.md)). The sandbox container has exactly one, for the workload's HTTP/2 connection to its mediator. The mediator has four.
+The sandbox VM has no network device. Its TUN and nftables REDIRECT rules send TCP, UDP, ICMP and DNS through avirtnetd to the mediator. Within the mediator, loopback is the only interface. Connections across the container boundary use Unix sockets that the compute runtime provides (see [compute runtimes](./compute-runtimes.md) and [networking](./networking.md)). One socket connects the sandbox container to its mediator over HTTP/2. The mediator uses four sockets.
 
 | Socket | Container end | Host end | Initiated by | TLS client and server |
 | --- | --- | --- | --- | --- |
@@ -48,7 +20,7 @@ The sandbox container and the mediator have no network interface other than loop
 | Outbound socket to avirthostd | Mediator: `/run/avirt/svc.sock` | avirthostd's SNI routing | avirtmediatord | The mediator process, the destination |
 | avirtmediatord's ingress listener | Mediator: `/run/avirt/ingress.sock`, served by avirtmediatord | avirthostd's SNI routing | avirthostd, for avirtedgeproxyd | avirtedgeproxyd, avirtmediatord |
 
-- **Containerization.** A vsock connection between avirthostd and the guest backs each socket. The runtime's vsock-to-Unix-socket forwarder presents this connection as the Unix socket in the table. The sandbox VM's vsock device has exactly one host listener, for the workload's connection, which avirthostd forwards unchanged to the current mediator generation's `workload.sock`. This lets avirtnetd open a new connection to its mediator whenever it needs one. Each other host listener is on the mediator VM's device. seccomp denies `AF_VSOCK` to each workload process, so only the runtime's forwarder uses the sandbox VM's vsock device.
+- **Containerization.** A vsock connection between avirthostd and the guest backs each socket. The runtime's vsock-to-Unix-socket forwarder presents this connection as the Unix socket in the table. The sandbox VM's vsock device has exactly one host listener, for the workload's connection, which avirthostd forwards unchanged to the current mediator generation's `workload.sock`. This lets avirtnetd open a new connection to its mediator whenever it needs one. The listener inventory includes every host-side vsock listener and runtime control channel. Destination enforcement occurs outside the VM. Only a workload's own mediator accepts its SVID. Each other workload-traffic listener is on the mediator VM's device. seccomp denies `AF_VSOCK` to each workload process, so only the runtime's forwarder uses the sandbox VM's vsock device.
 - **Docker Desktop.** The workload's connection goes through a per-workload Docker named volume. The mediator's connection to avirthostd and its outbound socket to avirthostd are single-file bind mounts of the host's `workloads/<id>/c.sock` and `workloads/<id>/s.sock`. avirtmediatord's ingress listener is open (see [components](./components.md#open-questions)).
 
 Each vsock connection, bind mount, and named volume transports ciphertext only.
@@ -77,13 +49,17 @@ One HTTP/2 connection per mediator generation transports each stream. avirtnetd 
 | --- | --- | --- | --- |
 | control | `POST /control`, always the first stream | avirtnetd | avirtmediatord, NDJSON messages in both directions for the life of the connection |
 | envelopes | `POST /envelopes` with `avirt-resume-seq: N` | Envelopes from avirtinitd, the main workload process and avirtnetd, each containing a `seq` | avirthostd, `POST /workload/envelopes` |
-| egress | `CONNECT host:port`, one per agent connection | avirtnetd's forward proxy | The egress pipeline (see [egress](./egress.md#how-avirtmediatord-handles-egress)) |
+| TCP egress | CONNECT, one stream per flow | avirtnetd's transparent listener or optional forward proxy | avirtmediatord, then avirtedgeproxyd |
+| UDP egress | CONNECT-UDP with DATAGRAM capsules and an RFC 9298 Context ID | avirtnetd's TUN reader | One immutable destination and connected upstream socket |
+| ICMP echo | Extended CONNECT with `:protocol` `icmp` | avirtnetd's TUN reader | One checked target, with `{type, id, seq, payload}` messages and no per-message destination |
 | guest CLI | `POST /guest-cli` | avirtguest's gRPC, through `guest.sock` | avirtedgeproxyd, then avirtapid, under the `guest-cli` principal (see [identity](./identity.md#trust-domain-and-ids)) |
 | MCP | `POST /mcp` | avirtmcp, through `mcp.sock` | avirtmcpgwd |
 | DNS | `POST /dns`, one stream per query, `content-type: application/dns-message` | avirtnetd's stub resolver, one DNS wire message in each request and response | avirtmediatord's DNS policy, then avirtdnsd for internal names or avirtedgeproxyd's DNS proxy for public names (see [egress](./egress.md#workload-dns)) |
 | OTLP | `POST /otlp` | avirtnetd and the main workload process | avirtoteld, with `x-avirt-src: workload` (see [observability](./observability.md#opentelemetry-logs)) |
 | inbound connection notices | `POST /inbound-notices`, long-lived | avirtnetd | avirtmediatord, which sends one notice per inbound connection |
-| ingress | `CONNECT /ingress` with `:protocol: connect-tcp` (RFC 8441) with `avirt-ingress-id: I` | avirtnetd, accepting an inbound connection notice | The inbound connection waiting under `I` (see [ingress](#ingress)) |
+| TCP ingress | `CONNECT /ingress` with `:protocol: connect-tcp` (RFC 8441) with `avirt-ingress-id: I` | avirtnetd, accepting an inbound connection notice | The inbound connection waiting under `I` (see [ingress](#ingress)) |
+
+UDP ingress uses CONNECT-UDP, with one association per inbound stream.
 
 An egress stream's response includes the pipeline's status, including avirtedgeproxyd's 403 `private-dest`, 502, and 504. The flow-control and admission rules below preserve control, DNS and event progress under saturation in either direction.
 
@@ -103,6 +79,8 @@ avirtmediatord's server enforces a 16 KiB decoded header-list limit and a 10 s h
 
 avirtedgeproxyd independently enforces 128 new streams per second per workload, burst 128, across its connections. Excess streams receive 503. Each server includes headers and TLS buffers in its memory budget. Stream buffers and request queues count toward the same budget.
 
+UDP has a default limit of 64 sessions per workload within the bulk budget. Both endpoints check capsule length before allocation, with a 65,535-byte limit. Receivers release flow-control capacity on read before dropping a datagram. Senders without capacity drop it before writing its first byte. Queues have bounds, and fair progress requires tests with stalled readers and writers in both directions. A separate bulk connection remains an option to assess. The edge also enforces host-wide and per-peer admission, memory, work and bandwidth limits, with reserved control capacity and a suitable `RLIMIT_NOFILE`.
+
 ### Timeouts and keepalive
 
 Both ends enforce these stream timeouts in avirt code. Idle means no stream data bytes in either direction. HTTP/2 `PING` doesn't reset it. Each stream also ends at connection drain, identity expiry, or revocation.
@@ -113,12 +91,14 @@ Both ends enforce these stream timeouts in avirt code. Idle means no stream data
 | `/envelopes` | 60 s. avirtnetd sends a heartbeat record with no payload every 20 s, excluded from the log | Connection lifetime |
 | `/inbound-notices` | 30 s. The mediator sends a heartbeat notice with no payload every 10 s | Connection lifetime |
 | `/dns` | 5 s | 10 s per query |
-| Egress CONNECT and `/ingress` tunnels | 15 minutes | Connection lifetime |
+| TCP egress and `/ingress` tunnels | 15 minutes | Connection lifetime |
+| UDP | 60 s | Connection lifetime |
+| ICMP echo | 10 s | Connection lifetime |
 | `/guest-cli`, `/mcp`, `/otlp` | 60 s | Connection lifetime |
 
 The mediator sends HTTP/2 `PING` every 5 s with a 10 s acknowledgment timeout. avirtnetd sends `PING` every 10 s with a 10 s acknowledgment timeout. `PING` establishes transport health only. It doesn't establish stream progress. avirtedgeproxyd applies the same 15-minute tunnel idle timeout and the limit set by certificate expiry to egress tunnels.
 
-Each egress stream has an independent half-close through HTTP/2 `END_STREAM`. avirtnetd and avirtmediatord propagate it to the corresponding write half while continuing to read the other direction. An end-to-end test must deliver a reply after the client half-closes. The test must exercise both directions through the actual runtime transport before avirtnetd removes its implemented idle-timeout fallback.
+Each TCP stream has an independent half-close through HTTP/2 `END_STREAM`. avirtnetd and avirtmediatord propagate it to the corresponding write half while continuing to read the other direction. An end-to-end test must deliver a reply after the client half-closes. The test must exercise both directions through the actual runtime transport. Every tunnel explicitly shuts down its sending side, drains the peer with a deadline and logs the result. Dropping or resetting an h2 stream discards queued data and never proves delivery.
 
 ## Launch handshake
 
@@ -161,7 +141,7 @@ A guest port is reachable from outside the sandbox container only through a port
 | --- | --- |
 | `workload` | The publishing workload, and with it its short ID and namespace |
 | `port` | A `127.0.0.1` port in the sandbox container, or the built-in `guestd` target, which avirtnetd forwards to `/run/avirt/streams/guestd.sock` |
-| `protocol` | `tcp` for opaque bytes, or `http` |
+| `protocol` | `tcp` for opaque bytes, `udp` for datagrams, or `http` |
 | `expires` | When the publication ends, at the latest with the workload. avirtedgeproxyd and the destination workload's avirtmediatord both enforce it locally. |
 
 A published port is reachable as `<name>.<ns>.workload.host.avirt.internal:<port>`, and a service record (see [components](./components.md#avirtedgeproxyd)) can name it as its backend. Who may connect is policy: avirtedgeproxyd's host policy snapshot and the destination workload's `ingress` action.
@@ -171,6 +151,8 @@ The destination workload's avirtmediatord receives each inbound connection from 
 - **Same host.** The source workload's avirtmediatord sends an h2 CONNECT stream with the internal name as `:authority` to this host's avirtedgeproxyd. avirtedgeproxyd resolves the name to its entity and evaluates the host policy snapshot. It opens a new mutual TLS connection as `/service/avirtedgeproxyd` on the destination's ingress listener, with the source identity in `x-avirt-caller`.
 - **Peered host.** The source workload's avirtmediatord sends the stream to its own avirtedgeproxyd, which forwards it to the peer's avirtedgeproxyd over mutual TLS with federated bundles (see [peering](./peering.md#workload-traffic)). The peer's avirtedgeproxyd evaluates its own host policy snapshot and connects to the destination as in the same-host path. The source avirtedgeproxyd connects to the peer's peer listener and sets `x-avirt-caller` to the originating workload's identity, in its own trust domain. The receiving avirtedgeproxyd accepts it only if that identity is in the trust domain of the peer's avirtedgeproxyd SVID that authenticated its connection, and otherwise refuses the stream with 403. Each avirtedgeproxyd sets `x-avirt-caller` itself on the stream it originates.
 - **avirtapid.** avirtapid reaches services through avirtedgeproxyd in the same way.
+
+UDP publications use CONNECT-UDP on each host and between peers. Every association binds its authenticated caller, destination workload and generation, publication, protocol and tunnel, with reply permission, expiry, revocation, and amplification limits. avirtnetd opens one ephemeral loopback UDP socket per inbound stream.
 
 The guest CLI stream takes the same first hop the other way round: avirtmediatord sends it to avirtedgeproxyd, which authorizes the `guest-cli` principal against the host policy snapshot and forwards it to avirtapid.
 
@@ -212,7 +194,7 @@ sequenceDiagram
     N->>I: confirm contents
     I->>A: CA install, launch in the agent cgroup with its security context
     N->>M: started(pid)
-    A->>N: CONNECT through the forward proxy
+    A->>N: TCP through nftables REDIRECT
     N->>M: h2 CONNECT stream
     M->>M: policy, TLS termination, routing
     M-->>C: events: conn and http lines

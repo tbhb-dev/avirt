@@ -54,7 +54,7 @@ pub struct RuntimeProps {
 ```
 
 - **`Running`** holds the runtime handle plus the sandbox container's or mediator's stdout, stderr, and exit status.
-- **Specs** are runtime-neutral. They include the layer stack (the harness base plus workspace layers and the configuration layer, see [workload lifecycle](./workload-lifecycle.md#layer-stack)). They also include the environment, workspace mount, labels (`avirt=1`, `avirt.workload`, `avirt.role`), and extra capabilities the role needs. Neither spec has a network: the workload and the mediator have no interface other than loopback on every runtime.
+- **Specs** are runtime-neutral. They include the layer stack (the harness base plus workspace layers and the configuration layer, see [workload lifecycle](./workload-lifecycle.md#layer-stack)). They also include the environment, workspace mount, labels (`avirt=1`, `avirt.workload`, `avirt.role`), and extra capabilities the role needs. Both specs omit network devices, and avirthostd refuses a sandbox container launch with one. avirtinitd creates the sandbox container's TUN and nftables REDIRECT rules. The mediator has only loopback.
 - **Unix sockets.** The runtime provides the sockets for the workload's HTTP/2 connection to its mediator, the mediator's connection to avirthostd, the mediator's outbound socket to avirthostd and avirtmediatord's ingress listener, each presented inside the container as a Unix socket under `/run/avirt/` (see [workload topology](./workload-topology.md#runtime-provided-sockets) and [networking](./networking.md)).
 - **Hardening.** `avirtinitd` applies all agent hardening on every runtime, and the runtime adds only its native outer layer.
 - **Freeze and resume.** avirtinitd freezes and resumes the agent cgroup the same way on every runtime.
@@ -74,13 +74,15 @@ Status: planned. This is the Apple runtime.
 
 ## Guest artifacts
 
+The guest kernel needs TUN, nftables REDIRECT and connection tracking, including IPv6 original-destination lookup. avirtinitd configures these before starting the other guest processes.
+
 - **Kernel.** The Kata Containers 3.32.0 arm64 `vmlinux`, pinned by URL and by the release tarball's sha256 `8736c054d9223974735394f822000823baef509e1c33405ec798240fa9b6e4b5`. avirthostd extracts it once and caches it in its runtime directory.
 - **Init filesystem.** It comes from `ghcr.io/apple/containerization/vminit:0.47.0` through `initfsReference`, stored in avirthostd's own runtime directory.
 - **Images.** avirthostd unpacks the avirt base, harness base, and mediator images into its own content-addressed cache, also in the runtime directory. Each sandbox container's writable root block device is an APFS `clonefile` copy of its composed root filesystem with the configuration layer unpacked into it (see [workload lifecycle](./workload-lifecycle.md#assembly-per-runtime)).
 
 ## Networking
 
-- **Sandbox VM:** no network.
+- **Sandbox VM:** no network device. avirtinitd configures a TUN and nftables REDIRECT. avirtnetd transfers each flow to the mediator.
 - **Mediator VM:** no network. Its connections are the four Unix sockets below.
 
 ## Unix sockets
@@ -121,7 +123,7 @@ flowchart LR
         core --- shim
         core --- fwd
     end
-    subgraph wvm["sandbox VM (no network)"]
+    subgraph wvm["sandbox VM (TUN, no network device)"]
         net["avirtnetd: TLS client"]
     end
     subgraph svm["mediator VM (no network)"]
@@ -154,13 +156,15 @@ Status: planned.
 | Host socket paths | `c.sock` and `s.sock` (104-byte limit) |
 | Sandbox image | A composed image of the harness base's layers, the workspace layers and the configuration layer, loaded through the Docker API and tagged `avirt.internal/composed:<hex>` (see [workload lifecycle](./workload-lifecycle.md#assembly-per-runtime)). The container's writable layer is the per-workload writable layer. |
 | Mediator network | `--network none` (only `lo`) |
-| Workload network | `--network none` (only `lo`, without `docker.sock` or `/run/host-services`) |
-| Workload outer layer | `--cap-drop ALL --cap-add SETUID,SETGID,SETPCAP,KILL,NET_BIND_SERVICE --security-opt no-new-privileges`, with Docker's default seccomp profile left in place. The default profile blocks io_uring, bpf, userfaultfd, perf, mount, setns, unshare, `CLONE_NEWUSER`, keyctl and `AF_VSOCK`/`AF_PACKET`/`AF_ALG`. avirtinitd's filter adds ptrace, memfd_create, process_vm_* and `AF_NETLINK`. |
+| Sandbox network | `--network none`, with a TUN configured by avirtinitd. No `docker.sock` or `/run/host-services` |
+| Workload outer layer | `--cap-drop ALL --cap-add SETUID,SETGID,SETPCAP,KILL,NET_BIND_SERVICE,NET_ADMIN --device /dev/net/tun --security-opt no-new-privileges`, with Docker's default seccomp profile left in place. The default profile blocks io_uring, bpf, userfaultfd, perf, mount, setns, unshare, `CLONE_NEWUSER`, keyctl and `AF_VSOCK`/`AF_PACKET`/`AF_ALG`. avirtinitd's filter adds ptrace, memfd_create, process_vm_* and `AF_NETLINK`. |
 | Mediator outer layer | `--cap-drop ALL --cap-add SETUID,SETGID --security-opt no-new-privileges`, retaining Docker's default seccomp profile. avirtinitd in mediator mode needs only `SETUID` and `SETGID` to start avirtmediatord under its own UID. |
 | AF_VSOCK | No host surface, though the kernel has vsock. `avirtinitd` still denies it. |
 | Landlock | ABI v8, unprivileged with `no_new_privs` (see [Landlock](./landlock.md#workload-kernels)) |
 | Logs | Docker's container log files, which avirtlogd reads (see [observability](./observability.md#workload-stdout-and-stderr)). Constraint: the containers use the `json-file` log driver with `max-size` and `max-file` set. |
 | Lifecycle | `docker run`, `rm -f`. avirtinitd is PID 1 in both containers. The startup cleanup sweeps containers and volumes with `--filter label=avirt=1`. |
+
+avirtinitd needs `/dev/net/tun` and `NET_ADMIN` only during setup, and drops that capability from the bounding set before starting other processes. This configuration still needs a runtime check.
 
 Docker Desktop workloads must never use `--pid=host` or mount `docker.sock`. Only the workload's two containers mount its named volume.
 

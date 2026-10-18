@@ -61,7 +61,7 @@ flowchart LR
 | --- | --- | --- | --- | --- | --- | --- |
 | `connection.rtt` | Echo round trip of a small payload across the workload's connection to its mediator, including avirthostd's vsock forwarding where present | µs | Bench harness | External benchmark | Containerization, Docker | diag |
 | `connection.throughput` | Sustained bytes per second per direction on one CONNECT stream across that connection | MB/s | Bench harness | External benchmark | Containerization, Docker | diag |
-| `connection.stream_setup` | CONNECT stream opened by avirtinitd → response headers received. On the Apple container CLI runtime: `proxy.sock` connect → `200` read. | ms | avirtinitd | Histogram | All | diag |
+| `connection.stream_setup` | Flow stream opened by avirtnetd → response headers received, by TCP, UDP, or ICMP. | ms | avirtnetd | Histogram | All | diag |
 | `connection.mtls_handshake` | Transport connected → TLS 1.3 handshake complete with the peer ID authorized, per side | ms | avirtinitd, mediator, avirthostd | Histogram | Containerization, Docker | diag |
 | `svid.issue` | CSR sent → SVID received, end to end, plus avirthostd's signing time | ms | Mediator, avirtinitd, avirthostd | Histogram | Containerization, Docker | diag |
 | `svid.rotation` | `rotate` pushed → new connection in use with the new SVID and GOAWAY sent on the old one | ms | avirthostd, mediator | Span | Containerization, Docker | diag |
@@ -72,9 +72,9 @@ flowchart LR
 
 | Metric | Definition | Unit | Where | How | Runtimes | Class |
 | --- | --- | --- | --- | --- | --- | --- |
-| `egress.connect_setup` | CONNECT head received by the mediator → `200` written | ms | Mediator and edge proxy | Histogram | All | SLO |
-| `egress.dns` | Name lookup started → addresses returned | ms | Mediator, or avirtedgeproxyd where it resolves | Histogram | All | diag |
-| `egress.dial` | First upstream dial started → connected | ms | Mediator, or avirtedgeproxyd where it dials | Histogram | All | diag |
+| `egress.connect_setup` | Flow request received by the mediator → response headers written, by transport | ms | Mediator and edge proxy | Histogram | All | SLO |
+| `egress.dns` | Name lookup started → addresses returned | ms | avirtedgeproxyd | Histogram | All | diag |
+| `egress.dial` | First upstream dial started → connected | ms | avirtedgeproxyd | Histogram | All | diag |
 | `egress.tls_accept` | `200` written → downstream TLS handshake complete | ms | Mediator | Histogram | Containerization, Docker | diag |
 | `egress.leaf` | Leaf certificate cache miss → leaf ready, plus the cache hit ratio | µs, ratio | Mediator | Histogram, counter | Containerization, Docker | diag |
 | `egress.tls_added_latency` | Request completion time through termination minus through TLS passthrough, for the same request | ms | Bench harness | External benchmark | Containerization, Docker | diag |
@@ -83,7 +83,7 @@ flowchart LR
 | `egress.substitution` | Credential substitution and `credential-misplaced` check, per request, including body scanning | µs | Mediator | Histogram | Containerization, Docker | diag |
 | `egress.codex_refresh` | Intercepted refresh request received → synthesized response sent, plus avirtmodelgwd's and avirtsecretsd's refresh time | ms | Mediator, avirtmodelgwd, avirtsecretsd | Span | Containerization, Docker | diag |
 | `egress.decisions` | Connections and requests by `decision` (`allow`, `deny`, `would-deny`) and by `rule` | count | Mediator and edge proxy | Counter, from the egress events | All | diag |
-| `egress.errors` | Failures by kind: `bad-request`, `private-dest`, `plain-http`, DNS, dial, timeout, `shutdown`, `credential-misplaced` | count | Mediator and edge proxy | Counter, from the egress events | All | diag |
+| `egress.errors` | Failures by kind: `bad-request`, `private-dest`, DNS, dial, timeout, `shutdown`, `credential-misplaced` | count | Mediator and edge proxy | Counter, from the egress events | All | diag |
 | `egress.bytes` | `bytes_up` and `bytes_down` per connection and per workload | bytes | Mediator and edge proxy | Counter, from the egress events | All | diag |
 
 # Logging

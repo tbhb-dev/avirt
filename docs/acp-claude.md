@@ -59,7 +59,7 @@ Claude Code loads project-scoped MCP servers from `.mcp.json` without an approva
 | --- | --- |
 | `api.anthropic.com:443` | Model requests (`/v1/*`) and Claude Code's other API calls (`/api/*`) |
 
-Tools the agent runs need their own destinations, such as `registry.npmjs.org` and `github.com` in the regression suite's positive checks (see [roadmap](./roadmap.md#regression-suite)). The mediator allows every public destination, so none of these needs configuration (see [egress](./egress.md#status-implemented)).
+Tools the agent runs need their own destinations, such as `registry.npmjs.org` and `github.com` in the regression suite's positive checks (see [roadmap](./roadmap.md#regression-suite)). The mediator allows every public destination, so none of these needs configuration (see [egress](./egress.md#status-planned)).
 
 # Status: planned
 

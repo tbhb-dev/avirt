@@ -43,7 +43,7 @@ Every crate lives directly under `crates/`, and each directory uses its package 
 | `avirtacp` | Binary | Workload guest | The workload process that runs an agent through the Agent Client Protocol (not implemented) |
 | `avirtagent` | Binary | Workload guest | The workload process that runs an agent through its native harness (not implemented) |
 | `avirtexec` | Binary | Workload guest | The workload process for generic execution (not implemented) |
-| `avirtnetd` | Binary | Workload guest | The guest networking daemon provides the client end of the workload's HTTP/2 connection to its mediator. It also provides the forward and reverse proxies, the stub DNS resolver, and the guest control API (not implemented) |
+| `avirtnetd` | Binary | Workload guest | The guest networking daemon provides the client end of the workload's HTTP/2 connection to its mediator. It also provides the TUN, transparent TCP listeners, optional forward proxy, reverse proxy, DNS handler, and guest control API (not implemented) |
 | `avirtguestd` | Binary | Workload guest | The workload services daemon provides a file server and snapshots, plus the guest MCP tool surface (not implemented) |
 | `avirtmcp` | Binary | Workload guest | The MCP stdio proxy to avirtmcpgwd, launched on demand by the agent (not implemented) |
 | `avirtguest` | Binary | Workload guest | The guest CLI that's in the image and connects to avirtapid through the mediator (not implemented) |

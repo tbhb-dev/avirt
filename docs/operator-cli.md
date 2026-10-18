@@ -142,7 +142,7 @@ avirt
 │   ├── stop WORKLOAD [--grace DURATION]
 │   └── rm WORKLOAD
 ├── port
-│   ├── publish WORKLOAD PORT [--protocol tcp|http] [--expires DURATION]
+│   ├── publish WORKLOAD PORT [--protocol tcp|udp|http] [--expires DURATION]
 │   ├── list WORKLOAD
 │   └── rm WORKLOAD PORT
 ├── service
@@ -192,7 +192,7 @@ avirt launch --agent claude|codex PROMPT
     [--workspace REF [--fresh require|prefer|any] [--allow-local] | --cwd DIR]
     [--mode MODE] [--binding ID]... [--policy REF]
     [--interactive [--idle-limit DURATION]] [--approval auto|operator|reject]
-    [--publish PORT[/tcp|/http]]... [--follow]
+    [--publish PORT[/tcp|/udp|/http]]... [--follow]
 ```
 
 | Flag | Meaning |
@@ -209,7 +209,7 @@ avirt launch --agent claude|codex PROMPT
 | `--policy REF` | The workload's policy reference. Default: the host's default for the namespace. |
 | `--interactive` | Keep the session open after each turn, until an operator ends it, `--idle-limit` passes with no turn running (default 1 h), or the workload stops (see [session lifecycle](./acp.md#session-lifecycle-1)) |
 | `--approval POLICY` | The method for answering permission requests: `auto` (default), `operator` or `reject` (see [client capabilities](./acp.md#client-capabilities-1)) |
-| `--publish PORT[/PROTO]` | A port publication made at launch, repeatable. `PROTO` is `tcp` (default) or `http`. |
+| `--publish PORT[/PROTO]` | A port publication made at launch, repeatable. `PROTO` is `tcp` (default), `udp`, or `http`. |
 | `--follow`, `-f` | Stream the workload log until `container_exit`, as `avirt logs --follow` does |
 
 `launch` prints the workload's short ID, generated name, namespace and canonical UUIDv7, and its internal name on this host. With `--follow` it then prints the log, and exits 0 when the workload's exit code is 0 and 8 otherwise. A child workload that `avirt` launches has the local user as its `avirt.internal/creator` and `avirt.internal/root` (see [workload management](./components.md#workload-management)).
@@ -237,7 +237,7 @@ Choose a namespace with `--namespace`. It remains fixed for the workload's life.
 
 | Command | Does |
 | --- | --- |
-| `avirt port publish WORKLOAD PORT` | Adds a port publication (see [ingress](./workload-topology.md#ingress)). `--protocol` is `tcp` or `http`, and `--expires` ends it early. It ends no later than the workload. |
+| `avirt port publish WORKLOAD PORT` | Adds a port publication (see [ingress](./workload-topology.md#ingress)). `--protocol` is `tcp`, `udp`, or `http`, and `--expires` ends it early. It ends no later than the workload. |
 | `avirt port list WORKLOAD` | Lists the workload's publications with their names and expiry |
 | `avirt port rm WORKLOAD PORT` | Revokes a publication. Its open ingress connections close. |
 | `avirt service create NAME` | Creates a service record on `--port`, whose backend is a workload's published port (`--workload` and `--target-port`) or an authorized host-local service (`--host-local ADDRESS`) |

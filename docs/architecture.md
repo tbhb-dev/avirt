@@ -29,44 +29,14 @@ The full planned component inventory, covering the host services, the mediator c
 
 # Topology
 
-## Status: implemented
-
-The mediator is a host process. The sandbox container has no network. Its only connections are two Unix socket files that the container runtime relays to the mediator.
-
-```mermaid
-flowchart LR
-    subgraph workload["sandbox container (--network none, --init)"]
-        agent["agent (uid 1000, no caps, seccomp)"]
-        relay["avirtinitd TCP proxy 127.0.0.1:PORT"]
-        avirtinitd["avirtinitd (root)"]
-        agent -->|HTTPS_PROXY| relay
-    end
-    subgraph host["macOS host"]
-        med["avirtmediatord (one per workload)"]
-        hostd["avirthostd"]
-        logs[("logs/WORKLOAD-ID.ndjson")]
-        upstream(("upstream"))
-        cli["avirt launch"]
-    end
-    relay -->|"/run/avirt/proxy.sock"| psock{{"proxy.sock (0600)"}}
-    psock --> med
-    med -->|"CONNECT"| upstream
-    avirtinitd -->|"/run/avirt/mediator.sock"| usock{{"mediator.sock (0600)"}}
-    usock --> med
-    med -->|"hostd.sock, bytes forwarded unchanged (HTTP/2)"| hostd
-    med -.->|"hostd.sock, egress events"| hostd
-    hostd --> logs
-    cli -->|"POST /launch, 127.0.0.1:8787"| hostd
-```
-
 ## Status: planned
 
 The mediator runs in its own container with no network interface other than loopback. Runtime-provided Unix sockets connect the workload to its mediator and the mediator to the host. Each connection uses mutual TLS with SPIFFE identities end to end. The full topology, with each traffic class hop by hop, is in [networking](./networking.md#topology).
 
-- **Sandbox container.** avirtnetd provides its HTTP/2 connection to its mediator. avirtnetd holds the workload SVID and serves the agent's forward proxy.
+- **Sandbox container.** avirtnetd provides its HTTP/2 connection to its mediator. avirtnetd holds the workload SVID, receives redirected TCP and reads UDP and ICMP from its TUN. It provides DNS and an optional loopback forward proxy. The sandbox VM has no network device.
 - **Mediator.** avirtmediatord is one process with one UID, Landlock ruleset, and SVID. It serves workload and ingress listeners, with TLS interception and credential injection in-process. The same process maintains the connection to avirthostd and calls `GET /workload`, `GET /workload/control`, and `POST /workload/svid`.
 - **Host.** avirthostd owns workload lifecycle and the SPIFFE issuer, avirtsecretsd stores the real credentials (see [secrets](./secrets.md)), avirtpolicyd distributes policy snapshots, avirtmodelgwd and avirtmcpgwd inject model and MCP credentials, avirtregistryd stores and indexes workspace images, and avirtedgeproxyd is the only global policy enforcement point and the only host service that opens connections off the host (see [components](./components.md#avirtedgeproxyd)).
-- **Names and namespaces.** Each workload is in one host-local namespace, and avirtdnsd resolves internal names to the edge proxy of the host that serves them (see [DNS](./dns.md#internal-names)).
+- **Names and namespaces.** Each workload is in one host-local namespace, and avirtdnsd routes internal names through the edge proxy of the host that serves them. avirtmediatord returns synthetic addresses per workload (see [DNS](./dns.md#internal-names)).
 
 ```mermaid
 flowchart LR
@@ -84,13 +54,13 @@ flowchart LR
         gw --> secrets
     end
     gw --> fd
-    subgraph medvm["mediator (no network)"]
+    subgraph medvm["mediator (runtime Unix sockets)"]
         me["avirtmediatord: lifecycle, TLS, policy"]
     end
     subgraph wl["sandbox container"]
-        net["avirtnetd: HTTP/2 client, workload SVID, forward proxy"]
+        net["avirtnetd: TUN, redirected TCP, DNS, workload SVID"]
         agent["agent (uid 1000): placeholders and the MITM CA cert only"]
-        agent -->|"HTTPS_PROXY 127.0.0.1:PORT"| net
+        agent -->|"TCP, UDP, ICMP, DNS"| net
     end
     wconn{{"workload's HTTP/2 connection (runtime-provided socket)"}}
     hchan{{"mediator's connection to avirthostd (runtime-provided socket)"}}
@@ -118,8 +88,8 @@ Status: planned. These hold for each runtime and each phase once the planned des
 2. Containers and host services generate their own long-lived private keys internally. `avirthostd` generates only a short-lived bootstrap key per container and doesn't keep it.
 3. TLS ends only at the endpoints listed here. For the workload's HTTP/2 connection to its mediator, these are avirtnetd and avirtmediatord. For the mediator's connection to avirthostd, these are avirtmediatord and avirthostd. For the mediator's outbound socket and its ingress listener, these are avirtmediatord and its destination. The runtime's socket forwarding, avirthostd's SNI routing, Docker named volumes and avirtedgeproxyd's tunnels transport ciphertext.
 4. Each listener reachable across a container or host boundary requires mutual TLS from the first byte. [Trust boundaries](./trust-boundaries.md#local-exceptions) lists the local listeners inside the sandbox container that don't.
-5. uid 1000 in the sandbox container never possesses an SVID or its key, the trust bundle, a CA key, or a real credential.
-6. The mediator has no network interface other than loopback. Workload traffic passes through its mediator, and avirtedgeproxyd is the only host service that opens connections off the host.
+5. uid 1000 in the sandbox container never possesses an SVID or its key, the trust bundle, a CA key, or a credential from avirt. A trusted upstream can return an injected credential in its response.
+6. The sandbox VM has no network device. Its TUN and nftables REDIRECT send each flow through avirtnetd. The mediator has only loopback. Workload traffic passes through its mediator, and avirtedgeproxyd is the only host service that opens connections off the host.
 7. Each proxy process evaluates policy locally from a versioned policy snapshot. Requests never wait on a policy call. A missing or expired policy snapshot denies requests.
 8. Long-lived real credentials for model or MCP traffic remain outside the mediator.
 9. Each workload-to-workload connection passes through avirtedgeproxyd on each host it uses. A mediator never connects to another mediator directly.
@@ -132,7 +102,7 @@ Status: planned. These hold for each runtime and each phase once the planned des
 - [Workload topology and connections](./workload-topology.md) - the runtime-provided sockets, SNI routing, the HTTP/2 streams, launch handshake, freeze, reconnect, and ingress
 - [DNS](./dns.md) - the avirt DNS zone, the name forms, and how workloads resolve names
 - [Identity and mTLS](./identity.md) - authentication on each hop, the SPIFFE trust domain and IDs, SVID issuance, rotation, and federation
-- [Egress and TLS termination](./egress.md) - the CONNECT proxy, how avirtmediatord handles egress, edge proxy egress and `private-dest` checks, workload DNS, TLS termination, and the MITM CA
+- [Egress and TLS termination](./egress.md) - flow authorization, how avirtmediatord handles egress, edge proxy egress and `private-dest` checks, workload DNS, TLS termination, and the MITM CA
 - [Egress policies](./egress-policies.md) - the Cedar schema, enforcement points, name canonicalization, modes, policy snapshots, revocation, the prover, and failure behavior
 - [Egress credentials](./egress-credentials.md) - how the agent receives Claude and Codex credentials, bindings and credential injectors, placeholders, the gateways, Codex token refresh, rotation, and revocation
 - [Secrets](./secrets.md) - avirtsecretsd, providers, refresh, write-back, and the broker

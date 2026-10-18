@@ -36,7 +36,7 @@ A **workload** is the lifecycle unit, like a pod with a sidecar. Its **sandbox c
 | avirtacp | Runs an agent workload through the Agent Client Protocol (see [ACP](./acp.md)) | workload | Partial |
 | avirtagent | Runs an agent workload through its native harness | workload | Planned |
 | avirtexec | Generic execution | workload | Planned |
-| avirtnetd | Provides guest networking with the client end of the workload's HTTP/2 connection to its mediator and stores the workload SVID. Provides the forward proxy and DNS stub resolver. Also provides the reverse proxy and guest control gRPC API | workload | Partial |
+| avirtnetd | Provides guest networking with the client end of the workload's HTTP/2 connection to its mediator and stores the workload SVID. Receives redirected TCP and reads UDP and ICMP from its TUN. Provides synthetic DNS through the mediator and an optional forward proxy. Also provides the reverse proxy and guest control gRPC API | workload | Partial |
 | avirtguestd | Workload services: a file server and an MCP server | workload | Planned |
 | avirtmcp | A stdio MCP server, launched by the agent, that relays to avirtmcpgwd | workload | Planned |
 | avirtguest | The guest CLI in sandbox images, which reaches avirtapid through avirtnetd, avirtmediatord, and avirtedgeproxyd (see [guest CLI](./guest-cli.md)) | workload | Planned |
@@ -172,7 +172,7 @@ avirtedgeproxyd runs as a host process on macOS and as a host service in the all
 
 ## Host mediator
 
-Status: implemented. avirtmediatord runs on the host with the [Pingora CONNECT app](./egress.md#pingora-connect-app). Its `proxy.sock` and `mediator.sock` behavior follows [mediator process](./egress.md#mediator-process). `avirt-connect` provides CONNECT authority parsing and destination checks. Plans include Cedar, TLS, and credential functions.
+Status: implemented. avirtmediatord runs on the host with the [Pingora CONNECT app](../crates/avirtmediatord/README.md). It serves `proxy.sock` and forwards bytes on `mediator.sock` to avirthostd. `avirt-connect` provides CONNECT authority parsing and destination checks. Plans include Cedar, TLS, and credential functions.
 
 ## Mediator container
 
@@ -181,7 +181,7 @@ Each workload has one mediator container, a sidecar to its sandbox container. Th
 | Component | What it does | Talks to |
 | --- | --- | --- |
 | avirtinitd (mediator mode) | Binds `/run/avirt/workload.sock` and `/run/avirt/ingress.sock`, then passes their listening descriptors to avirtmediatord when starting it under its UID and Landlock ruleset. Stops the mediator when avirtmediatord exits. | avirtmediatord |
-| avirtmediatord | Maintains its connection to avirthostd and handles workload lifecycle and rotation. Serves the workload and ingress listeners. Evaluates the workload Cedar policy snapshot in-process with `cedar-policy`. Intercepts TLS and checks placeholders before injecting mediator-injected credentials. Handles Codex refresh interception and writes events. | avirtnetd, avirthostd, host services, and avirtedgeproxyd |
+| avirtmediatord | Maintains its connection to avirthostd and handles workload lifecycle and rotation. Serves the workload and ingress listeners. Evaluates the workload Cedar policy snapshot in-process with `cedar-policy`. Handles TCP, UDP, and ICMP flow streams. Intercepts TLS and SSH under request policy and credential checks. Stores the persistent synthetic DNS table. Handles Codex refresh interception and writes events. | avirtnetd, avirthostd, host services, and avirtedgeproxyd |
 
 avirtmediatord uses hyper 1.x, h2 0.4.20, rustls 0.23 with ring, tokio-rustls and rcgen. It stores its SVID's private key in its own memory. Rotation swaps the client and server TLS configuration for new connections. Readiness is internal state, including policy and placeholder availability (see [launch handshake](./workload-topology.md#launch-handshake)).
 
@@ -198,13 +198,13 @@ Each sandbox container's root filesystem is a harness base image derived from th
 
 | Process | UID | What it does | Talks to |
 | --- | --- | --- | --- |
-| avirtinitd | 0 | PID 1, the launcher, lifecycle, and freeze authority. It doesn't have an SVID. It needs root to start children under other UIDs, create the agent cgroup, write the system CA bundle and `/etc/resolv.conf`, bind the DNS stub resolver's port 53 sockets and the forward proxy's `127.0.0.1` listener for avirtnetd, freeze the agent cgroup, and end every process in it. | Its children, over one launcher socket per role, `/run/avirt/init/<role>.sock` |
-| avirtnetd | `avirt-net` | The client end of the workload's HTTP/2 connection to its mediator: TLS client and h2 client on `/run/avirt/mediator.sock`. Stores the workload SVID and key in memory. It owns the `/envelopes` stream (sequence numbers and the replay ring), the forward proxy on the listener avirtinitd hands it, the DNS stub resolver (see [egress](./egress.md#workload-dns)), the reverse proxy and the guest control gRPC API, and serves the local service sockets the other workload processes use. | avirtmediatord. Workload processes connect over loopback and Unix sockets |
+| avirtinitd | 0 | PID 1, the launcher, lifecycle, and freeze authority. It doesn't have an SVID. It needs root to start children under other UIDs, create the agent cgroup, write the system CA bundle and `/etc/resolv.conf`, configure the TUN and nftables REDIRECT, hand the TUN and transparent TCP, DNS and optional forward-proxy sockets to avirtnetd, freeze the agent cgroup, and end every process in it. | Its children, over one launcher socket per role, `/run/avirt/init/<role>.sock` |
+| avirtnetd | `avirt-net` | The client end of the workload's HTTP/2 connection to its mediator: TLS client and h2 client on `/run/avirt/mediator.sock`. Stores the workload SVID and key in memory. It owns the `/envelopes` stream (sequence numbers and the replay ring), the TUN, transparent TCP listeners, optional forward proxy, DNS handler (see [egress](./egress.md#workload-dns)), the reverse proxy and the guest control gRPC API, and serves the local service sockets the other workload processes use. | avirtmediatord. Workload processes connect over loopback and Unix sockets |
 | avirtacp | `avirt-run` | Runs an agent workload through the Agent Client Protocol and exposes a session control API through the mediator (see [ACP](./acp.md#session-control-api)). avirtinitd launches the adapter at its request and hands it the adapter's stdio pipes. It taps each JSON-RPC line and submits the envelopes to avirtnetd. It provides the ACP client that's part of avirtinitd in the current code. | The ACP adapter (stdio), avirtnetd, avirtinitd |
 | avirtagent | `avirt-run` | Runs an agent workload through its native harness | The agent's harness, avirtnetd, avirtinitd |
 | avirtexec | `avirt-run` | Generic execution | avirtnetd, avirtinitd |
 | avirtguestd | `avirt-guest`, in the workspace group `avirt-ws` it shares with the agent | A file server for remote file management and workspace snapshots, and an MCP server with workspace and workspace snapshot tools, on `/run/avirt/streams/guestd.sock` only. It reaches the agent's files through the workspace group and its default ACLs (see [workload hardening](./workload-hardening.md#security-contexts)). | avirtnetd (ingress), avirtinitd (quiesce) |
-| Agent | 1000 | The adapter and each tool it runs, in the agent cgroup | avirtnetd's forward proxy and agent sockets |
+| Agent | 1000 | The adapter and each tool it runs, in the agent cgroup | avirtnetd's mediated flows and agent sockets |
 | avirtmcp | 1000 | A stdio MCP server that the agent launches on demand. It relays MCP to avirtmcpgwd through avirtnetd's MCP socket and the mediator. | The agent (stdio), avirtnetd |
 | avirtguest | 1000 | The guest CLI, run on demand (see [guest CLI](./guest-cli.md)). It reaches avirtapid over gRPC through avirtnetd's guest CLI socket, avirtmediatord and avirtedgeproxyd, and avirtnetd forwards its requests under the principal `/ns/<ns>/workload/<uuid>/guest-cli` (see [identity](./identity.md#trust-domain-and-ids)). It manages other workloads under policy (see [workload management](#workload-management)). | avirtnetd |
 
@@ -242,7 +242,7 @@ flowchart TD
 
 ### Workload
 
-1. avirtinitd creates `/run/avirt` and the agent cgroup, then reads and unlinks the bootstrap SVID. It binds the forward proxy's listener on `127.0.0.1` and starts avirtnetd with the bootstrap SVID and key and that listener on inherited file descriptors.
+1. avirtinitd creates `/run/avirt` and the agent cgroup, then reads and unlinks the bootstrap SVID. It creates the TUN with IPv4 and IPv6 routes and installs nftables REDIRECT. It binds the transparent TCP, optional forward-proxy, and DNS sockets. It drops `CAP_NET_ADMIN` from the bounding set, then starts avirtnetd with the bootstrap SVID, key, and network descriptors.
 2. avirtnetd opens the workload's HTTP/2 connection to its mediator, completes mutual TLS, attaches, takes part in the first rotation, and has its `/envelopes` stream accepted by avirthostd (see [workload topology](./workload-topology.md#launch-handshake)).
 3. On `confirm`, avirtnetd passes the `confirm` contents to avirtinitd. avirtinitd installs the MITM CA and writes the placeholder files. It then starts the main workload process and avirtguestd.
 4. The main workload process asks avirtinitd to launch the agent. avirtinitd launches it as uid 1000 in the agent cgroup, with the placeholder environment and its security context, and avirtnetd reports `started`.
@@ -314,7 +314,7 @@ flowchart TD
 
 ## Host request paths
 
-avirtedgeproxyd fronts avirthostd, avirtapid, avirtmcpgwd, avirtmodelgwd and avirtwebd for clients and peers, and relays each workload-to-workload, service, host-local service and external connection. avirt, avirtwebd and avirtguest reach avirtapid through avirtedgeproxyd, and avirtadmin reaches avirthostd directly over its `admin.sock`. avirtmediatord reaches avirt's own host services directly through avirthostd's SNI routing. Each connection off the host leaves from an avirtedgeproxyd. Each path, hop by hop, is in [networking](./networking.md#connection-types).
+avirtedgeproxyd fronts avirthostd, avirtapid, avirtmcpgwd, avirtmodelgwd and avirtwebd for clients and peers, and relays each workload-to-workload, service, host-local service and external connection. avirt, avirtwebd and avirtguest reach avirtapid through avirtedgeproxyd, and avirtadmin reaches avirthostd directly over its `admin.sock`. avirtmediatord reaches avirt's own host services directly through avirthostd's SNI routing. Each connection off the host leaves from an avirtedgeproxyd. Each path, hop by hop, is in [networking](./networking.md#topology).
 
 ## Web UI
 
@@ -355,4 +355,4 @@ Status: planned. These items have no phase yet (see [roadmap](./roadmap.md#unsch
 12. **Web UI listener.** The host loopback port for avirtedgeproxyd's web UI listener remains unspecified.
 13. **Frontend repository layout.** Where the web UI's frontend app belongs in the repository is open.
 14. **Local user principal.** The design has yet to specify the Cedar principal for a local caller on avirtedgeproxyd's `edgeproxy.sock` or how `x-avirt-caller` conveys it.
-15. **Content filter prototype.** On macOS a Network Extension content filter drops each non-loopback flow from avirt-signed host processes. Whether it holds needs a prototype, and allowing only avirtedgeproxyd among avirt-signed processes is the property to test (see [networking](./networking.md#open-questions)).
+15. **Content filter prototype.** On macOS a Network Extension content filter drops each non-loopback flow from avirt-signed host processes. The filter covers TCP and UDP only. Each avirt host daemon other than avirtedgeproxyd also runs under a process sandbox profile that denies non-loopback inet sockets, including ICMP. Both restrictions require runtime verification (see [networking](./networking.md#limits-events-and-verification)).

@@ -1,139 +1,68 @@
 ---
 type: Component Design
 title: Egress and TLS termination
-description: How the agent's network traffic leaves the sandbox container, the mediator's CONNECT proxy and `private-dest` check, how avirtmediatord handles egress in the planned design, avirtedgeproxyd as policy enforcement point, workload DNS, websockets, TLS termination with the workload's MITM CA and its delivery into the sandbox container, where policy is evaluated on the data path, the event format and the mediator's lack of a network.
-tags: [avirt, egress, proxy, pingora, tls]
-implementation: partial
-generated: { by: codex/gpt-6, at: 2026-10-18T05:21:55Z }
+description: Flow authorization, protocol inspection, credential checks, upstream connections, DNS and websockets in avirtmediatord and avirtedgeproxyd, with TLS certificates and egress events.
+tags: [avirt, egress, proxy, tls, networking]
+implementation: planned
+generated: { by: codex/gpt-6, at: 2026-10-18T12:00:00Z }
 ---
-
-# Status: implemented
-
-## Path
-
-The sandbox container runs with `--network none`, so TCP, UDP, DNS and IPv6 all fail inside it and only loopback works. The agent's only way out is avirtinitd's TCP proxy to `proxy.sock`, which forwards to the mediator's CONNECT proxy on `proxy.sock` (see [workload topology](./workload-topology.md)). Every client must honour the proxy variables. Claude Code, Codex, Node `fetch` and `https` (with `NODE_USE_ENV_PROXY=1`), npm, git, and curl all do. `git://` and `ssh://` don't work.
-
-## Mediator process
-
-```text
-avirtmediatord --dir DIR --hostd-sock PATH --workload ID
-```
-
-It runs one Pingora 0.9.0 `Server` with two Unix-socket services at 0600: the CONNECT app on `proxy.sock`, and on `mediator.sock` a TCP proxy that forwards the bytes of avirtinitd's HTTP/2 connection unchanged to avirthostd. Stdin EOF or SIGINT means fast shutdown and SIGTERM graceful shutdown with no grace-period delay and at most one second for service runtimes to drain. Either way it first flushes every open connection as an event with `error: "shutdown"`. Stdin EOF ties its lifetime to avirthostd's. Stopping avirthostd with SIGKILL also stops every mediator.
-
-## Pingora CONNECT app
-
-Pingora never reuses connections or checks peers because the socket's mode controls access.
-
-1. Read the request head (at most 8 KiB, 10 s timeout) and parse it with `httparse`. Ignore a connection that closes before sending a byte (a readiness probe). Forward bytes after the blank line upstream, including an early TLS ClientHello.
-2. Accept only `CONNECT host:port` with an explicit port of 1-65535 written as 1 to 5 ASCII digits without a sign or leading zero. Accept a hostname or IP literal, convert it to lowercase, and strip any trailing dot. An authority that looks like IPv4 must be a canonical dotted quad, so reject `2130706433`, `0177.0.0.1`, `0x7f000001`, and `127.1` as malformed.
-3. Resolve the name with `tokio::net::lookup_host`, with a 10 s timeout, and apply the `private-dest` check below to every resolved address. One refused address refuses the whole CONNECT.
-4. Dial the addresses in order, with a 10 s timeout for dialing. Reply `200 Connection Established`, flush, and copy in both directions with byte counts until either side closes or shutdown fires. Omit an idle timeout because model API streams are long-lived.
-
-| Status | Cause |
-| --- | --- |
-| 400 | Malformed head or authority (`bad-request`) |
-| 403 | `private-dest` |
-| 501 | Any method other than CONNECT (`plain-http` for an absolute `http://` URI, else `unsupported-method`) |
-| 502 | DNS or dial failure |
-| 504 | Connect timeout |
-
-The proxy allows and logs other destinations under rule `allow-all`.
-
-## `private-dest`
-
-The `private-dest` check refuses resolved addresses in non-global ranges: loopback, RFC 1918, CGNAT, link-local, benchmarking, documentation, multicast, reserved and broadcast, and for IPv6 also unique-local, site-local, Teredo, discard, NAT64 (`64:ff9b::/96`, `64:ff9b:1::/48`), 6to4 (through its embedded IPv4) and IPv4-mapped or IPv4-compatible addresses. IPv6 also refuses IPv4-translated `::ffff:0:0:0/96`, benchmarking `2001:2::/48`, ORCHID `2001:10::/28`, ORCHIDv2 `2001:20::/28`, documentation `3fff::/20` and segment-routing SIDs `5f00::/16`. The block also refuses addresses on the host's own interfaces, including global addresses. It reads them with `getifaddrs` on each CONNECT. Failure to read host interfaces refuses the connection with 403. Its event uses rule `private-dest` and error `"host addresses"`.
-
-## Events
-
-Each proxied connection becomes one `dir: "egress"` line in `logs/<workload-id>.ndjson`, written when the connection closes. The mediator flushes connections still open at shutdown with `error: "shutdown"`.
-
-```json
-{"ts":"…","dir":"egress","msg":{"event":"conn","workload":"7e759259","started":"…","method":"CONNECT","host":"api.anthropic.com","port":443,"decision":"allow","rule":"allow-all","bytes_up":1234,"bytes_down":56789,"duration_ms":4200,"error":null}}
-```
-
-To list the hosts a set of workloads used: `jq -r 'select(.dir=="egress") | .msg | "\(.host):\(.port)"' logs/*.ndjson | sort | uniq -c`.
 
 # Status: planned
 
-## Transport scope
-
-avirtnetd's forward proxy accepts a client's CONNECT request and transfers it to the mediator over HTTP/2. The DNS stub sends queries over the same authenticated connection. Workload processes use the streams for control, envelopes, MCP and ingress (see [workload topology](./workload-topology.md#http2-streams)). Each connection type's hops and policy checks are in [networking](./networking.md).
-
 ## Path
 
-Each connection type's hops, policy enforcement points and identities are in [connection types](./networking.md#connection-types).
+The sandbox VM has no network device. avirtinitd configures the guest TUN and nftables REDIRECT rules, and avirtnetd transfers every TCP, UDP, and ICMP flow to avirtmediatord. DNS uses one POST `/dns` stream per query. Clients may still use the loopback forward proxy. avirt doesn't set proxy variables by default. [Guest networking](./networking.md#guest-networking) specifies transparent listeners, routing, process privileges, and error handling.
 
-Every connection from avirtmediatord to avirtmodelgwd, avirtmcpgwd or avirtedgeproxyd leaves on the mediator's outbound socket to avirthostd, which routes it by TLS SNI without decrypting TLS (see [SNI routing](./workload-topology.md#sni-routing)). These connections use mutual TLS and SPIFFE identities.
+Every outbound connection from avirtmediatord passes through a runtime-provided Unix socket and avirthostd's SNI routing. Mutual TLS authenticates both ends. avirtmediatord delegates external resolution and sockets to avirtedgeproxyd. avirtedgeproxyd performs those operations after its own authorization checks.
+
+## Mediator process
+
+avirtmediatord runs as one process. Traffic handling and lifecycle share its UID and SVID, `/ns/<ns>/workload/<uuid>/mediator/<gen>`. It serves the workload listener at `/run/avirt/workload.sock`, where it applies the workload policy snapshot while storing the synthetic DNS table and interception keys for that workload. The table persists across mediator restarts and never reassigns an address to another name within the workload's lifetime.
+
+## Transport scope
+
+TCP uses one HTTP/2 CONNECT stream per flow. UDP uses CONNECT-UDP with DATAGRAM capsules and an RFC 9298 Context ID, with one immutable destination per stream. Ping uses extended CONNECT with `:protocol` `icmp` and `{type, id, seq, payload}` messages. Messages omit the destination. [HTTP/2 streams](./networking.md#http2-streams) defines framing, capsule bounds, flow control, and explicit drain before close.
 
 ## How avirtmediatord handles egress
 
-avirtmediatord serves the workload's HTTP/2 connection to its mediator as an h2 listener on `/run/avirt/workload.sock` and is the endpoint for each agent `CONNECT` stream. avirtmediatord runs these steps in its own process:
+1. **Destination.** Use the canonical authority or IP address. A synthetic address maps to a name only through the mediator's persistent table. Refuse an unknown synthetic address. A CONNECT authority supplies a name directly. Other addresses stay IP destinations even if a client supplies SNI or Host. `name_from` is `dns`, `connect` or `none`.
+2. **Entity.** Resolve internal names to workload or service entities and refuse unresolved names. Ordinary flows can't target host services. MCP and guest CLI streams reach only their designated service paths.
+3. **Connection policy.** Check `connect` with the destination protocol and port, using port 0 for ICMP. The principal comes from the authenticated workload identity, never its source address.
+4. **Protocol.** Select SSH, HTTP, or TLS from port and policy before dialing. Port 22 or an SSH binding selects SSH. Skip probe dials. Check `intercept` for TLS or SSH at any permitted port, or `passthrough` with the detected protocol.
+5. **Inspection.** Under TLS interception, present a leaf certificate from the workload's MITM CA and offer both `h2` and `http/1.1`. Check authorization and `credential-misplaced` on one canonical request. Serialize it with only the credential its binding permits. Check the exact Codex refresh match before the placeholder scan. Act as the cleartext HTTP server with authorization per request and no injection. SSH uses the binding's pinned host key, placeholder-key authentication and allowed channel operations.
+6. **Upstream.** Send model requests to avirtmodelgwd and MCP to avirtmcpgwd on their authenticated service paths. Other traffic reaches avirtedgeproxyd on a stream for its flow protocol. Intercepted TLS opens a separate upstream TLS connection within the edge tunnel and verifies its certificate. Every request, redirect and request on a pooled connection requires authorization.
+7. **Passthrough.** On named TLS and QUIC flows require matching SNI and refuse `encrypted_client_hello`. A passthrough permit grants access to the endpoint and anything it tunnels. HTTP Host must equal the flow name, otherwise return 421. An SNI mismatch closes the connection.
+8. **Events and close.** Record decisions and flow outcomes. A tunnel must shut down its sending side and drain the peer with a deadline, recording the outcome in its log. Dropping a stream proves nothing about delivery.
 
-1. **Authority.** It uses the implemented CONNECT app's authority rules. Require an explicit port of 1-65535 written as 1 to 5 ASCII digits without a sign or leading zero. Accept a hostname or IP literal, convert it to lowercase, and strip any trailing dot. Require a canonical dotted quad for anything resembling IPv4. It canonicalizes the host (see [external host canonicalization](./egress-policies.md#external-host-canonicalization)). A malformed authority gets 400 `bad-request`. avirtnetd's forward proxy answers any method other than CONNECT with 501, `plain-http` for an absolute `http://` URI and `unsupported-method` otherwise. An IP-literal authority is an external endpoint whose resource has an `ip` attribute and no `host`, so no hostname rule and no `like` pattern can match it: it's permitted only by a policy that names that exact address in `resource.ip`.
-2. **Classification.** It classifies the destination as one of:
-   - an internal name (see [DNS](./dns.md#internal-names)), which it resolves to its canonical entity (see [name resolution](./egress-policies.md#name-resolution)). Refuse an unresolved name before policy evaluation.
-   - a model API host that avirtmodelgwd serves, such as `api.anthropic.com`, `chatgpt.com`, `api.openai.com`, and `auth.openai.com`.
-   - an external endpoint for any other name or IP literal.
-
-   avirtmediatord refuses an authority specifying an avirt host service, such as `avirtsecretsd.svc.<td>`, with 403. avirtnetd's forward proxy never connects the agent to host services. Only avirtmediatord and the HTTP/2 streams (`/mcp` to avirtmcpgwd, `/guest-cli` through avirtedgeproxyd) connect to host services.
-3. **`connect`.** It evaluates the `connect` action against the workload policy snapshot. A deny in enforce mode gets 403 with the body `egress denied: <host>:<port>`.
-4. **`intercept` or `passthrough`.** For an external endpoint or model API host on port 443 it evaluates `intercept`. If policy permits interception, avirtmediatord replies `200` and accepts the agent's TLS handshake with a leaf certificate from the workload's MITM CA, with ALPN `http/1.1`, or `h2` and `http/1.1` for a destination that one of the workload's gRPC bindings names (see [egress credentials](./egress-credentials.md#grpc)). Otherwise, and on any other port, it evaluates `passthrough`, and the connection takes TLS passthrough only if policy permits it. avirtmediatord refuses a connection that lacks permission for interception or TLS passthrough. Every internal name takes TLS passthrough, authorized at avirtedgeproxyd.
-5. **Requests.** On a connection under TLS interception, for each request:
-   - `Host` must equal the CONNECT host, else 421.
-   - it canonicalizes the path and evaluates `request` with the method and path (see [request path canonicalization](./egress-policies.md#request-path-canonicalization)).
-   - it runs the Codex refresh intercept, an exact endpoint and schema match evaluated before the `credential-misplaced` check (see [egress credentials](./egress-credentials.md#codex-refresh)).
-   - it runs the `credential-misplaced` check (see [egress credentials](./egress-credentials.md#placeholders)).
-   - it injects any credential whose binding names the mediator as its credential injector.
-6. **Upstream.** Model API requests go to avirtmodelgwd over a new mutual TLS connection with the original host as `:authority`. MCP reaches avirtmcpgwd on the `/mcp` stream, not through CONNECT. For other external endpoints, avirtmediatord opens an h2 CONNECT stream to avirtedgeproxyd with the original `host:port` as `:authority`. Inside that stream, it runs its own TLS session to the upstream with ALPN `h2` and `http/1.1` and verifies the upstream against bundled webpki roots. A request containing `Upgrade` forces `http/1.1`, to transfer the upgrade on the upstream connection.
-7. **TLS passthrough.** avirtmediatord forwards passthrough bytes unchanged to avirtedgeproxyd inside an h2 CONNECT stream containing the original authority. This applies to internal names on this host and under a peer's host name: avirtmediatord never connects to another mediator or to a peer itself. For an external endpoint, avirtmediatord reads the agent's first bytes before forwarding any. The first bytes must be a ClientHello whose SNI equals the CONNECT host. This prevents an allowed host on a shared CDN address from tunneling requests for other names. avirtmediatord closes connections starting without TLS unless a `passthrough` permit for that destination has `context.plaintext` true. Credential injectors never inject credentials under TLS passthrough.
-8. **Events.** It writes the `conn` and `http` events.
-
-Constraints:
-
-- avirtmediatord resolves no external names, because it has no network and no resolver of its own. avirtedgeproxyd resolves them when it dials.
-- Downstream (agent-facing) TLS is HTTP/1.1, except for a destination that a gRPC binding names, which also offers h2. Upstream may be h2.
+[HTTP and TLS](./networking.md#http-and-tls) specifies request ambiguity checks, gRPC refusals, and streaming scans. [QUIC](./networking.md#quic) defines Initial parsing and bounds, and [SSH and git](./networking.md#ssh-and-git) defines channel restrictions and per-binding git HTTPS rewrites. [ICMP echo](./networking.md#echo-with-icmp) specifies echo validation, reply matching, and rate limits.
 
 ## Edge proxy egress
 
-avirtedgeproxyd's egress listener accepts h2 CONNECT streams over mutual TLS from avirtmediatord processes and from host services. It enforces policy for all workload-to-workload connections within and between hosts, and for connections to services, host-local services, and external endpoints. For each stream, avirtedgeproxyd:
+avirtedgeproxyd accepts CONNECT, CONNECT-UDP and `icmp` streams from authorized mediators and host services, and from enrolled peers on its peer listener. It verifies the caller's SVID and current generation before evaluating the host policy snapshot. On authorized delegated calls it also checks the originating principal in `x-avirt-caller`.
 
-1. authorizes the caller's SVID: an avirtmediatord of a live workload at its current generation, or a host service that the host policy snapshot lists. A call from avirtapid, avirtmodelgwd, avirtmcpgwd or avirtregistryd made on behalf of a caller contains that caller in `x-avirt-caller`, and avirtedgeproxyd checks the host policy snapshot for both the service and originating principal (see [components](./components.md#avirtedgeproxyd)).
-2. resolves avirt authorities to their canonical entities and denies unresolved names. It canonicalizes external hosts.
-3. evaluates the host policy snapshot's `connect` for the caller and the destination entity.
-4. routes by destination:
-   - a local workload's published port, or a service whose backend is one: a new mutual TLS connection as `/service/avirtedgeproxyd` on the destination workload's avirtmediatord ingress listener, with the caller's identity in `x-avirt-caller` (see [workload topology](./workload-topology.md#ingress)).
-   - a service whose backend is an authorized host-local service: a dial to the backend address in the record. The `private-dest` check permits that host address only for that record.
-   - the `/guest-cli` stream from an avirtmediatord: to avirtapid, with `x-avirt-caller` set to the `guest-cli` principal (see [identity](./identity.md#trust-domain-and-ids)).
-   - an internal name under a peer's host name: forwarding to the peer's peer listener. It dials addresses from that peer's [enrollment record](./peering.md#enrollment-record) in order, authenticated as the enrolled peer's `/service/avirtedgeproxyd` (see [peering](./peering.md)).
-   - an external endpoint: it resolves the name and applies the `private-dest` check below to every resolved address.
-5. dials, with a 10 s timeout, only the addresses it checked, with no re-resolution in any later layer, and checks every retry's address again. It then replies `200`, and relays bytes in both directions with the idle and lifetime limits in [workload topology](./workload-topology.md#timeouts-and-keepalive).
+Internal names resolve to canonical entities. Local workload ports use the destination mediator's ingress listener. A service can use its authorized backend, and an internal name under a peer's host name routes through that peer's avirtedgeproxyd. The edge resolves external names and checks every resolved address before dialing. Retries repeat the checks and never trigger an unchecked re-resolution. TCP and UDP use separate sockets per flow. UDP sockets connect to their fixed destination. ICMP uses unprivileged datagram sockets.
+
+## `private-dest`
+
+The edge refuses non-global addresses and addresses assigned to the host's own interfaces for all flow protocols. Non-global ranges include loopback, private, CGNAT, link-local, documentation, benchmarking, multicast, and reserved ranges. A watcher tracks host addresses. The mediator translates synthetic addresses through its table before the edge checks the real upstream address, and an authorized service record allows only its recorded backend. A peer connection may use enrolled peer addresses, but never an address of the host itself.
 
 | Status | Cause |
 | --- | --- |
-| 403 | `private-dest`, an internal name that resolves to no entity, or a caller or destination the host policy snapshot denies in enforce mode |
+| 403 | `private-dest`, an unknown internal name, or a denied caller or destination |
 | 502 | DNS or dial failure |
-| 504 | Connect timeout |
+| 504 | Connection timeout |
 
-The `private-dest` check refuses an address in any non-global range listed under [`private-dest` check](#private-dest), and any address assigned to one of the host's own interfaces, global ones included. avirtedgeproxyd reads host interface addresses with `getifaddrs` on every connection and retry. A failed read refuses the connection with 403 `private-dest` and error `host addresses`. A dial to a peer's peer listener is exempt from the non-global range refusal, private and CGNAT ranges included, but only for the addresses in that peer's enrollment record, and never for an address of the host's own interfaces.
-
-avirtedgeproxyd never sees the plaintext of a connection whose TLS avirtmediatord or a gateway opens to the upstream: that TLS session runs inside the tunnel. Workload-to-workload bytes are opaque to it too. It records one `conn` event per connection, attributed to the caller's workload, with `src: "edgeproxy"`.
+avirtedgeproxyd doesn't decrypt the upstream TLS opened by a mediator or gateway. It records its own connection events with `src: "edgeproxy"`.
 
 ## Workload DNS
 
-Workload processes get normal DNS answers, for internal names and for public names, because many tools resolve a name before they connect.
+All TCP and UDP port 53 traffic reaches avirtnetd's DNS handler, including queries sent to an arbitrary address and UDP port 53 read from the TUN. Each query opens a separate `POST /dns` stream with `application/dns-message` request and response bodies and a separate concurrency limit. `resolve` applies at both the mediator and edge, including every name in a CNAME chain.
 
-1. As root, avirtinitd binds UDP and TCP port 53 on `127.0.0.53` and avirtnetd's forward proxy listener on `127.0.0.1`. It gives avirtnetd the sockets and writes `/etc/resolv.conf` to point at `127.0.0.53`.
-2. avirtnetd's stub resolver accepts each query and sends it to the mediator on one `POST /dns` stream per query, with `application/dns-message` request and response bodies (see [workload topology](./workload-topology.md#http2-streams)).
-3. avirtmediatord evaluates the `resolve` action for the name. A name the workload may not reach gets `NXDOMAIN`. avirtmediatord always enforces `resolve`, including in audit mode. Denied names never leave the mediator.
-4. It sends internal names to avirtdnsd. Public names go to avirtedgeproxyd's DNS proxy. avirtedgeproxyd parses each query and checks the host policy snapshot's `resolve` for the caller and name. It resolves names itself, checking `resolve` for every name in a CNAME chain before returning a size-limited answer. A compromised mediator can't bypass the host's DNS policy.
-5. It records a `dns` event for every query.
-
-Public names get their real answers. Answers for internal names follow avirtdnsd's model: they contain avirtedgeproxyd's address. A proxy-aware client still sends the name in its CONNECT, which is what avirtmediatord routes by, and avirtmediatord refuses a CONNECT to a bare avirtedgeproxyd address because it lacks a routing name. DNS is an exfiltration path, so every query is subject to policy and logged.
+The mediator returns synthetic answers for both external and internal names. The persistent table has a size limit. Allocations fail when full. DNS rewrites include HTTPS and SVCB address hints, AliasMode, TargetName and port, with consistent `mandatory` and `no-default-alpn` fields. The synthesizer removes `ech` and omits `h3` for intercepted names. Guest DNSSEC validation fails on rewritten answers. [Names and DNS](./networking.md#names-and-dns) specifies the table and residual channels. [DNS](./dns.md) defines internal names.
 
 ## Websockets
 
-After TLS termination, the downstream connection uses h1. Websocket upgrades arrive as ordinary `GET` requests with `Upgrade: websocket`. Each upgrade passes through the request steps, including the check for placeholder misuse and request logging. A model API upgrade goes to avirtmodelgwd, which injects the credential on the upgrade request. Codex's Responses API runs over WSS with its auth headers on the upgrade request. On a `101`, both sides switch to relaying bytes. The proxies relay frames without substitution or scanning. avirtmediatord writes the `http` event with byte counts when the upgraded connection closes.
+HTTP/1 upgrades and HTTP/2 extended CONNECT under RFC 8441 pass request policy and placeholder checks. websocket upgrades use HTTP/1 upstream. avirtmediatord strips `permessage-deflate` and refuses unnegotiated extensions. It unmasks client data and scans across fragments and continuation frames with a bounded matcher, scanning control frames separately. A placeholder hit closes with 1008 and records credential rejection. Both relay directions preserve frame boundaries, including when injecting a Close. Encoding a placeholder can evade scanning. Credential injection applies to the opening request only.
 
 ## MITM CA and leaf certificates
 
@@ -168,7 +97,7 @@ A client that rejects the MITM CA needs a policy that forbids `intercept` and pe
 
 ## Events
 
-A connection produces one `conn` event. Intercepted requests produce one `http` event apiece, and workload DNS queries produce one `dns` event apiece. avirtmediatord posts them to avirthostd on `POST /workload/events` (`src: "mediator"`). avirtedgeproxyd posts its own `conn` and `dns` events (`src: "edgeproxy"`), and avirtmodelgwd and avirtmcpgwd post the credential outcome of every request they serve (`src: "gateway"`). Each producer queues its events in a bounded ring and never blocks a worker thread on delivery, and numbers them in its own `seq` domain so avirthostd can deduplicate them across reconnects. When a workload's ring fills, the proxy process refuses new connections, requests, and DNS queries for that workload with 503 until the ring drains. This prevents silent event loss. avirtedgeproxyd keeps one ring per workload, so one workload's backlog never stalls another's. Every event contains `workload`, `gen` and `seq` (see [trust boundaries](./trust-boundaries.md#src)).
+A flow produces one `conn` event with `proto` (`tcp`, `udp` or `icmp`), `dst_ip` and `name_from` (`dns`, `connect` or `none`). Intercepted requests produce one `http` event apiece, and workload DNS queries produce one `dns` event apiece. avirtmediatord posts them to avirthostd on `POST /workload/events` (`src: "mediator"`). avirtedgeproxyd posts its own `conn` and `dns` events (`src: "edgeproxy"`), and avirtmodelgwd and avirtmcpgwd post the credential outcome of every request they serve (`src: "gateway"`). Each producer queues its events in a bounded ring and never blocks a worker thread on delivery, and numbers them in its own `seq` domain so avirthostd can deduplicate them across reconnects. When a workload's ring fills, the proxy process refuses new connections, requests, and DNS queries for that workload with 503 until the ring drains. This prevents silent event loss. avirtedgeproxyd keeps one ring per workload, so one workload's backlog never stalls another's. Every event contains `workload`, `gen` and `seq` (see [trust boundaries](./trust-boundaries.md#src)).
 
 The `http` event has these fields:
 

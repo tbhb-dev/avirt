@@ -141,7 +141,7 @@ The model gateway injects model credentials. It also applies per-workload model 
 
 ## avirtnetd
 
-The daemon at the sandbox container's end of the workload's HTTP/2 connection to its mediator: it holds the workload SVID and runs the forward proxy for the agent, the DNS stub resolver and the reverse proxy to published ports. Status: planned. See [sandbox container](./components.md#sandbox-container).
+The daemon at the sandbox container's end of the workload's HTTP/2 connection to its mediator: it holds the workload SVID and handles redirected TCP. It reads UDP and ICMP from its TUN, and serves DNS, the optional forward proxy, and published ports. Status: planned. See [sandbox container](./components.md#sandbox-container).
 
 ## avirtoteld
 
@@ -217,11 +217,7 @@ The control message with which avirtmediatord releases a sandbox container to st
 
 ## CONNECT
 
-The HTTP method with which a proxy-aware client asks a forward proxy to open a tunnel to `host:port`. See [CONNECT app](./egress.md#pingora-connect-app).
-
-## CONNECT app
-
-The implemented mediator's Pingora CONNECT proxy on `proxy.sock`, which parses the authority, applies the `private-dest` check and dials upstream. See [CONNECT app](./egress.md#pingora-connect-app).
+The HTTP method that opens a tunnel to `host:port`. avirtnetd uses one HTTP/2 CONNECT stream per TCP flow, including transparent TCP, and the optional forward proxy. See [HTTP/2 streams](./networking.md#http2-streams).
 
 ## Connection token
 
@@ -257,7 +253,7 @@ The compute runtime that runs each sandbox container and each mediator as a cont
 
 ## Egress event
 
-An event about one connection (`conn`), one intercepted request (`http`) or one DNS query (`dns`), written into the workload log with `dir: "egress"`. The implemented system writes only `conn` events. See [events](./egress.md#events) and [planned events](./egress.md#events-1).
+An event about one connection (`conn`), one intercepted request (`http`) or one DNS query (`dns`), written into the workload log with `dir: "egress"`. The implemented system writes only `conn` events. See [events](./egress.md#events) and [planned events](./egress.md#events).
 
 ## Enforcement point
 
@@ -289,7 +285,7 @@ SPIFFE trust between two trust domains that exchange trust bundles. avirt federa
 
 ## Forward proxy
 
-A proxy that opens connections on behalf of clients. avirtnetd provides an HTTP CONNECT proxy on a `127.0.0.1` port, which the agent reaches through the proxy variables and which transports each connection as one HTTP/2 stream on the workload's connection to its mediator. It replaces avirtinitd's implemented TCP proxy to `proxy.sock`. Status: planned. See [transport scope](./egress.md#transport-scope).
+A proxy that opens connections on behalf of clients. avirtnetd provides an optional HTTP CONNECT proxy on loopback for explicitly configured clients. avirt omits proxy variables by default. Status: planned. See [transport scope](./egress.md#transport-scope).
 
 ## Freeze reason
 
@@ -465,7 +461,7 @@ The Boolean key that selects which workspace source supplies the image's remote 
 
 ## `private-dest`
 
-A check in both policy modes that refuses a resolved address in a non-global range or assigned to one of the host's own interfaces, with 403 `private-dest`, as SSRF protection. It runs in the CONNECT app, and in the planned design at avirtedgeproxyd. See [`private-dest` check](./egress.md#private-dest).
+A check in both policy modes that refuses a resolved address in a non-global range or assigned to one of the host's own interfaces, with 403 `private-dest`, as SSRF protection. It runs at avirtedgeproxyd for TCP, UDP and ICMP after the mediator translates synthetic addresses to names and the edge resolves the real upstream address. See [`private-dest` check](./egress.md#private-dest).
 
 ## Producer
 
@@ -489,7 +485,7 @@ A provider that runs as a separate executable, which avirtsecretsd starts and su
 
 ## Sandbox container
 
-The container, its own VM on the Containerization runtime, in which avirtinitd and the agent or another main workload process run, with no network interface other than loopback. Its only way out is the workload's HTTP/2 connection to its mediator, which in the implemented system contains only log envelopes, on `mediator.sock`. See [sandbox container](./components.md#sandbox-container) and [connection to the mediator](./workload-topology.md#connection-to-the-mediator).
+The container, its own VM on the Containerization runtime, in which avirtinitd and the agent or another main workload process run, with no network device on its VM. The guest TUN and nftables REDIRECT send each flow through avirtnetd and the workload's HTTP/2 connection to its mediator. See [sandbox container](./components.md#sandbox-container) and [connection to the mediator](./workload-topology.md#http2-streams).
 
 ## Sandbox image
 
@@ -557,7 +553,7 @@ The JSON-RPC tap: the ACP client's hook that reports every line written to the a
 
 ## TLS interception
 
-avirtmediatord accepting the agent's TLS connection with a leaf certificate from the MITM CA. It checks each request and evaluates it under `request`, with the option to inject a credential. It then opens its own TLS connection to the upstream. This happens only when `intercept` permits it on port 443. Status: planned. See [how avirtmediatord handles egress](./egress.md#how-avirtmediatord-handles-egress).
+avirtmediatord accepting the agent's TLS connection with a leaf certificate from the MITM CA. It checks each request and evaluates it under `request`, with the option to inject a credential. It then opens its own TLS connection to the upstream. This happens when `intercept` permits TLS at the destination port. Status: planned. See [how avirtmediatord handles egress](./egress.md#how-avirtmediatord-handles-egress).
 
 ## TLS passthrough
 
@@ -638,3 +634,175 @@ The header that contains the originating principal's identity on a stream avirte
 ## zot
 
 The OCI registry that avirtregistryd runs as a supervised child process, reachable only by avirtregistryd over mutual TLS on loopback. Status: planned. See [avirtregistryd](./workspace-registry.md#avirtregistryd).
+
+## Capsule
+
+A length-delimited message inside an HTTP stream. CONNECT-UDP uses DATAGRAM capsules with an RFC 9298 Context ID and a size checked before allocation. See [HTTP/2 streams](./networking.md#http2-streams).
+
+## CONNECT-UDP
+
+An HTTP tunnel for relaying UDP datagrams to one immutable destination per stream, with DATAGRAM capsules over HTTP/2. Status: planned. See [HTTP/2 streams](./networking.md#http2-streams).
+
+## Synthetic address
+
+An IP address assigned to a name in the mediator's persistent per-workload DNS table. The mediator never reassigns it to another name during that workload's lifetime. Status: planned. See [names and DNS](./networking.md#names-and-dns).
+
+## TUN
+
+A virtual network device that exchanges IP packets with a process. avirtnetd holds the guest TUN descriptor and handles UDP and ICMP packets. nftables REDIRECT sends TCP to its transparent listeners. Status: planned. See [guest networking](./networking.md#guest-networking).
+
+## Datagram
+
+One UDP message, kept intact within an HTTP/2 DATAGRAM capsule. The receiver checks its capsule length before allocation. See [HTTP/2 streams](./networking.md#http2-streams).
+
+## ICMP
+
+Internet Control Message Protocol. avirt supports echo through an extended CONNECT stream with `:protocol` `icmp`, with one target per stream. See [ICMP echo](./networking.md#echo-with-icmp).
+
+## MTU
+
+The largest IP packet a network interface sends without fragmentation, called its maximum transmission unit. Fragment handling and the TUN MTU require the bounded choice in [guest networking](./networking.md#guest-networking).
+
+## MPTCP
+
+Multipath TCP. avirtinitd turns it off with `net.mptcp.enabled=0`, and seccomp denies `IPPROTO_MPTCP`. See [guest networking](./networking.md#guest-networking).
+
+## RST
+
+The TCP reset flag. avirtnetd responds with RST to TCP packets that enter its TUN after bypassing nftables REDIRECT. See [guest networking](./networking.md#guest-networking).
+
+## ULA
+
+Unique Local Address, an IPv6 address from the private local range. Synthetic IPv6 answers use a ULA `/64`. The exact range remains open. See [synthetic answers](./dns.md#synthetic-answers).
+
+## SVCB
+
+A DNS service binding record. The synthesizer handles its AliasMode, TargetName, port, address hints, and parameter consistency. See [synthetic answers](./dns.md#synthetic-answers).
+
+## SSE
+
+Server-Sent Events, an HTTP response stream. avirt forwards it without buffering or a duration limit, subject to idle timeout. See [HTTP and TLS](./networking.md#http-and-tls).
+
+## SFTP
+
+SSH File Transfer Protocol. A repository-bound credential binding never permits this subsystem. See [SSH and git](./networking.md#ssh-and-git).
+
+## RTP
+
+Real-time Transport Protocol. An RTP datagram whose first byte is `0x80` follows ordinary UDP policy rather than QUIC Initial parsing. See [QUIC](./networking.md#quic).
+
+## ECH
+
+Encrypted ClientHello. Named TLS and QUIC flows reject its extension, and synthetic DNS answers omit `ech`. See [policy and endpoint checks](./networking.md#policy-and-endpoint-checks).
+
+## QUIC
+
+A transport protocol over UDP. avirt relays permitted datagrams after bounded Initial inspection and an SNI check. QUIC interception is outside the planned design. See [QUIC](./networking.md#quic).
+
+## httparse
+
+The HTTP/1 request-head parser used before hyper normalizes a request. The parser checks ambiguity in each request head. See [HTTP and TLS](./networking.md#http-and-tls).
+
+## quinn
+
+The Rust QUIC library used with avirt's bounded Initial parser for passthrough inspection. See [QUIC](./networking.md#quic).
+
+## russh
+
+The Rust SSH library used for mediator interception, including the per-workload host CA and upstream authentication. See [SSH and git](./networking.md#ssh-and-git).
+
+## Flow name
+
+The name assigned to a flow from the mediator's synthetic address table or an explicit CONNECT authority. SNI and Host on other flows are observations only. See [networking](./networking.md).
+
+## Synthetic DNS
+
+DNS answers that use a per-workload synthetic address from the mediator's persistent table instead of the real upstream address. See [networking](./networking.md).
+
+## Synthetic DNS table
+
+The bounded table in avirtmediatord that maps synthetic addresses to names. It persists across restarts and never reassigns an address during a workload's lifetime. See [networking](./networking.md).
+
+## Transparent TCP listener
+
+An avirtnetd listener that receives TCP redirected by nftables and obtains the original destination with SO_ORIGINAL_DST or IP6T_SO_ORIGINAL_DST. See [networking](./networking.md).
+
+## Original destination
+
+The destination address and port before nftables redirects the TCP connection to avirtnetd. See [networking](./networking.md).
+
+## Cleartext HTTP
+
+HTTP without TLS. avirtmediatord parses and forwards requests under policy without injecting credentials. See [networking](./networking.md).
+
+## SSH interception
+
+avirtmediatord acting as the SSH server for the guest and the SSH client for the upstream. It checks commands against policy and injects credentials through a binding. See [networking](./networking.md).
+
+## QUIC initial
+
+A QUIC packet that includes handshake data. avirt inspects bounded reassembled CRYPTO data before permitting passthrough. See [networking](./networking.md).
+
+## Context ID
+
+The RFC 9298 identifier in a CONNECT-UDP DATAGRAM capsule. See [networking](./networking.md).
+
+## DNS handler
+
+The avirtnetd code that sends each query to the mediator on its own POST `/dns` stream. See [networking](./networking.md).
+
+## UDP association
+
+The authenticated relationship between an inbound UDP stream and a published port, with caller, workload generation, expiry, revocation, and reply limits. See [networking](./networking.md).
+
+## Host key
+
+The SSH key that identifies a server. An SSH binding pins the upstream host key. See [networking](./networking.md).
+
+## Host certificate
+
+An SSH certificate that identifies a host. avirtmediatord presents one from the per-workload SSH host CA only for a host in the SSH intercept set. See [networking](./networking.md).
+
+## Host CA
+
+The SSH certificate authority for one workload. Its certificates identify hosts in that workload's SSH intercept set. See [networking](./networking.md).
+
+## Binary metadata
+
+gRPC metadata containing binary values. Credential injection needs an explicit encoding contract for those values. See [networking](./networking.md).
+
+## Control frame
+
+A websocket frame for protocol control rather than client data. The placeholder matcher scans these separately from fragmented data. See [networking](./networking.md).
+
+## Continuation frame
+
+A websocket frame that continues a fragmented message. The bounded placeholder matcher checks across fragment boundaries. See [networking](./networking.md).
+
+## Address hint
+
+An address parameter in a DNS HTTPS or SVCB record. The synthesizer replaces it with a synthetic address. See [networking](./networking.md).
+
+## Version negotiation
+
+QUIC negotiation of a protocol version. Initial inspection requires explicit handling and conformance tests for it. See [networking](./networking.md).
+
+## Routing socket
+
+The host interface used by the watcher that maintains the address set for the edge's `private-dest` check. See [networking](./networking.md).
+
+## Trailers-only
+
+A gRPC response whose initial HEADERS also end the stream. Authorization refusals use HTTP 200 and `grpc-status: 7`. See [networking](./networking.md).
+
+## Flow-control capacity
+
+The bytes that HTTP/2 permits a sender to send. A UDP sender without enough capacity drops a datagram before writing its first byte. See [networking](./networking.md).
+
+## Sender-constrained
+
+A credential that requires proof from its sender, rather than possession of the credential alone. Bindings prefer this form where the recipient supports it. See [networking](./networking.md).
+
+## Listener inventory
+
+The list of every listener, runtime control channel, transport and accepted identity in the trust-boundary specification. See [networking](./networking.md).

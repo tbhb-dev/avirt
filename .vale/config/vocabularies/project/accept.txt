@@ -270,3 +270,30 @@ zot
 [Pp]athname
 
 [Ii]nternal names?
+ICMP
+TUN
+TUN's
+MTU
+MPTCP
+RST
+ULA
+SVCB
+SSE
+SFTP
+RTP
+ECH
+[Dd][Aa][Tt][Aa][Gg][Rr][Aa][Mm][Ss]?
+httparse
+quinn
+russh
+[Tt]raceroute
+[Cc]odecs?
+inet
+unnegotiated
+AliasMode
+TargetName
+AAAA
+[Mm]ultipath
+maximum transmission unit
+[Tt]railers-only
+[Tt]railers-only HTTP

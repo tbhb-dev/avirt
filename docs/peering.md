@@ -178,7 +178,7 @@ Each stream on the peer listener includes exactly one `x-avirt-caller`, the orig
 
 | `x-avirt-caller` | Principal | `via` | Allowed on |
 | --- | --- | --- | --- |
-| `spiffe://<peer td>/ns/<ns>/workload/<uuid>` | `Workload::"<host>/<ns>/<uuid>"` | `egress` | `CONNECT` |
+| `spiffe://<peer td>/ns/<ns>/workload/<uuid>` | `Workload::"<host>/<ns>/<uuid>"` | `egress` | CONNECT, CONNECT-UDP or `icmp` |
 | `spiffe://<peer td>/ns/<ns>/workload/<uuid>/guest-cli` | `Workload::"<host>/<ns>/<uuid>"` | `guest-cli` | Routes |
 | `spiffe://<peer td>/service/avirthostd` | `HostService::"<host>/avirthostd"` | `service` | `Workloads/KeepAlive` only |
 | A peer's local or web UI user | Open (see [open questions](#open-questions)) | `client` | Routes |
@@ -189,7 +189,7 @@ avirtedgeproxyd refuses any other identity with 403. This host lacks records of 
 
 Each host's avirtedgeproxyd keeps a pool of h2 connections to each peer it dials, and multiplexes each stream bound for that peer onto them, whoever the caller is. A connection authenticates only the two hosts' avirtedgeproxyd identities. Each stream includes its own caller.
 
-- **Workload streams.** h2 `CONNECT`, transporting opaque bytes. The source avirtedgeproxyd rewrites `:authority` from the peered form to the peer's own local form, so `7e759259.team-a.workload.mac-studio.example.com:8080` reaches the peer as `7e759259.team-a.workload.host.avirt.internal:8080`.
+- **Workload streams.** h2 CONNECT transports TCP, CONNECT-UDP transports UDP capsules, and extended CONNECT with `:protocol` `icmp` transports echo messages. Published UDP ports use CONNECT-UDP with an authenticated association and one ephemeral loopback UDP socket at the destination. The source avirtedgeproxyd rewrites `:authority` from the peered form to the peer's own local form, so `7e759259.team-a.workload.mac-studio.example.com:8080` reaches the peer as `7e759259.team-a.workload.host.avirt.internal:8080`.
 - **Control-plane calls.** gRPC over h2, for the routes in [control-plane calls](#control-plane-calls).
 - **Bundle fetches.** `GET /avirt/peer/v1/bundle`.
 - **Headers.** Each stream includes `x-avirt-caller`, `x-request-id` (a UUIDv7 that the source avirtedgeproxyd draws per stream, used only to correlate both hosts' events), `traceparent` unless the host configuration turns it off (see [propagation](./observability.md#propagation)), and for a workload management call `x-avirt-delegation` (see [workload management across hosts](#workload-management-across-hosts)). The source avirtedgeproxyd removes each other `x-avirt-*` header.
@@ -201,8 +201,8 @@ Each host's avirtedgeproxyd keeps a pool of h2 connections to each peer it dials
 
 | Crosses | How | Authorized by |
 | --- | --- | --- |
-| Workload-to-workload connections to published ports | h2 `CONNECT`, opaque bytes | Source workload's avirtmediatord, source avirtedgeproxyd, destination avirtedgeproxyd, destination workload's avirtmediatord `ingress` |
-| Connections to services | h2 `CONNECT`, opaque bytes | The same, without `ingress` for a service with a host-local backend |
+| Workload-to-workload connections to published ports | h2 CONNECT for TCP or CONNECT-UDP for UDP | Source workload's avirtmediatord, source avirtedgeproxyd, destination avirtedgeproxyd, destination workload's avirtmediatord `ingress` |
+| Connections to services | h2 CONNECT for TCP or CONNECT-UDP for UDP | The same, without `ingress` for a service with a host-local backend |
 | Control-plane calls | gRPC from avirtapid to the peer's avirtapid | The source avirtedgeproxyd's `connect`, the peer's enrollment routes, and the peer's own action |
 | Workspace images | Explicit imports, through the peer's avirtapid | `import_workspace` here, `pull_workspace` at the peer |
 | Trust bundles | `GET /avirt/peer/v1/bundle` | Enrollment |
@@ -374,7 +374,7 @@ A host may enroll any number of peers, each with its own record, bundle, connect
 
 Each host records its own side of each peered flow. A host never sends these events to its peer.
 
-- **Source avirtedgeproxyd.** One `conn` event per peer stream, attributed to the source workload, with `src: "edgeproxy"`, `peer`, `request_id`, the destination name, `peer_status` and the byte counts (see [events](./egress.md#events-1)).
+- **Source avirtedgeproxyd.** One `conn` event per peer stream, attributed to the source workload, with `src: "edgeproxy"`, `peer`, `request_id`, the destination name, `peer_status` and the byte counts (see [events](./egress.md#events)).
 - **Destination avirtedgeproxyd.** One `conn` event per peer stream, attributed to the destination workload, with `src: "edgeproxy"`, `peer`, `request_id` and the caller in `x-avirt-caller`.
 - **Destination workload's avirtmediatord.** Its `ingress` decision event, with the peer caller.
 - **Host audit log.** avirthostd records enrollment, each state change, suspension, distrust and revocation, each bundle accepted or rejected with its sequence and reason, each peer connection opened and closed with the handshake outcome (`peer-auth-failed`, `peer-clock-skew`), `Workloads/KeepAlive` calls and the workloads stopped for missing them, and each forwarded and received control-plane call (see [audit logs](./observability.md#audit-logs)). avirtauditd delivers enrollment changes and handshake failures as Authentication (3002), and control-plane calls as API Activity (6003) (see [audit events](./observability.md#audit-events)).

@@ -223,7 +223,7 @@ As `avirt-net`.
 | `/run/avirt/agent` | `sock-dir` |
 | `/run/avirt/mediator.sock`, `/run/avirt/init/net.sock` | `unix` |
 
-avirtnetd reads its bootstrap SVID from an inherited descriptor. It inherits its DNS stub sockets and forward proxy listener and doesn't open any other file.
+avirtnetd reads its bootstrap SVID from an inherited descriptor. It inherits the TUN descriptor, transparent TCP listeners, DNS sockets and optional forward-proxy listener. It doesn't open other files.
 
 ### avirtguestd
 
@@ -264,7 +264,7 @@ avirtmediatord stores its SVID's private key and the workload's MITM CA key in m
 
 ## Network rules
 
-Landlock port rules match the port only, never the address. The sandbox container and the mediator have no interface other than loopback. A TCP connection can leave a container only through avirtnetd and the workload's HTTP/2 connection to its mediator (see [runtime-provided sockets](./workload-topology.md#runtime-provided-sockets)).
+Landlock port rules match the port only, never the address. The sandbox VM has no network device. nftables redirects TCP to avirtnetd, and its TUN reader handles UDP and ICMP. The mediator has only loopback. Every flow leaves through the workload's HTTP/2 connection to its mediator (see [runtime-provided sockets](./workload-topology.md#runtime-provided-sockets)).
 
 | Process | `NET_BIND_TCP` | `NET_CONNECT_TCP` |
 | --- | --- | --- |
@@ -274,10 +274,10 @@ Landlock port rules match the port only, never the address. The sandbox containe
 | avirtmcp, avirtguest (nested) | Handled, no rules | Handled, no rules |
 | avirtmediatord | Handled, no rules | Handled, no rules |
 
-- **Agent.** The agent binds and connects to its own servers on loopback for development and for published ports. The only other loopback listeners are avirtnetd's forward proxy and DNS stub, which serve the agent.
-- **avirtnetd.** avirtinitd binds avirtnetd's forward proxy listener and the DNS stub's port 53 sockets and hands them over, so avirtnetd binds nothing itself. Its reverse proxy connects to the agent's published ports, which change while the workload runs. A domain can't change after exec, so the ruleset doesn't handle connect.
+- **Agent.** The agent binds and connects to its own servers on loopback for development and for published ports. avirtnetd also serves transparent TCP, DNS, and the optional forward proxy. Policy checks run outside the sandbox container.
+- **avirtnetd.** avirtinitd creates the TUN and nftables rules, binds the transparent TCP, optional forward-proxy and DNS sockets, and hands the descriptors to avirtnetd. Its reverse proxy connects to the agent's published ports, which change while the workload runs. A domain can't change after exec, so the ruleset doesn't handle connect.
 - **Everything else** has no TCP at all.
-- **UDP** has no Landlock rule at ABI 9 or below. When the target ABI reaches 10 and the crate supports it, limit the agent's UDP sends to port 53 and deny each daemon's UDP.
+- **UDP and ICMP.** Landlock doesn't provide the destination policy. The TUN routes packets to avirtnetd. avirtmediatord and avirtedgeproxyd check each flow. DNS to any address on port 53 reaches `/dns`.
 
 ## Scopes
 
@@ -405,7 +405,7 @@ The `start` meta event includes the digest of `sandbox.toml`. To reproduce a lau
 | The agent can't read one of these daemons' memory or descriptors | UID separation, `hidepid=invisible` and the seccomp denylist. Landlock doesn't restrict reopening pipes and sockets through `/proc/<pid>/fd`. These layers alone provide that guarantee. |
 | No workload process gains privilege | `no_new_privs`, zero capabilities, and no setuid, setgid or file capability in any layer (see [content rules](./workspaces.md#content-rules)). Landlock requires `no_new_privs` for an unprivileged domain. |
 | Processes can't change the filesystem topology around their rules | Landlock denies `mount` and `pivot_root` in a domain. The seccomp denylist blocks the mount family, `setns` and new user namespaces, and no process holds `CAP_SYS_ADMIN` or `CAP_SYS_CHROOT`. |
-| Workload processes can't access a host Unix socket or a network | The runtime's absence of a network interface, the seccomp socket-domain allowlist with `AF_VSOCK` denied, and avirtnetd as the only path to the workload's HTTP/2 connection to its mediator. Landlock port rules keep avirtnetd, avirtacp, avirtagent, avirtexec, and avirtguestd off TCP. |
+| Workload processes can't access a host Unix socket or bypass network mediation | The VM has no network device. Only avirtnetd reads the TUN or opens the workload's HTTP/2 connection to its mediator. Seccomp denies `AF_VSOCK`. Landlock port rules constrain process access, while the mediator and edge enforce the policy for each destination. |
 | Each of avirtnetd, avirtacp, avirtagent, avirtexec, and avirtguestd executes only its own binary | Landlock's `exec` rule, and the seccomp denial of `memfd_create` and `execveat` with `AT_EMPTY_PATH` |
 | The agent can't freeze, thaw, or leave the agent cgroup | Root ownership of the cgroup files, and Landlock's `ro` on `/sys/fs/cgroup` |
 | A guest-kernel compromise stays in one workload | A VM per sandbox container and per mediator on Containerization. On Docker Desktop each workload shares one kernel (see [Docker Desktop runtime](./compute-runtimes.md#docker-desktop-runtime)). |

@@ -17,7 +17,7 @@ On an Apple silicon Mac, avirt runs untrusted ACP agents. avirt approves each pe
 
 avirt provides the base for agent security:
 
-- **Sandboxing.** Each sandbox container runs in its own VM with no network interface other than loopback, and the agent runs under a reduced user, capability, seccomp and Landlock profile (see [workload hardening](./workload-hardening.md) and [Landlock](./landlock.md)).
+- **Sandboxing.** On Containerization, each sandbox container runs in its own VM without a network device. The TUN and nftables REDIRECT send flows through avirtnetd, and the agent runs under a reduced user, capability, seccomp and Landlock profile (see [workload hardening](./workload-hardening.md) and [Landlock](./landlock.md)).
 - **Identity.** avirthostd issues SPIFFE identities to sandbox containers and mediators, and to host services. Peers federate their trust domains (see [identity](./identity.md)).
 - **Egress and ingress mediation.** Each byte the agent sends out passes through its workload's mediator, and each workload-to-workload, service and off-host connection passes through avirtedgeproxyd, the edge proxy (see [egress](./egress.md) and [networking](./networking.md)).
 - **Credential brokering.** avirtsecretsd holds the real credentials, the sandbox container holds placeholders, and the gateways and avirtmediatord inject credentials on their bindings only (see [egress credentials](./egress-credentials.md)).
@@ -66,18 +66,16 @@ The sandbox container holds placeholders and the workload's MITM CA certificate,
 
 ## Default-deny egress through one global PEP
 
-The agent's only way out is its workload's mediator, each connection needs an explicit permit, and avirtedgeproxyd is the policy enforcement point for each connection that leaves a workload for another workload, a service, or the internet.
+### Status: planned
 
-- **Met.** The sandbox container has no network interface other than loopback, and its only path out is avirtinitd's TCP proxy to `proxy.sock`, the mediator's CONNECT proxy ([egress](./egress.md#path)).
-- **Met.** The mediator accepts only `CONNECT host:port` with an explicit port and a canonical hostname or IP literal ([CONNECT app](./egress.md#pingora-connect-app)).
-- **Met.** The mediator refuses each resolved address in a non-global range or assigned to one of the host's own interfaces, which it reads on each connection ([`private-dest` check](./egress.md#private-dest)).
-- **Future.** Enforce mode requires an explicit Cedar permit for a connection, request, or DNS query. Today the mediator allows each destination that passes the `private-dest` check under rule `allow-all` ([decision semantics](./egress-policies.md#decision-semantics)).
-- **Future.** avirtedgeproxyd is the policy enforcement point for each workload-to-workload, service, host-local service and external connection, and the only host service that opens connections off the host ([avirtedgeproxyd](./components.md#avirtedgeproxyd), [networking](./networking.md#restrictions-on-host-connections)).
-- **Future.** avirtedgeproxyd runs on the host. The macOS content filter permits its binary and blocks non-loopback flows from other avirt-signed processes. Linux permits new off-host flows only from its UID ([restrictions on host connections](./networking.md#restrictions-on-host-connections)).
-- **Future.** avirtedgeproxyd refuses the host's own interface addresses, which it reads with `getifaddrs` on every connection, as well as the non-global ranges ([edge proxy egress](./egress.md#edge-proxy-egress)).
-- **Future.** Workload DNS goes through the `resolve` action, which applies as evaluated in audit mode too, and the mediator logs each query ([workload DNS](./egress.md#workload-dns)).
-- **Future.** The `Host` of a request under TLS interception must equal its CONNECT host, and the SNI of a connection under TLS passthrough must equal its CONNECT host ([how avirtmediatord handles egress](./egress.md#how-avirtmediatord-handles-egress)).
-- **Future.** Inbound connections reach only the ports a workload publishes, through avirtedgeproxyd and under the destination workload's `ingress` policy ([ingress](./workload-topology.md#ingress)).
+Every flow leaves through the workload's mediator and avirtedgeproxyd. Enforce mode requires a Cedar permit for each flow, request, and DNS query. Each destination check runs outside the sandbox container.
+
+- The sandbox VM has no network device. Its TUN and nftables REDIRECT send TCP, UDP, and ICMP to avirtnetd. DNS to any address on port 53 uses one `/dns` stream per query. [Networking](./networking.md) defines the flow protocols and limits.
+- avirtedgeproxyd checks every real upstream address for non-global ranges and host-interface addresses, using a routing-socket watcher. Synthetic addresses never exempt a destination from `private-dest`.
+- Names come only from the mediator's persistent synthetic table or an explicit CONNECT authority. SNI and Host on real-address flows remain observations. On named flows they must match the flow name, and ECH causes refusal.
+- Passthrough permits access to an endpoint and whatever it tunnels. Distinguishing names at a shared endpoint requires interception. DNS, ICMP payloads and timing remain possible channels under policy.
+- macOS content filtering covers TCP and UDP. Every avirt host daemon other than avirtedgeproxyd also has a process sandbox profile denying non-loopback inet sockets, including ICMP. Linux restricts off-host connections by UID.
+- TCP and UDP ingress require publication and permission from both hosts' edge proxies and the destination mediator. Each UDP association binds its caller, workload generation, publication and tunnel, with expiry, revocation, and amplification limits.
 
 ## Strong workload identity
 
@@ -89,7 +87,7 @@ Each connection across a container or host boundary authenticates with a short-l
 - **Future.** Components generate their long-lived keys where they use them. avirthostd zeroizes each bootstrap key after handing it to the runtime ([design invariants](./architecture.md#design-invariants)).
 - **Future.** Workload and mediator SVIDs include the namespace, the never-reused UUIDv7, and the mediator generation. They live for 1 h. Each host listener refuses a superseded generation ([authorization](./identity.md#authorization)).
 - **Future.** avirthostd issues a workload SVID only for a request signed with the current workload key. A compromised mediator can't get one ([rotation](./identity.md#rotation)).
-- **Future.** uid 1000 never holds an SVID or its key, the trust bundle, a CA key or a real credential ([local exceptions](./trust-boundaries.md#local-exceptions)).
+- **Future.** uid 1000 never holds an SVID or its key, the trust bundle, a CA key, or a credential from avirt. An upstream can return an injected credential ([local exceptions](./trust-boundaries.md#local-exceptions)).
 - **Future.** The SPIFFE CA and the workload MITM CA are separate. Endpoints accept certificates only from the CA they expect ([two separate CAs](./identity.md#two-separate-cas)).
 
 ## Defense in depth in the sandbox container
@@ -108,13 +106,15 @@ Independent layers confine the agent. Escaping one leaves the others in place.
 - **Future.** On Docker Desktop, where each workload shares one kernel, the runtime's capability and seccomp layers sit beneath avirtinitd's, and avirtbuilderd refuses command builds ([runtime outer layer](./workload-hardening.md#runtime-outer-layer)).
 - **Out of Scope.** Approving individual tool calls inside the agent. avirt approves each permission request automatically ([ACP](./acp.md#permission-requests)).
 
+A credential binding requires trust in its recipient: an upstream can return an injected credential to the agent. Short-lived, narrowly scoped or sender-constrained credentials reduce exposure. Refresh tokens remain broker-only. Response scanning is optional and can't guarantee detection.
+
 ## Bounded mediator compromise
 
 A compromised mediator controls only its own workload's traffic. It can't access a real model or MCP credential. Access to another workload or the network must pass through avirtedgeproxyd.
 
 - **Met.** The mediator starts from an empty environment that contains only its secret ([mediator secret](./identity.md#mediator-secret)).
-- **Met.** avirthostd binds each mediator connection to the workload its connection header names, and serves only that workload's `POST /workloads/<id>/stream` route on it ([sockets](./workload-topology.md#sockets)).
-- **Future.** The mediator runs in its own VM with no network interface other than loopback. Today it's a host process with the user's network access and file access ([mediator network](./egress.md#mediator-network)).
+- **Met.** avirthostd binds each mediator connection to the workload its connection header names, and serves only that workload's `POST /workloads/<id>/stream` route on it ([sockets](./workload-topology.md#runtime-provided-sockets)).
+- **Future.** The mediator runs in its own VM with no network interface other than loopback. ([mediator network](./egress.md#mediator-network)).
 - **Future.** avirtmediatord handles traffic and lifecycle in one process. A parser bug exposes its SVID's private key and mediator-injected credentials inside the per-workload mediator VM, which has no network device ([mediator Landlock rules](./landlock.md#mediator), [compromise scope](./trust-boundaries.md#compromise-scope)).
 - **Future.** The mediator has only placeholders and short-lived mediator-injected credentials. Long-lived real credentials for model or MCP traffic remain outside it ([bindings](./egress-credentials.md#bindings)).
 - **Future.** avirthostd's SNI routing never connects one mediator to another, and each host listener refuses a superseded generation ([SNI routing](./workload-topology.md#sni-routing)).
@@ -136,7 +136,7 @@ Each host service limits its state, secrets, and callers to those it needs. Loca
 
 A workload can manage other workloads only as policy permits, and never gains more authority than it holds.
 
-- **Met.** A workload has no control-plane access: its HTTP/2 connection to its mediator reaches only its own `POST /workloads/<id>/stream` route ([sockets](./workload-topology.md#sockets)).
+- **Met.** A workload has no control-plane access: its HTTP/2 connection to its mediator reaches only its own `POST /workloads/<id>/stream` route ([sockets](./workload-topology.md#runtime-provided-sockets)).
 - **Future.** avirthostd authorizes each management call per action and per resource against the host policy snapshot, with denial as the default decision ([workload management](./components.md#workload-management)).
 - **Future.** A workload creates workloads only in namespaces where it may, with bindings it holds, from workspace images it may launch, and with its own or an assignable policy reference ([workload management](./components.md#workload-management)).
 - **Future.** Only avirthostd sets `avirt.internal/` labels, and a workload can't change its own namespace, labels, bindings or policy reference ([workload management](./components.md#workload-management)).
@@ -149,7 +149,7 @@ A workload can manage other workloads only as policy permits, and never gains mo
 
 avirt denies or ends the workload if a check can't run, a dependency is missing, or state is uncertain.
 
-- **Met.** Starting the agent requires avirthostd to accept the workload's HTTP/2 connection to its mediator and avirtinitd to apply the seccomp filters. Failure to apply a filter ends the workload ([connection to the mediator](./workload-topology.md#connection-to-the-mediator), [seccomp](./workload-hardening.md#seccomp)).
+- **Met.** Starting the agent requires avirthostd to accept the workload's HTTP/2 connection to its mediator and avirtinitd to apply the seccomp filters. Failure to apply a filter ends the workload ([connection to the mediator](./workload-topology.md#http2-streams), [seccomp](./workload-hardening.md#seccomp)).
 - **Met.** A stream POST with a missing or wrong token gets 403 before the workload's state changes, and avirthostd closes a mediator connection whose header lacks the right secret ([identity](./identity.md#status-implemented)).
 - **Met.** Losing its mediator leaves a workload without an outbound path. A mediator shuts down on stdin EOF when avirthostd exits ([mediator process](./egress.md#mediator-process)).
 - **Met.** Codex write-back replaces the host `auth.json` only with a strictly newer copy of the same login. avirthostd skips write-back unless it confirms that the workload has ended ([Codex](./egress-credentials.md#codex)).
@@ -214,7 +214,7 @@ Peered hosts trust each other's identities explicitly and narrowly: a peer authe
 1. **Secrets at rest.** Whether to encrypt durable secrets at rest, such as the SPIFFE root key in the macOS Keychain, remains open. Storage for avirtsecretsd's cached provider values is also open.
 2. **Base image pinning.** Whether the avirt base, the harness bases and the mediator image pin their own base images by digest and their downloads by checksum is open.
 3. **Extension callouts.** Request and response inspection, external authorization, their access under TLS passthrough, and their failure behavior remain unspecified.
-4. **Restrictions on host connections.** Whether the Network Extension content filter enforces the restriction that only avirtedgeproxyd connects off the host on macOS needs a prototype. The property to test is that it drops each non-loopback flow from avirt-signed host processes (see [networking](./networking.md#open-questions)).
+4. **Restrictions on host connections.** The Network Extension content filter covers TCP and UDP. Every avirt host daemon other than avirtedgeproxyd also needs a process sandbox profile denying non-loopback inet sockets, including ICMP. Runtime tests must verify both restrictions (see [networking](./networking.md#limits-events-and-verification)).
 
 # Threat model
 

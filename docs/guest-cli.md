@@ -48,7 +48,7 @@ avirtguest
 │   ├── stop WORKLOAD [--grace DURATION]
 │   └── rm WORKLOAD
 ├── port
-│   ├── publish WORKLOAD PORT [--protocol tcp|http] [--expires DURATION]
+│   ├── publish WORKLOAD PORT [--protocol tcp|udp|http] [--expires DURATION]
 │   ├── list WORKLOAD
 │   └── rm WORKLOAD PORT
 ├── session

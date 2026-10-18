@@ -126,7 +126,7 @@ Each avirt daemon logs through `tracing` with a JSON formatter on stderr, one ob
 ### Field conventions
 
 - An attribute uses its OpenTelemetry semantic convention name where one exists (`error.type`, `server.address`, `server.port`, `http.*`, `rpc.*`, `gen_ai.*`, `log.iostream`), and otherwise a name in the `avirt.` namespace, dot-separated, with snake_case segments.
-- Event names in the workload log stay as [meta events](./hostd-api.md#meta-events) and [events](./egress.md#events-1) define them. Their OpenTelemetry copies include `event.name` `avirt.<component>.<event>`, such as `avirt.hostd.container_exit` and `avirt.egress.conn`.
+- Event names in the workload log stay as [meta events](./hostd-api.md#meta-events) and [events](./egress.md#events) define them. Their OpenTelemetry copies include `event.name` `avirt.<component>.<event>`, such as `avirt.hostd.container_exit` and `avirt.egress.conn`.
 - Times are UTC. NDJSON records use RFC 3339 with milliseconds, and OpenTelemetry records use nanoseconds since the epoch.
 - Identity attributes come only from trusted metadata. A field parsed from workload output, or an attribute a producer sets under a reserved key, never overrides them.
 
@@ -146,7 +146,7 @@ Each avirt daemon logs through `tracing` with a JSON formatter on stderr, one ob
 
 Workload logs, workload stdio and ACP content are secret. They can contain prompts and tool output, along with source code. The Codex account email and plan may appear too. Any credential the agent can read may appear in them.
 
-- **Never logged.** Secret values, placeholder values, header values, request and response bodies, query strings and the contents of `auth.json` never appear in an avirt event, a host service log, a span or a metric (see [events](./egress.md#events-1)). avirt's own events about credentials record fixed reason strings and binding names.
+- **Never logged.** Secret values, placeholder values, header values, request and response bodies, query strings and the contents of `auth.json` never appear in an avirt event, a host service log, a span or a metric (see [events](./egress.md#events)). avirt's own events about credentials record fixed reason strings and binding names.
 - **Redaction.** Before export, avirtlogd and avirtoteld replace each match of the `credential-misplaced` check's patterns (see [placeholders](./egress-credentials.md#placeholders)) and of known credential formats, such as provider API key prefixes, JWTs and PEM private keys, with `[redacted:<kind>]`, and count each replacement in `avirt.log.redactions`. Redaction narrows exposure. It doesn't make content safe to share.
 - **Content off by default.** By default, avirt never records the `gen_ai.input.messages`, `gen_ai.output.messages`, `gen_ai.tool.call.arguments`, and `gen_ai.tool.call.result` attributes, which the semantic conventions mark Opt-In. A namespace can opt in to content in local telemetry, and remote export sends content only for a namespace that opts in to it separately.
 - **Remote export.** Export workload stdio log bodies only for namespaces the host configuration specifies. Export only the metadata of each other telemetry record.
@@ -266,7 +266,7 @@ When avirtoteld isn't deployed, producers export nothing over OTLP and write eac
 
 ### Metrics from avirtmediatord and avirtedgeproxyd
 
-avirtmediatord and avirtedgeproxyd record counters, gauges and histograms through avirt's OpenTelemetry path. Their metrics include connection counts, active streams, TLS handshake results, upstream dial latency, DNS cache outcomes under the same cardinality limits as other daemons. avirtmediatord also records lifecycle and readiness metrics. Each process uses its binary name as `service.name`.
+avirtmediatord and avirtedgeproxyd record counters, gauges and histograms through avirt's OpenTelemetry path. Their metrics include connection counts, active streams, TLS handshake results, upstream dial latency, DNS cache outcomes, datagram drops, rate refusals, synthetic-table exhaustion, timeouts and drain outcomes under the same cardinality limits as other daemons. avirtmediatord also records lifecycle and readiness metrics. Each process uses its binary name as `service.name`.
 
 | Instrument | Kind | Attributes |
 | --- | --- | --- |
@@ -352,9 +352,9 @@ avirtacp follows the GenAI agent conventions, which are at Development status, a
 
 | Span | Kind | Producer | Attributes |
 | --- | --- | --- | --- |
-| `CONNECT` | Server | avirtmediatord, one per agent CONNECT stream | `server.address`, `server.port`, `avirt.dest.kind`, `avirt.path` (`intercept`, `passthrough`), `avirt.decision`, `avirt.rule`, `avirt.policy_version`, `error.type` |
-| `{method}` | Client | avirtmediatord, one per request under TLS interception | `http.request.method`, `http.response.status_code`, `server.address`, `url.scheme`, `url.path` (no query), the decision attributes |
-| `CONNECT` | Server | avirtedgeproxyd, one per egress stream | `server.address`, `server.port`, `avirt.dest.kind`, the decision attributes from the host policy snapshot |
+| `CONNECT`, `CONNECT-UDP`, or `icmp` | Server | avirtmediatord, one per TCP, UDP, or ICMP stream | `network.transport`, `server.address`, `server.port`, `avirt.dest.kind`, `avirt.path` (`intercept`, `passthrough`), `avirt.decision`, `avirt.rule`, `avirt.policy_version`, `error.type` |
+| `{method}` | Client | avirtmediatord, one per HTTP request under TLS interception or cleartext HTTP | `http.request.method`, `http.response.status_code`, `server.address`, `url.scheme`, `url.path` (no query), the decision attributes |
+| `CONNECT`, `CONNECT-UDP`, or `icmp` | Server | avirtedgeproxyd, one per TCP, UDP, or ICMP stream | `network.transport`, `server.address`, `server.port`, `avirt.dest.kind`, the decision attributes from the host policy snapshot |
 | `chat {model}` | Client | avirtmodelgwd, one per model request | `gen_ai.operation.name`, `gen_ai.provider.name`, `gen_ai.request.model`, `gen_ai.response.model`, `gen_ai.usage.input_tokens`, `gen_ai.usage.output_tokens` where the response reports usage, the provider's request ID as `gen_ai.response.id` |
 | `tools/call {tool}` and the other MCP methods | Client | avirtmcpgwd, one per MCP request | `mcp.method.name`, `mcp.session.id`, `jsonrpc.request.id`, `gen_ai.tool.name`, `gen_ai.operation.name` `execute_tool` for `tools/call` |
 

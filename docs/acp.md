@@ -28,13 +28,13 @@ env -u AVIRT_WORKLOAD_ID -u AVIRT_PROMPT -u AVIRT_CWD -u AVIRT_CONNECTION_TOKEN 
   -- <adapter command>
 ```
 
-The adapter command is a bare name found on `PATH`, which the image sets to start with `/opt/agent/node_modules/.bin`. The adapter inherits avirtinitd's environment except for the five `AVIRT_*` variables. It also receives `HOME=/home/agent`, the proxy variables pointing at avirtinitd's TCP proxy to `proxy.sock`, `NO_PROXY=localhost,127.0.0.1`, `NODE_USE_ENV_PROXY=1`, and the harness's extra variables. See the confinement rules in [workload hardening](./workload-hardening.md#agent-process).
+The adapter command is a bare name found on `PATH`, which the image sets to start with `/opt/agent/node_modules/.bin`. The adapter inherits avirtinitd's environment except for the five `AVIRT_*` variables. It also receives `HOME=/home/agent` and the harness's extra variables. In the planned network design, avirt omits proxy variables by default and provides mediated TCP, UDP, ICMP, and DNS through avirtnetd. See the confinement rules in [workload hardening](./workload-hardening.md#agent-process).
 
 Starting the adapter requires these steps in order:
 
 1. `AVIRT_WORKLOAD_ID`, `AVIRT_PROMPT` and `AVIRT_CONNECTION_TOKEN` are present and non-empty, else avirtinitd exits 64. `AVIRT_CWD` defaults to `/workspace`.
-2. avirthostd has accepted `POST /workloads/<id>/stream` on the workload's HTTP/2 connection to its mediator (see [workload topology](./workload-topology.md#connection-to-the-mediator)), and avirtinitd has written the `start` meta event.
-3. avirtinitd's TCP proxy to `proxy.sock` is listening (see [workload topology](./workload-topology.md#tcp-proxy-to-proxysock)).
+2. avirthostd has accepted `POST /workloads/<id>/stream` on the workload's HTTP/2 connection to its mediator (see [workload topology](./workload-topology.md#http2-streams)), and avirtinitd has written the `start` meta event.
+3. avirtinitd's TCP proxy to `proxy.sock` is listening (see [workload topology](./workload-topology.md#http2-streams)).
 4. avirtinitd has installed the seccomp filters (see [workload hardening](./workload-hardening.md#seccomp)).
 
 `AcpAgent` in the SDK manages the adapter's lifetime. It races the protocol against the adapter's exit, so a dead adapter can't hang a pending request. When the connection ends, it waits up to 1 s for the adapter to exit and then sends SIGKILL to the adapter's whole process group.

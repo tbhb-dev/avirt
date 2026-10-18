@@ -22,16 +22,7 @@ env -u AVIRT_WORKLOAD_ID -u AVIRT_PROMPT -u AVIRT_CWD -u AVIRT_CONNECTION_TOKEN 
   setpriv --reuid=agent --regid=agent --init-groups --inh-caps=-all --bounding-set=-all --no-new-privs -- <adapter>
 ```
 
-The agent has all five capability sets at zero and `NoNewPrivs: 1`. Its environment has `HOME=/home/agent` and the proxy variables below. It doesn't contain the workload ID, the prompt or the connection token (`AVIRT_CONNECTION_TOKEN`). Credentials and `CODEX_HOME` pass through.
-
-```text
-HTTPS_PROXY  https_proxy  HTTP_PROXY  http_proxy  ALL_PROXY  =  http://127.0.0.1:PORT
-NO_PROXY     no_proxy                                         =  localhost,127.0.0.1
-NODE_USE_ENV_PROXY=1
-npm_config_proxy  npm_config_https_proxy                      =  http://127.0.0.1:PORT
-```
-
-Node also lets `HTTP_PROXY` serve HTTPS requests, so a bypass test has to unset every proxy variable.
+The agent has all five capability sets at zero and `NoNewPrivs: 1`. Its environment has `HOME=/home/agent`. avirtinitd removes workload identity and connection credentials from the agent's environment.
 
 ## Seccomp
 
@@ -44,13 +35,13 @@ Claude Code, Codex, Node, npm, and git work under these filters (Node falls back
 
 ## Residual agent access
 
-The agent can spend CPU and use the proxy. Its visible files include its own filesystem and the mounted `/workspace` or `CODEX_HOME`. It can't open a socket other than AF_UNIX, AF_INET or AF_INET6, and it has no route anywhere except loopback. It can't open `proxy.sock` or `mediator.sock` (they're `root:root 0600`), read `/proc/1/fd`, `/proc/1/mem` or `/proc/1/environ`, or send a fatal signal to PID 1. avirtinitd automatically approves permission requests (see [permission requests](./acp.md#permission-requests)). The agent can run any tool inside the workload without human approval.
+The agent can spend CPU and use the proxy. Its visible files include its own filesystem and the mounted `/workspace` or `CODEX_HOME`. It can't open a socket other than AF_UNIX, AF_INET or AF_INET6, and every external flow requires mediation. It can't open `proxy.sock` or `mediator.sock` (they're `root:root 0600`), read `/proc/1/fd`, `/proc/1/mem` or `/proc/1/environ`, or send a fatal signal to PID 1. avirtinitd automatically approves permission requests (see [permission requests](./acp.md#permission-requests)). The agent can run any tool inside the workload without human approval.
 
 # Status: planned
 
 ## Socket-domain allowlist
 
-`socket()` allows only `AF_UNIX`, `AF_INET` and `AF_INET6`, and `socketpair()` only `AF_UNIX`. Every other domain returns `EAFNOSUPPORT`. Constraint: a seccomp filter on the domain argument can't restrict `AF_INET` to loopback, because it can't dereference `connect()`'s sockaddr. The workload has only loopback connectivity because it has no network. `AF_NETLINK` stays denied. If `os.networkInterfaces()` fails for a client, `NETLINK_ROUTE` (protocol 0) is the one netlink protocol to allow.
+`socket()` allows only `AF_UNIX`, `AF_INET` and `AF_INET6`, and `socketpair()` only `AF_UNIX`. Every other domain returns `EAFNOSUPPORT`. Constraint: a seccomp filter on the domain argument can't restrict `AF_INET` to loopback, because it can't dereference `connect()`'s sockaddr. The sandbox VM has no network device. Its TUN and nftables REDIRECT send flows through avirtnetd, so ordinary TCP, UDP and unprivileged ICMP echo work under policy. `AF_NETLINK`, `AF_PACKET` and `AF_VSOCK` stay denied. Seccomp denies `IPPROTO_MPTCP`, and avirtinitd sets `net.mptcp.enabled=0`. `ping_group_range` permits the agent's unprivileged `SOCK_DGRAM` echo sockets.
 
 ## Denylist
 
@@ -94,7 +85,7 @@ avirtinitd launches every workload process with that process's own security cont
 
 | Process | UID | Capabilities | Seccomp | Landlock |
 | --- | --- | --- | --- | --- |
-| avirtinitd | 0 | Until it has bound the DNS stub's sockets: also `CAP_NET_BIND_SERVICE`. At boot, until its `NETLINK_AUDIT` socket is open: also `CAP_AUDIT_READ`. Until `started`: `CAP_SETUID`, `CAP_SETGID`, `CAP_SETPCAP` and `CAP_KILL`. After it: `CAP_SETUID`, `CAP_SETGID` and `CAP_SETPCAP`, to restart avirtguestd. | The denylist, with `AF_VSOCK` denied | None |
+| avirtinitd | 0 | During TUN and nftables setup: `CAP_NET_ADMIN`, dropped from the bounding set before starting other processes. Until it has bound the DNS stub's sockets: also `CAP_NET_BIND_SERVICE`. At boot, until its `NETLINK_AUDIT` socket is open: also `CAP_AUDIT_READ`. Until `started`: `CAP_SETUID`, `CAP_SETGID`, `CAP_SETPCAP` and `CAP_KILL`. After it: `CAP_SETUID`, `CAP_SETGID` and `CAP_SETPCAP`, to restart avirtguestd. | The denylist, with `AF_VSOCK` denied | None |
 | avirtnetd | `avirt-net` | None | The socket-domain allowlist and the denylist | [Its ruleset](./landlock.md#avirtnetd) |
 | Main workload process (avirtacp, avirtagent or avirtexec) | `avirt-run` | None | The socket-domain allowlist and the denylist | [Its ruleset](./landlock.md#main-workload-process) |
 | avirtguestd | `avirt-guest` | None | The socket-domain allowlist and the denylist | [Its ruleset](./landlock.md#avirtguestd) |
@@ -115,7 +106,8 @@ avirtinitd is the only process running as root. It needs root to:
 - start the other workload processes under their own UIDs,
 - create the agent cgroup, with access to both `cgroup.freeze` and `cgroup.kill`,
 - write the system CA bundle and `/etc/resolv.conf`,
-- bind the DNS stub resolver's port 53 sockets on `127.0.0.53`, which it hands to avirtnetd.
+- create the TUN, configure IPv4 and IPv6 routes, and install nftables REDIRECT rules,
+- bind the transparent TCP, optional forward-proxy and DNS sockets, and hand them and the TUN descriptor to avirtnetd.
 
 It has no stored SVID or key. The bootstrap SVID passes through it to avirtnetd on an inherited file descriptor. Its own seccomp filter, including the `AF_VSOCK` denial, applies before it forks any child. avirtinitd denies `AF_VSOCK` to every process it launches. Workload processes can't connect to any vsock listener. This includes transient listeners and those requiring mutual TLS.
 
@@ -123,7 +115,8 @@ It has no stored SVID or key. The bootstrap SVID passes through it to avirtnetd 
 
 The runtime adds its native restrictions underneath avirtinitd's. On Docker Desktop that's:
 
-- `--cap-drop ALL`, then `--cap-add SETUID,SETGID,SETPCAP,KILL,NET_BIND_SERVICE`. `setpriv --bounding-set=-all` needs `SETPCAP`, and the DNS stub's port 53 needs `NET_BIND_SERVICE`.
+- `--cap-drop ALL`, then `--cap-add SETUID,SETGID,SETPCAP,KILL,NET_BIND_SERVICE,NET_ADMIN`. `setpriv --bounding-set=-all` needs `SETPCAP`, and the DNS stub's port 53 needs `NET_BIND_SERVICE`.
+- `/dev/net/tun` for avirtinitd's setup. Docker Desktop support for this configuration still needs a runtime check.
 - `--security-opt no-new-privileges`.
 - Docker's default seccomp profile, left in place. A custom profile would replace the default rather than add to it.
 

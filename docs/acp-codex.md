@@ -76,7 +76,7 @@ codex-acp also merges `CODEX_CONFIG`, a JSON object in its environment, into eac
 | `*.oaiusercontent.com:443` | Startup downloads |
 | `api.openai.com:443` | The OpenAI API under `/v1/*`, with an API key login |
 
-The mediator allows every public destination, so none of these needs configuration (see [egress](./egress.md#status-implemented)).
+The mediator allows every public destination, so none of these needs configuration (see [egress](./egress.md#status-planned)).
 
 # Status: planned
 

@@ -19,3 +19,249 @@ sandbox containers output # Ordinary prose using the approved sandbox container,
 sandbox container memory # Ordinary prose using the approved sandbox container, image or VM terminology.
 sandbox vm's vsock # Uses the approved sandbox VM name with the standard transport name.
 extra paths # Ordinary description of paths added to Landlock rules.
+absolute-form authority # Words for standard packet fields, protocol operations or network sockets.
+administrative-prohibition # Words for standard packet fields, protocol operations or network sockets.
+alpn switch # Words for standard packet fields, protocol operations or network sockets.
+ambiguous content-length # Words for standard packet fields, protocol operations or network sockets.
+capsule bounds # Words for standard packet fields, protocol operations or network sockets.
+capsule length # Words for standard packet fields, protocol operations or network sockets.
+channel denial # Words for standard packet fields, protocol operations or network sockets.
+client data # Words for standard packet fields, protocol operations or network sockets.
+credential-bearing # Words for standard packet fields, protocol operations or network sockets.
+datagram capsules # Words for standard packet fields, protocol operations or network sockets.
+datagram sockets # Words for standard packet fields, protocol operations or network sockets.
+dns sockets # Words for standard packet fields, protocol operations or network sockets.
+doh-style # Words for standard packet fields, protocol operations or network sockets.
+duplicate bound headers # Words for standard packet fields, protocol operations or network sockets.
+ephemeral loopback udp socket # Words for standard packet fields, protocol operations or network sockets.
+explicit connect authority # Words for standard packet fields, protocol operations or network sockets.
+frame-aware # Words for standard packet fields, protocol operations or network sockets.
+guest dnssec validation # Words for standard packet fields, protocol operations or network sockets.
+hop-by-hop fields # Words for standard packet fields, protocol operations or network sockets.
+host-interface addresses # Words for standard packet fields, protocol operations or network sockets.
+host-key # Words for standard packet fields, protocol operations or network sockets.
+host-key pin # Words for standard packet fields, protocol operations or network sockets.
+host-key pins # Words for standard packet fields, protocol operations or network sockets.
+host-side vsock listener # Words for standard packet fields, protocol operations or network sockets.
+icmp echo # Words for standard packet fields, protocol operations or network sockets.
+icmp flow # Words for standard packet fields, protocol operations or network sockets.
+icmp packets # Words for standard packet fields, protocol operations or network sockets.
+icmp payloads # Words for standard packet fields, protocol operations or network sockets.
+icmp stream # Words for standard packet fields, protocol operations or network sockets.
+icmp streams # Words for standard packet fields, protocol operations or network sockets.
+immutable destination # Words for standard packet fields, protocol operations or network sockets.
+immutable destinations # Words for standard packet fields, protocol operations or network sockets.
+inbound stream # Words for standard packet fields, protocol operations or network sockets.
+initial inspection # Words for standard packet fields, protocol operations or network sockets.
+initial parser # Words for standard packet fields, protocol operations or network sockets.
+ip destination # Words for standard packet fields, protocol operations or network sockets.
+ip destinations # Words for standard packet fields, protocol operations or network sockets.
+ip packets # Words for standard packet fields, protocol operations or network sockets.
+length-delimited # Words for standard packet fields, protocol operations or network sockets.
+long-header # Words for standard packet fields, protocol operations or network sockets.
+non-loopback inet sockets # Words for standard packet fields, protocol operations or network sockets.
+original destinations # Words for standard packet fields, protocol operations or network sockets.
+original-destination # Words for standard packet fields, protocol operations or network sockets.
+outstanding-request # Words for standard packet fields, protocol operations or network sockets.
+pin mismatch # Words for standard packet fields, protocol operations or network sockets.
+port-unreachable # Words for standard packet fields, protocol operations or network sockets.
+private-hop # Words for standard packet fields, protocol operations or network sockets.
+quic flow # Words for standard packet fields, protocol operations or network sockets.
+quic flows # Words for standard packet fields, protocol operations or network sockets.
+quic interception # Words for standard packet fields, protocol operations or network sockets.
+rapid-reset # Words for standard packet fields, protocol operations or network sockets.
+routing-socket # Words for standard packet fields, protocol operations or network sockets.
+server-first # Words for standard packet fields, protocol operations or network sockets.
+server-sent # Words for standard packet fields, protocol operations or network sockets.
+shell syntax # Words for standard packet fields, protocol operations or network sockets.
+single-quoted # Words for standard packet fields, protocol operations or network sockets.
+sni mismatch # Words for standard packet fields, protocol operations or network sockets.
+ssh intercept # Words for standard packet fields, protocol operations or network sockets.
+tcp egress # Words for standard packet fields, protocol operations or network sockets.
+tcp ingress # Words for standard packet fields, protocol operations or network sockets.
+trailers-only http # Words for standard packet fields, protocol operations or network sockets.
+transfer-encoding # Words for standard packet fields, protocol operations or network sockets.
+transport protocol # Words for standard packet fields, protocol operations or network sockets.
+udp ingress # Words for standard packet fields, protocol operations or network sockets.
+udp publications # Words for standard packet fields, protocol operations or network sockets.
+udp socket # Words for standard packet fields, protocol operations or network sockets.
+udp sockets # Words for standard packet fields, protocol operations or network sockets.
+upstream authentication # Words for standard packet fields, protocol operations or network sockets.
+upstream exec # Words for standard packet fields, protocol operations or network sockets.
+upstream key # Words for standard packet fields, protocol operations or network sockets.
+upstream keys # Words for standard packet fields, protocol operations or network sockets.
+upstream socket # Words for standard packet fields, protocol operations or network sockets.
+upstream sockets # Words for standard packet fields, protocol operations or network sockets.
+upstream username # Words for standard packet fields, protocol operations or network sockets.
+nftables redirect # Names a standard nftables operation or a descriptor for the defined TUN.
+nftables redirect rules # Names a standard nftables operation or a descriptor for the defined TUN.
+nftables redirects # Names a standard nftables operation or a descriptor for the defined TUN.
+nftables redirects tcp # Names a standard nftables operation or a descriptor for the defined TUN.
+nftables rules # Names a standard nftables operation or a descriptor for the defined TUN.
+install nftables redirect # Names a standard nftables operation or a descriptor for the defined TUN.
+installs nftables redirect # Names a standard nftables operation or a descriptor for the defined TUN.
+redirect rules # Names a standard nftables operation or a descriptor for the defined TUN.
+guest tun # Names a standard nftables operation or a descriptor for the defined TUN.
+tun descriptor # Names a standard nftables operation or a descriptor for the defined TUN.
+tun reader # Names a standard nftables operation or a descriptor for the defined TUN.
+tun-prefix # Names a standard nftables operation or a descriptor for the defined TUN.
+avirtnetd's tun # Names a standard nftables operation or a descriptor for the defined TUN.
+avirtnetd's tun reader # Names a standard nftables operation or a descriptor for the defined TUN.
+arbitrary dns bytes # Ordinary descriptions using the defined flow, workload or process names.
+avirt host daemon # Ordinary descriptions using the defined flow, workload or process names.
+avirtnetd's optional # Ordinary descriptions using the defined flow, workload or process names.
+avirtnetd's transparent # Ordinary descriptions using the defined flow, workload or process names.
+avirtnetd's transparent listener # Ordinary descriptions using the defined flow, workload or process names.
+avirtnetd's transparent listeners # Ordinary descriptions using the defined flow, workload or process names.
+avirtnetd's transparent tcp listeners # Ordinary descriptions using the defined flow, workload or process names.
+dns table # Ordinary descriptions using the defined flow, workload or process names.
+external flow # Ordinary descriptions using the defined flow, workload or process names.
+flow authorization # Ordinary descriptions using the defined flow, workload or process names.
+flow names # Ordinary descriptions using the defined flow, workload or process names.
+flow protocol # Ordinary descriptions using the defined flow, workload or process names.
+flow protocols # Ordinary descriptions using the defined flow, workload or process names.
+flow stream # Ordinary descriptions using the defined flow, workload or process names.
+flow streams # Ordinary descriptions using the defined flow, workload or process names.
+internal names resolve # Ordinary descriptions using the defined flow, workload or process names.
+mediator's persistent # Ordinary descriptions using the defined flow, workload or process names.
+non-git operations # Ordinary descriptions using the defined flow, workload or process names.
+optional loopback # Ordinary descriptions using the defined flow, workload or process names.
+ordinary udp policy # Ordinary descriptions using the defined flow, workload or process names.
+persistent synthetic # Ordinary descriptions using the defined flow, workload or process names.
+persistent table # Ordinary descriptions using the defined flow, workload or process names.
+policy-authorized # Ordinary descriptions using the defined flow, workload or process names.
+process restrictions # Ordinary descriptions using the defined flow, workload or process names.
+process sandbox profile # Ordinary descriptions using the defined flow, workload or process names.
+process sandbox profiles # Ordinary descriptions using the defined flow, workload or process names.
+real upstream # Ordinary descriptions using the defined flow, workload or process names.
+real upstream address # Ordinary descriptions using the defined flow, workload or process names.
+real-address flow # Ordinary descriptions using the defined flow, workload or process names.
+real-address flows # Ordinary descriptions using the defined flow, workload or process names.
+resolve internal names # Ordinary descriptions using the defined flow, workload or process names.
+resolves internal names # Ordinary descriptions using the defined flow, workload or process names.
+runtime control channel # Ordinary descriptions using the defined flow, workload or process names.
+runtime processes # Ordinary descriptions using the defined flow, workload or process names.
+service entities # Ordinary descriptions using the defined flow, workload or process names.
+synthetic ranges # Ordinary descriptions using the defined flow, workload or process names.
+synthetic-table # Ordinary descriptions using the defined flow, workload or process names.
+transparent listener # Ordinary descriptions using the defined flow, workload or process names.
+transparent listeners # Ordinary descriptions using the defined flow, workload or process names.
+transparent tcp listeners # Ordinary descriptions using the defined flow, workload or process names.
+unknown synthetic address # Ordinary descriptions using the defined flow, workload or process names.
+unknown synthetic addresses # Ordinary descriptions using the defined flow, workload or process names.
+workload's lifetime # Ordinary descriptions using the defined flow, workload or process names.
+across fragments # Ordinary phrases about credential checks, bounds or verification, with no separate concept to define.
+broker-only # Ordinary phrases about credential checks, bounds or verification, with no separate concept to define.
+byte threshold # Ordinary phrases about credential checks, bounds or verification, with no separate concept to define.
+canonical repository path # Ordinary phrases about credential checks, bounds or verification, with no separate concept to define.
+configuration choice # Ordinary phrases about credential checks, bounds or verification, with no separate concept to define.
+conformance coverage # Ordinary phrases about credential checks, bounds or verification, with no separate concept to define.
+credential rejection # Ordinary phrases about credential checks, bounds or verification, with no separate concept to define.
+credential together # Ordinary phrases about credential checks, bounds or verification, with no separate concept to define.
+directions preserve frame boundaries # Ordinary phrases about credential checks, bounds or verification, with no separate concept to define.
+drain outcomes # Ordinary phrases about credential checks, bounds or verification, with no separate concept to define.
+edge resolves # Ordinary phrases about credential checks, bounds or verification, with no separate concept to define.
+explicit drain # Ordinary phrases about credential checks, bounds or verification, with no separate concept to define.
+explicit policy permission # Ordinary phrases about credential checks, bounds or verification, with no separate concept to define.
+fair progress # Ordinary phrases about credential checks, bounds or verification, with no separate concept to define.
+hit resets # Ordinary phrases about credential checks, bounds or verification, with no separate concept to define.
+hyper normalizes # Ordinary phrases about credential checks, bounds or verification, with no separate concept to define.
+interception supports ssh-only remotes # Ordinary phrases about credential checks, bounds or verification, with no separate concept to define.
+optional response # Ordinary phrases about credential checks, bounds or verification, with no separate concept to define.
+parses external # Ordinary phrases about credential checks, bounds or verification, with no separate concept to define.
+per-workload placeholder key # Ordinary phrases about credential checks, bounds or verification, with no separate concept to define.
+per-workload ssh # Ordinary phrases about credential checks, bounds or verification, with no separate concept to define.
+placeholder hit # Ordinary phrases about credential checks, bounds or verification, with no separate concept to define.
+placeholder scan # Ordinary phrases about credential checks, bounds or verification, with no separate concept to define.
+placeholder-key # Ordinary phrases about credential checks, bounds or verification, with no separate concept to define.
+possible channel # Ordinary phrases about credential checks, bounds or verification, with no separate concept to define.
+possible channels # Ordinary phrases about credential checks, bounds or verification, with no separate concept to define.
+prove delivery # Ordinary phrases about credential checks, bounds or verification, with no separate concept to define.
+proves delivery # Ordinary phrases about credential checks, bounds or verification, with no separate concept to define.
+rate refusals # Ordinary phrases about credential checks, bounds or verification, with no separate concept to define.
+relay directions preserve frame # Ordinary phrases about credential checks, bounds or verification, with no separate concept to define.
+repository-bound # Ordinary phrases about credential checks, bounds or verification, with no separate concept to define.
+residual channels # Ordinary phrases about credential checks, bounds or verification, with no separate concept to define.
+runtime test # Ordinary phrases about credential checks, bounds or verification, with no separate concept to define.
+runtime tests # Ordinary phrases about credential checks, bounds or verification, with no separate concept to define.
+select ssh # Ordinary phrases about credential checks, bounds or verification, with no separate concept to define.
+selects ssh # Ordinary phrases about credential checks, bounds or verification, with no separate concept to define.
+setup-time # Ordinary phrases about credential checks, bounds or verification, with no separate concept to define.
+short deadline # Ordinary phrases about credential checks, bounds or verification, with no separate concept to define.
+ssh interception supports ssh-only # Ordinary phrases about credential checks, bounds or verification, with no separate concept to define.
+stream discards # Ordinary phrases about credential checks, bounds or verification, with no separate concept to define.
+table exhaustion # Ordinary phrases about credential checks, bounds or verification, with no separate concept to define.
+inet sockets # Ordinary words for standard protocol fields and operations.
+non-loopback inet # Ordinary words for standard protocol fields and operations.
+explicit connect # Ordinary words for standard protocol fields and operations.
+upstream address # Ordinary words for standard protocol fields and operations.
+arbitrary dns # Ordinary words for standard protocol fields and operations.
+dns bytes # Ordinary words for standard protocol fields and operations.
+query-type allowlist # Ordinary words for standard protocol fields and operations.
+dnssec validation # Ordinary words for standard protocol fields and operations.
+guest dnssec # Ordinary words for standard protocol fields and operations.
+duplicate bound # Ordinary words for standard protocol fields and operations.
+strips hop-by-hop fields # Ordinary words for standard protocol fields and operations.
+ssh server # Ordinary words for standard protocol fields and operations.
+cleartext http server # Ordinary words for standard protocol fields and operations.
+udp policy # Ordinary words for standard protocol fields and operations.
+udp stream # Ordinary words for standard protocol fields and operations.
+udp streams # Ordinary words for standard protocol fields and operations.
+ssh certificate # Ordinary words for standard protocol fields and operations.
+ephemeral loopback udp # Ordinary words for standard protocol fields and operations.
+loopback udp socket # Ordinary words for standard protocol fields and operations.
+host-side vsock # Ordinary words for standard protocol fields and operations.
+installs nftables # Ordinary description using the glossary definitions for workload processes and addresses.
+install nftables # Ordinary description using the glossary definitions for workload processes and addresses.
+process sandbox # Ordinary description using the glossary definitions for workload processes and addresses.
+sandbox profile # Ordinary description using the glossary definitions for workload processes and addresses.
+sandbox profiles # Ordinary description using the glossary definitions for workload processes and addresses.
+per-workload synthetic address # Ordinary description using the glossary definitions for workload processes and addresses.
+unknown synthetic # Ordinary description using the glossary definitions for workload processes and addresses.
+per-workload placeholder # Ordinary description using the glossary definitions for workload processes and addresses.
+per-workload ssh host ca # Ordinary description using the glossary definitions for workload processes and addresses.
+mediator's synthetic # Ordinary description using the glossary definitions for workload processes and addresses.
+mediator's persistent table # Ordinary description using the glossary definitions for workload processes and addresses.
+mediator translates synthetic addresses # Ordinary description using the glossary definitions for workload processes and addresses.
+ordinary udp # Ordinary description using the glossary definitions for workload processes and addresses.
+control channel # Ordinary description using the glossary definitions for workload processes and addresses.
+control channels # Ordinary description using the glossary definitions for workload processes and addresses.
+runtime control # Ordinary description using the glossary definitions for workload processes and addresses.
+redirects tcp # Ordinary description using the glossary definitions for workload processes and addresses.
+avirtnetd's transparent tcp # Ordinary description using the glossary definitions for workload processes and addresses.
+client data across fragments # Ordinary clause or phrase about scanning, authorization or supported operations.
+directions preserve frame # Ordinary clause or phrase about scanning, authorization or supported operations.
+preserve frame boundaries # Ordinary clause or phrase about scanning, authorization or supported operations.
+relay directions preserve # Ordinary clause or phrase about scanning, authorization or supported operations.
+canonical repository # Ordinary clause or phrase about scanning, authorization or supported operations.
+interception supports ssh-only # Ordinary clause or phrase about scanning, authorization or supported operations.
+skips probe # Ordinary clause or phrase about scanning, authorization or supported operations.
+ssh interception supports # Ordinary clause or phrase about scanning, authorization or supported operations.
+supports ssh-only remotes # Ordinary clause or phrase about scanning, authorization or supported operations.
+guarantee detection # Ordinary clause or phrase about scanning, authorization or supported operations.
+skip probe # Ordinary clause or phrase about scanning, authorization or supported operations.
+placeholder matcher # Ordinary clause or phrase about scanning, authorization or supported operations.
+authorization refusal # Ordinary clause or phrase about scanning, authorization or supported operations.
+authorization refusals # Ordinary clause or phrase about scanning, authorization or supported operations.
+explicit policy # Ordinary clause or phrase about scanning, authorization or supported operations.
+per-workload synthetic # Ordinary fragment of the described protocol operation, with no additional defined concept.
+client data across # Ordinary fragment of the described protocol operation, with no additional defined concept.
+data across fragments # Ordinary fragment of the described protocol operation, with no additional defined concept.
+directions preserve # Ordinary fragment of the described protocol operation, with no additional defined concept.
+frame boundaries # Ordinary fragment of the described protocol operation, with no additional defined concept.
+preserve frame # Ordinary fragment of the described protocol operation, with no additional defined concept.
+relay directions # Ordinary fragment of the described protocol operation, with no additional defined concept.
+strips hop-by-hop # Ordinary fragment of the described protocol operation, with no additional defined concept.
+per-workload ssh host # Ordinary fragment of the described protocol operation, with no additional defined concept.
+ssh host ca # Ordinary fragment of the described protocol operation, with no additional defined concept.
+interception supports # Ordinary fragment of the described protocol operation, with no additional defined concept.
+supports ssh-only # Ordinary fragment of the described protocol operation, with no additional defined concept.
+mediator translates synthetic # Ordinary fragment of the described protocol operation, with no additional defined concept.
+translates synthetic addresses # Ordinary fragment of the described protocol operation, with no additional defined concept.
+loopback udp # Ordinary fragment of the described protocol operation, with no additional defined concept.
+ssh host # The host identified by an SSH host certificate.
+recipient trust # The stated requirement to trust the recipient of an injected credential.
+mediator translates # Ordinary subject and verb describing synthetic address lookup.
+translates synthetic # Ordinary verb and adjective within the address lookup description.
+real credential except # Ordinary fragment qualifying the recipient trust constraint.
+credential except # Ordinary fragment qualifying credentials returned by a trusted recipient.

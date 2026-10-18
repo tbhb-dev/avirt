@@ -9,7 +9,7 @@ generated: { by: codex/gpt-6, at: 2026-10-18T05:20:59Z }
 
 # Overview
 
-avirtdnsd makes local and peered workloads and services addressable by name. It runs as a host service (see [components](./components.md#host-services)). The workload's resolver is a stub in avirtnetd that sends every query over the workload's HTTP/2 connection to its mediator (see [workload DNS](./egress.md#workload-dns)). Where DNS sits in the whole network model is in [networking](./networking.md#addressing-and-naming).
+avirtdnsd makes local and peered workloads and services addressable by name. It runs as a host service (see [components](./components.md#host-services)). The workload's resolver is a stub in avirtnetd that sends every query over the workload's HTTP/2 connection to its mediator (see [workload DNS](./egress.md#workload-dns)). Where DNS sits in the whole network model is in [networking](./networking.md#names-and-dns).
 
 # Status: planned
 
@@ -22,11 +22,11 @@ avirtdnsd makes local and peered workloads and services addressable by name. It 
 
 ## The avirtdnsd zone
 
-The avirt DNS zone. It answers every name under `host.avirt.internal` with this host's avirtedgeproxyd address, and internal names under an `active` peer's host name with that peer's avirtedgeproxyd address (see [internal names](#internal-names)). Every other name resolves normally, including the peer's host name itself and any other name under it (see [peers' host names](./peering.md#peers-host-names)). avirtdnsd talks to avirtmediatord (through avirthostd's SNI routing), avirtedgeproxyd, and avirthostd (namespaces, workloads, services and enrolled peers).
+The avirt DNS zone maps names under `host.avirt.internal` to this host's avirtedgeproxyd and internal names under an `active` peer's host name to that peer's avirtedgeproxyd (see [internal names](#internal-names)). avirtmediatord returns a per-workload synthetic address to the sandbox container for each name, so guest answers expose neither edge address. Every other name resolves normally, including the peer's host name itself and any other name under it (see [peers' host names](./peering.md#peers-host-names)). avirtdnsd talks to avirtmediatord (through avirthostd's SNI routing), avirtedgeproxyd, and avirthostd (namespaces, workloads, services and enrolled peers).
 
 ## Internal names
 
-| Form | Names | Resolves to |
+| Form | Names | Routed through |
 | --- | --- | --- |
 | `<id>.<ns>.workload.host.avirt.internal`, `<alias>-<id>.<ns>.workload.host.avirt.internal`, `<generated>.<ns>.workload.host.avirt.internal` | A workload on this host | This host's avirtedgeproxyd |
 | `<name>.<ns>.svc.host.avirt.internal`, `<alias>.<ns>.svc.host.avirt.internal` | A service on this host | This host's avirtedgeproxyd |
@@ -58,6 +58,14 @@ At creation, avirthostd validates each alias, service name, and namespace name. 
 
 avirtmediatord sends every connection to an internal name, local or peered, to this host's avirtedgeproxyd through avirthostd's SNI routing, whatever address the name resolved to, so it never needs a peer's address. avirtedgeproxyd resolves the name to its canonical entity (see [egress](./egress-policies.md#name-resolution)). It routes a local one to the destination workload's avirtmediatord. For a peered one, it routes to the peer's avirtedgeproxyd at the address avirtdnsd returns for it. Connections to a workload name can use only the ports that workload publishes (see [workload topology](./workload-topology.md#ingress)).
 
+## Synthetic answers
+
+avirtmediatord maintains a bounded, persistent table for each workload, using `198.18.0.0/15` and a ULA `/64`. Across restarts, the mediator never reuses an address for another name during the workload's lifetime. Allocation fails when the table is full. The mediator refuses unknown synthetic addresses and canonicalizes IPv4-mapped IPv6 addresses before lookup. Only the table or an explicit CONNECT authority supplies a flow name. SNI and Host on real-address flows remain observations. The edge resolves the name and checks the real upstream address with `private-dest`.
+
+TCP and UDP queries to port 53 at any address reach `/dns`, including UDP read from the TUN. Each query has its own stream and event. Both the mediator and edge enforce `resolve`, including CNAME names. For external queries, the edge parses requests rather than relaying arbitrary DNS bytes. Supported query types include A, AAAA, HTTPS, SVCB, and CNAME. Queries have size and rate limits. MX and TXT require permission.
+
+HTTPS and SVCB rewriting handles AliasMode, TargetName, `port`, synthetic address hints, and the consistency of `mandatory` and `no-default-alpn`. The synthesizer removes `ech` and, for intercepted names, `h3`. HTTP responses for intercepted names omit `Alt-Svc`. Rewritten answers prevent guest DNSSEC validation. Permitted encrypted DNS endpoints and encoded names remain possible channels under policy.
+
 ## Workload DNS policy and the DNS stream
 
 The workload's resolver, the `resolve` check on every query and the public-name path are in [egress](./egress.md#workload-dns). The Cedar `resolve` action and the resolution of an internal name to its canonical entity are in [egress policies](./egress-policies.md#name-resolution). The per-query `/dns` HTTP/2 streams with `application/dns-message` bodies and their 16-stream limit are in [workload topology](./workload-topology.md#http2-streams). Workload IDs, including the short ID in `<id>`, are in [components](./components.md#workload-ids).
@@ -65,4 +73,4 @@ The workload's resolver, the `resolve` check on every query and the public-name 
 # Open questions
 
 1. **Reuse of generated names.** Whether a new workload can reuse a generated name after its workload ends is open. Reuse risks confusion through DNS caches and old references. Prohibiting reuse slowly exhausts a namespace's name space.
-2. **DNS answers under transparent TCP.** Whether DNS answers inside the sandbox container become per-name synthetic addresses that avirtnetd maps back to names remains open for the design of transparent TCP. Raw TCP without SNI or `Host` needs this mapping for routing by name.
+2. **IPv6 allocation.** The exact ULA `/64` for synthetic answers remains a configuration choice.
