@@ -3,6 +3,8 @@ import Foundation
 /// What a launcher needs to start the workload's VM.
 struct LaunchSpec: Sendable {
   let workload: String
+  let containerDir: String
+  let stdioPath: String
   let kernelPath: String
   let initfsPath: String
   let rootfsPath: String
@@ -11,6 +13,14 @@ struct LaunchSpec: Sendable {
   let shares: [(host: String, guest: String)]
   let sockets: [(host: String, guest: String, mode: UInt32)]
   let stdio: StdioLog
+}
+
+extension LaunchSpec {
+  /// Removes what a start that failed left behind: the container directory and the stdio log.
+  func discard() {
+    try? FileManager.default.removeItem(atPath: containerDir)
+    Sys.removeFile(at: stdioPath)
+  }
 }
 
 /// A running workload container.
@@ -83,8 +93,10 @@ actor WorkloadHost {
     }
     phase = .starting
     digest = requested
+    var prepared: LaunchSpec?
     do {
       let spec = try prepare()
+      prepared = spec
       stdio = spec.stdio
       let launched = try await launcher(spec)
       virtual = launched
@@ -96,6 +108,7 @@ actor WorkloadHost {
       digest = nil
       stdio?.close()
       stdio = nil
+      prepared?.discard()
       resumeStartWaiters()
       throw error
     }

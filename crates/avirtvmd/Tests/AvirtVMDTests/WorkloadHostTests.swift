@@ -45,10 +45,14 @@ final class FakeWorkload: VirtualWorkload {
 
 struct WorkloadHostTests {
   private func spec(_ scratch: ScratchDirectory) throws -> LaunchSpec {
-    LaunchSpec(
-      workload: "1a2b3c4d", kernelPath: "", initfsPath: "", rootfsPath: "", imageConfigPath: "",
-      environment: [], shares: [], sockets: [],
-      stdio: try StdioLog(path: scratch.path + "/log-\(UInt32.random(in: 0...UInt32.max))", workload: "1a2b3c4d"))
+    let suffix = UInt32.random(in: 0...UInt32.max)
+    let container = scratch.path + "/container-\(suffix)"
+    let log = scratch.path + "/log-\(suffix)"
+    try FileManager.default.createDirectory(atPath: container, withIntermediateDirectories: false)
+    return LaunchSpec(
+      workload: "1a2b3c4d", containerDir: container, stdioPath: log, kernelPath: "", initfsPath: "", rootfsPath: "",
+      imageConfigPath: "", environment: [], shares: [], sockets: [],
+      stdio: try StdioLog(path: log, workload: "1a2b3c4d"))
   }
 
   private func host(_ workload: FakeWorkload? = nil, failing: Bool = false) -> WorkloadHost {
@@ -101,6 +105,31 @@ struct WorkloadHostTests {
       try await failing.start(digest: "a") { throw StartFailure(description: "prepare failed") }
     }
     #expect(await failing.current == .idle)
+  }
+
+  @Test("A failed launch removes the container directory and the log, so the start can run again")
+  func failedLaunchCleansUp() async throws {
+    let scratch = try ScratchDirectory()
+    defer { scratch.remove() }
+    let failing = host(failing: true)
+    let prepared = try spec(scratch)
+    await #expect(throws: StartFailure.self) {
+      try await failing.start(digest: "a") { prepared }
+    }
+    #expect(!FileManager.default.fileExists(atPath: prepared.containerDir))
+    #expect(!FileManager.default.fileExists(atPath: prepared.stdioPath))
+  }
+
+  @Test("A request whose root filesystem can't be cloned removes the container directory")
+  func failedCloneCleansUp() throws {
+    let scratch = try ScratchDirectory()
+    defer { scratch.remove() }
+    var request = Avirt_Vmd_V1_StartWorkload()
+    request.containerDir = scratch.path + "/container"
+    request.rootfsBasePath = scratch.path + "/missing.ext4"
+    request.stdioLogPath = scratch.path + "/log"
+    #expect(throws: (any Error).self) { try LaunchSpec(request: request, workload: "1a2b3c4d") }
+    #expect(!FileManager.default.fileExists(atPath: request.containerDir))
   }
 
   @Test("Stop sends the termination signal and waits for the exit")
