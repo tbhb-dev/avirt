@@ -15,7 +15,7 @@ The root workspace includes `avirt-connect` for CONNECT authority parsing and de
 
 ## Prose checks
 
-Vale's banned-term rules block `mise run lint`. For a human review of candidate terms in added prose, run `mise run lint-jargon` on demand. The report exits 0 whatever it finds. A usage error such as a bad `--base` exits 1. It runs outside lint and pre-commit, while `mise run check` includes its tests. Judge the prose in context: preserve its meaning and grammar, and reserve glossary entries for real terms.
+Vale's banned-term rules block `mise run lint`. For a human review of candidate terms in added prose, run `mise run lint-jargon` on demand. The report exits 0 whatever it finds. A usage error such as a bad `--base` exits 1. It runs outside lint and pre-commit, while `mise run check` includes its tests. The report skips a term that a glossary heading, a line of `.vale/config/vocabularies/project/accept.txt`, or a line of `jargon-accept.txt` at the repository root names. Each `jargon-accept.txt` line is a term, then `#` and the reason, and the report flags a line with no reason. Judge the prose in context: preserve its meaning and grammar, and reserve glossary entries for real terms.
 
 # Status: planned
 
