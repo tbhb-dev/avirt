@@ -135,6 +135,7 @@ another's
 API's
 APIs
 APM
+application data
 avirt
 avirt-connect
 avirt-core

@@ -99,7 +99,7 @@ TLS runs end to end between the guests and the destinations. avirthostd forwards
 Constraints:
 
 - The workload VM's vsock device has exactly one host listener, for the workload's connection to its mediator. Every other host vsock listener is on a mediator VM's device.
-- Every host vsock listener is reachable by any process in its mediator VM. The listener for the mediator's connection to avirthostd runs the mutual TLS handshake before reading any <!-- Preserve the TLS protocol term application data. --><!-- vale project.WordList = NO -->application data<!-- vale project.WordList = YES -->, and SNI routing reads only the TLS ClientHello before forwarding the connection unchanged to a destination that does.
+- Every host vsock listener is reachable by any process in its mediator VM. The listener for the mediator's connection to avirthostd runs the mutual TLS handshake before reading any application data, and SNI routing reads only the TLS ClientHello before forwarding the connection unchanged to a destination that does.
 - Containerization's default launch omits OCI seccomp, so avirtinitd applies the workload container's filters itself, including the `AF_VSOCK` denial for every process it launches.
 - This runtime operates without host socket files, so `host_socket_paths` is 0.
 - The guest kernel provides Landlock ABI 7 (see [sandbox](./sandbox.md#workload-kernels)).

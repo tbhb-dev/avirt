@@ -209,7 +209,7 @@ permit (principal == Admin::"uid:501", action == Action::"manage_secret", resour
 
 ## APIs
 
-Every API is on avirtsecretsd's host service listener, `services/avirtsecretsd.sock`, with mutual TLS 1.3 and the caller's SVID checked before any <!-- Preserve the TLS protocol term application data. --><!-- vale project.WordList = NO -->application data<!-- vale project.WordList = YES --> (see [trust boundaries](./trust-boundaries.md#listeners)). avirtsecretsd presents `/service/avirtsecretsd`. Mediators connect to it on the mediator's outbound socket to avirthostd, which routes the connection by SNI `avirtsecretsd.svc.<td>` without decrypting TLS (see [workload topology](./workload-topology.md#sni-routing)). Each API contains a protocol version, and avirtsecretsd refuses one it doesn't support with a named error.
+Every API is on avirtsecretsd's host service listener, `services/avirtsecretsd.sock`, with mutual TLS 1.3 and the caller's SVID checked before any application data (see [trust boundaries](./trust-boundaries.md#listeners)). avirtsecretsd presents `/service/avirtsecretsd`. Mediators connect to it on the mediator's outbound socket to avirthostd, which routes the connection by SNI `avirtsecretsd.svc.<td>` without decrypting TLS (see [workload topology](./workload-topology.md#sni-routing)). Each API contains a protocol version, and avirtsecretsd refuses one it doesn't support with a named error.
 
 | API | Callers | Operations |
 | --- | --- | --- |

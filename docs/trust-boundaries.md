@@ -11,7 +11,7 @@ generated: { by: codex/gpt-6, at: 2026-10-18T05:14:22Z }
 
 This document describes the planned design in [components](./components.md). [Networking](./networking.md) specifies the connections and their transports. The implemented system's boundaries are in [workload hardening](./workload-hardening.md), [workload topology](./workload-topology.md), and [identity](./identity.md).
 
-Each listener that a caller reaches across a container or host boundary requires mutual TLS with SPIFFE identities from the first byte, and authorizes the caller's exact identity before reading any <!-- Preserve the project term. --><!-- vale project.WordList = NO -->application data<!-- vale project.WordList = YES -->. Authentication never grants access by itself: each listener then authorizes the operation against the caller's workload, generation, and role. Listeners deny host management and cross-workload access unless a rule below allows them.
+Each listener that a caller reaches across a container or host boundary requires mutual TLS with SPIFFE identities from the first byte, and authorizes the caller's exact identity before reading any application data. Authentication never grants access by itself: each listener then authorizes the operation against the caller's workload, generation, and role. Listeners deny host management and cross-workload access unless a rule below allows them.
 
 ## Listeners
 
