@@ -92,13 +92,12 @@ fn turn_outcome(update: &v2::SessionUpdate, active: &mut bool) -> Option<String>
 async fn await_turn(
     updates: &mut UnboundedReceiver<v2::UpdateSessionNotification>,
     session_id: &v2::SessionId,
-) -> Result<String, Error> {
+) -> Result<String, Box<Error>> {
     let mut active = false;
     loop {
-        let notification = updates
-            .recv()
-            .await
-            .ok_or_else(|| Error::internal_error().data("agent disconnected before the prompt ran to completion"))?;
+        let notification = updates.recv().await.ok_or_else(|| {
+            Box::new(Error::internal_error().data("agent disconnected before the prompt ran to completion"))
+        })?;
         if &notification.session_id != session_id {
             continue;
         }
@@ -114,7 +113,7 @@ async fn await_turn(
 /// # Errors
 ///
 /// Returns the adapter's error, or an invalid-params error if it doesn't speak ACP v2.
-async fn converse(workload: Workload) -> Result<String, Error> {
+async fn converse(workload: Workload) -> Result<String, Box<Error>> {
     let Workload { agent, connection, prompt, cwd } = workload;
     let (updates_tx, mut updates) = unbounded_channel::<v2::UpdateSessionNotification>();
     let permission_connection = connection.clone();
@@ -150,7 +149,8 @@ async fn converse(workload: Workload) -> Result<String, Error> {
             while updates.try_recv().is_ok() {}
             // The response only acknowledges the prompt. Updates arrive independently.
             session.send_prompt(&prompt).block_task().await?;
-            await_turn(&mut updates, session.session_id()).await
+            await_turn(&mut updates, session.session_id()).await.map_err(|err| *err)
         })
         .await
+        .map_err(Box::new)
 }
