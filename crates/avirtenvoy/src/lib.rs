@@ -1,1 +1,3 @@
-//! The Envoy dynamic module that evaluates Cedar policy and injects HTTP and gRPC credentials.
+//! Envoy CONNECT destination filter.
+mod filter;
+mod stream;

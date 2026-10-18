@@ -131,7 +131,7 @@ The MCP gateway: the credential injector for MCP upstream credentials, which sco
 
 ## avirtmediatord
 
-The mediator's control process. In the implemented system it is the whole mediator, a Pingora CONNECT proxy on the host. In the planned design it keeps the mediator's connection to avirthostd, requests both mediator SVIDs, handles generations and the workload lifecycle, and proxies no traffic. See [mediator process](./egress.md#mediator-process) and [mediator container](./components.md#mediator-container).
+The mediator's control process. In the implemented system it is the whole mediator, a CONNECT proxy on the host that runs Pingora by default and an optional supervised Envoy. In the planned design it keeps the mediator's connection to avirthostd, requests both mediator SVIDs, handles generations and the workload lifecycle, and proxies no traffic. See [mediator process](./egress.md#mediator-process) and [mediator container](./components.md#mediator-container).
 
 ## avirtmedproxyd
 
@@ -415,7 +415,7 @@ A time-bounded grant of one secret value from avirtsecretsd to one caller, for o
 
 ## libavirtenvoy
 
-The Envoy dynamic module that the `avirtenvoy` crate builds, which evaluates Cedar locally, resolves avirt names to entities, mints MITM leaf certificates, runs the placeholder misuse check, injects mediator-bound credentials and writes events. Status: planned. See [mediator container](./components.md#mediator-container).
+The Envoy dynamic module that the `avirtenvoy` crate builds, which evaluates Cedar locally, resolves avirt names to entities, mints MITM leaf certificates, runs the placeholder misuse check, injects mediator-bound credentials and writes events. The implemented module only checks CONNECT destinations and reports connection events. Status: partial. See [mediator container](./components.md#mediator-container).
 
 ## Local client listener
 

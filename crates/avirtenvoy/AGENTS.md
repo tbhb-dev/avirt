@@ -8,6 +8,8 @@ generated: { by: claude-code/claude-sonnet-5-5, at: 2026-10-17T19:16:42Z }
 
 # Agent instructions: avirtenvoy
 
-The Envoy dynamic module that evaluates Cedar policy and injects HTTP and gRPC credentials. It runs in avirtmedproxyd's Envoy and in avirtedgeproxyd's Envoy, and has no implementation yet.
+The crate builds the Envoy v1.40.0 HTTP filter, which checks resolved addresses using `avirt-connect` and emits connection snapshots to avirtmediatord. Build with `cargo build --locked --manifest-path crates/avirtenvoy/Cargo.toml --target-dir target/envoy-module`. See the crate README for build constraints and runtime validation.
 
-See [docs/components.md](../../docs/components.md) for the component design and the root [AGENTS.md](../../AGENTS.md) for repository conventions.
+## Status: planned
+
+Cedar policy, credential injection and use in avirtedgeproxyd's Envoy and in avirtmedproxyd's Envoy are planned.

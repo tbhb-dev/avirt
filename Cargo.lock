@@ -275,6 +275,13 @@ dependencies = [
 ]
 
 [[package]]
+name = "avirt-connect"
+version = "0.1.0"
+dependencies = [
+ "nix",
+]
+
+[[package]]
 name = "avirt-core"
 version = "0.1.0"
 dependencies = [
@@ -328,10 +335,6 @@ version = "0.1.0"
 
 [[package]]
 name = "avirtedgeproxyd"
-version = "0.1.0"
-
-[[package]]
-name = "avirtenvoy"
 version = "0.1.0"
 
 [[package]]
@@ -389,6 +392,7 @@ name = "avirtmediatord"
 version = "0.1.0"
 dependencies = [
  "async-trait",
+ "avirt-connect",
  "chrono",
  "clap",
  "httparse",

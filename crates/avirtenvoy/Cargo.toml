@@ -1,13 +1,29 @@
 [package]
 name = "avirtenvoy"
 version = "0.1.0"
-edition.workspace = true
-rust-version.workspace = true
-publish.workspace = true
-description = "The Envoy dynamic module that evaluates Cedar policy and injects HTTP and gRPC credentials."
+edition = "2024"
+rust-version = "1.97.1"
+publish = false
+description = "The Envoy dynamic module that checks CONNECT destinations and reports connection events to avirtmediatord."
 
 [lib]
 crate-type = ["cdylib"]
 
-[lints]
-workspace = true
+[workspace]
+
+[lints.rust]
+unsafe_code = "forbid"
+
+[lints.clippy]
+pedantic = { level = "warn", priority = -1 }
+missing_errors_doc = "allow"
+module_name_repetitions = "allow"
+missing_panics_doc = "allow"
+struct_field_names = "allow"
+
+[dependencies]
+envoy-proxy-dynamic-modules-rust-sdk = { git = "https://github.com/envoyproxy/envoy", rev = "9e5580933739775e8bce696a57a2e1bc99368f23" }
+avirt-connect = { path = "../avirt-connect" }
+serde_json = { version = "1.0.154", features = ["preserve_order"] }
+chrono = { version = "0.4.45", default-features = false, features = ["clock"] }
+tokio = { version = "1.53.3", features = ["rt-multi-thread", "net", "time"] }

@@ -35,7 +35,7 @@ A **workload** is the lifecycle unit, like a pod with a sidecar: the **workload 
 | avirtmediatord | The mediator's control process: the mediator's connection to avirthostd, the `/control` stream, readiness, generations, lifecycle and identity rotation for itself and avirtmedproxyd's Envoy | mediator | Partial |
 | avirtmedproxyd | The mediator proxy: it supervises the mediator's Envoy Proxy with libavirtenvoy and serves it local xDS and SDS | mediator | Planned |
 | Envoy Proxy | The data plane: avirtmedproxyd's Envoy carries all of the workload's ingress and egress, and avirtedgeproxyd's Envoy carries the host's | mediator, host | Planned |
-| libavirtenvoy | An Envoy dynamic module that evaluates Cedar policy (embedding the `cedar-policy` crate) and injects HTTP and gRPC credentials | mediator, host | Planned |
+| libavirtenvoy | An Envoy dynamic module that evaluates Cedar policy (embedding the `cedar-policy` crate) and injects HTTP and gRPC credentials; the implemented module only checks CONNECT destinations and reports connection events | mediator, host | Partial |
 | avirtacp | Runs an agent workload through the Agent Client Protocol (see [ACP](./acp.md)) | workload | Partial |
 | avirtagent | Runs an agent workload through its native harness | workload | Planned |
 | avirtexec | Generic execution | workload | Planned |
@@ -48,7 +48,7 @@ Partial means the component's function exists in the current code but not yet as
 
 # Status: implemented
 
-The current code has four binaries and the shared `avirt-core` library, and they carry the implemented parts of the inventory as follows.
+The current code has four functional binaries, the shared `avirt-core` and `avirt-connect` libraries, and the optional `avirtenvoy` dynamic module, and they carry the implemented parts of the inventory as follows.
 
 | Binary | Container | Carries |
 | --- | --- | --- |
@@ -57,7 +57,7 @@ The current code has four binaries and the shared `avirt-core` library, and they
 | `avirtmediatord` | host, one process per workload | The mediator as a host process: one Pingora server with the CONNECT proxy on `proxy.sock`, and on `uplink.sock` a TCP proxy that forwards avirtinitd's HTTP/2 connection to avirthostd with the bytes unchanged. |
 | `avirtinitd` | workload, as root | The workload container's root process and image entrypoint. Together with the harness in `avirt-core`, it contains the ACP client that avirtacp carries in the planned design (it spawns the adapter as uid 1000 under seccomp and taps every JSON-RPC line, see [ACP](./acp.md)), and the TCP proxy to `proxy.sock` that avirtnetd's forward proxy replaces in the planned design. |
 
-`avirtinitd` is not PID 1 in the current code. The workload container runs with `--init`, so the runtime's init is PID 1 and avirtinitd is its direct child (see [workload hardening](./workload-hardening.md)). There is no mediator container: the mediator is the host process above. Landlock is not applied by the current code. None of avirtedgeproxyd, avirtmedproxyd, the Envoys, libavirtenvoy or the other host services exist.
+`avirtinitd` is not PID 1 in the current code. The workload container runs with `--init`, so the runtime's init is PID 1 and avirtinitd is its direct child (see [workload hardening](./workload-hardening.md)). There is no mediator container: the mediator is the host process above. Landlock is not applied by the current code. The optional Envoy that avirtmediatord supervises loads libavirtenvoy for CONNECT destination checks. None of avirtedgeproxyd, avirtmedproxyd or the other host services exist.
 
 # Status: planned
 
@@ -168,6 +168,10 @@ flowchart LR
 | avirtmodelgwd | Its per-workload model rules and budgets | Model credentials, obtained per request from avirtsecretsd |
 | avirtmcpgwd | Its per-workload tool scope | MCP upstream credentials, obtained from avirtsecretsd |
 | avirthostd | The host policy snapshot, for control-plane actions: `create_workload`, `list_workloads`, `inspect_workload`, `stop_workload`, `delete_workload`, `set_label`, `attach_binding`, `publish_port`, `publish_service` and `launch_workspace` | None |
+
+## Host mediator
+
+Status: implemented. avirtmediatord runs on the host with Pingora as its default CONNECT engine. Its experimental Envoy mode starts a supervised Envoy child with a static bootstrap and avirtenvoy's destination filter. Both modes use the existing `proxy.sock`, `uplink.sock` and event envelope; see [egress](./egress.md#experimental-host-envoy-mode). `avirt-connect` provides the authority and destination checks shared by Pingora and the excluded `avirtenvoy` module. Cedar, TLS and credential functions are planned.
 
 ## Mediator container
 

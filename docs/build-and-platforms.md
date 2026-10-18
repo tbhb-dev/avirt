@@ -3,9 +3,23 @@ type: Build Reference
 title: Build and platforms
 description: Build targets for the guest and host binaries, how the Swift Containerization shim is gated and linked, signing, the CI matrix, the toolchain, host privileges per runtime and guest artifact pins.
 tags: [avirt, build, ci, platforms, signing, swift]
-implementation: planned
+implementation: partial
 generated: { by: claude-code/claude-opus-5-5, at: 2026-10-17T19:00:00Z }
 ---
+
+# Status: implemented
+
+## Workspace layout
+
+The root workspace includes `avirt-connect`, the CONNECT authority parser and destination checks shared by Pingora and Envoy. `avirtenvoy` is an excluded standalone workspace with its own `Cargo.lock`; root workspace builds do not include the Envoy SDK, bindgen or libclang. `mise run check` checks the root workspace; `mise run check-envoy` checks the excluded module with the SDK git source and libclang available. The module builds into `target/envoy-module/debug/libavirtenvoy.dylib` on macOS and `target/envoy-module/debug/libavirtenvoy.so` on Linux.
+
+## Experimental host mediator module
+
+The host mediator can select Envoy v1.40.0 while retaining the relayed `proxy.sock` and `uplink.sock`. Build and run instructions are in [egress](./egress.md#experimental-host-envoy-mode). The official Rust SDK is pinned to the same release commit; `cargo build --locked --manifest-path crates/avirtenvoy/Cargo.toml --target-dir target/envoy-module` builds the cdylib with libclang available. On macOS the cdylib links Envoy callback symbols with `-undefined dynamic_lookup` and is passed by absolute `.dylib` filename in the bootstrap.
+
+The v1.40.0 [POSIX module loader](https://github.com/envoyproxy/envoy/blob/v1.40.0/source/extensions/dynamic_modules/posix/dynamic_modules.cc) uses `dlopen`; upstream [module build tests](https://github.com/envoyproxy/envoy/blob/v1.40.0/test/extensions/dynamic_modules/test_data/rust/test_data.bzl) account for macOS dylibs. A native macOS build must include the HTTP dynamic-module extension and export the SDK callback symbols. Native module compilation is supported by this crate; loading against a supplied darwin Envoy binary requires the bootstrap validation test and is unverified here.
+
+Upstream v1.40.0 [release assets](https://github.com/envoyproxy/envoy/releases/tag/v1.40.0) provide Linux arm64 and x86_64 binaries, with no darwin binary. A matching native macOS arm64 Envoy must be built from the pinned source with the [upstream build prerequisites](https://github.com/envoyproxy/envoy/blob/v1.40.0/bazel/README.md#quick-start-bazel-build-for-developers) available: full Xcode, Bazelisk, coreutils, wget, libtool, Go, clang-format, autoconf and aspell. The upstream build command is `bazel build -c opt envoy`. Envoy is not installed or downloaded by avirt. A Homebrew, mise, aqua or func-e binary is usable only if its version and compiled extensions satisfy the bootstrap validation test. Linux Envoy in a container additionally needs a transport bridge for the host Unix streams and host-interface destination checks; that bridge is not implemented.
 
 # Status: planned
 
@@ -27,12 +41,13 @@ The guest binaries do not depend on the host OS. `avirthostd` and the `avirt` CL
 
 | Crate | Contents |
 | --- | --- |
+| `crates/avirt-connect` | CONNECT authority parsing and destination checks shared by both CONNECT engines |
 | `crates/avirt-core` | The shared library, including the `Runtime` trait (see [compute runtimes](./compute-runtimes.md)) and the `api` module shared by `avirthostd` and the CLI |
 | `crates/avirt` | The `avirt` operator CLI |
 | `crates/avirthostd` | The host daemon |
 | `crates/avirtmediatord` | The mediator |
 | `crates/avirtinitd` | The workload container entrypoint |
-| `crates/avirtenvoy` | The Envoy dynamic module, a `cdylib` built as `libavirtenvoy`, that evaluates Cedar policy (embedding the `cedar-policy` crate) and injects HTTP and gRPC credentials |
+| `crates/avirtenvoy` | The Envoy dynamic module, a `cdylib` built as `libavirtenvoy` and excluded from the root workspace, that checks CONNECT destinations and reports connection events; Cedar policy and credential injection are planned |
 | `crates/avirt-runtime-containerization` | The Containerization runtime: a Swift package and a `build.rs` |
 
 `workloads/` holds only the image build directories (see [workload images](#workload-images)).
