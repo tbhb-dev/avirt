@@ -18,6 +18,7 @@ use std::os::unix::fs::{OpenOptionsExt as _, PermissionsExt as _};
 use std::path::{Path, PathBuf};
 
 use anyhow::{Context as _, Result};
+use avirt_core::console;
 use avirt_core::hostd::profile::{Cleanup, Prepared, Refused};
 use avirt_core::state::remove_tree;
 use base64::Engine as _;
@@ -142,7 +143,7 @@ fn finish(host: &Path, home: TempDir, workload_file: &Path, seed: &[u8]) -> Valu
     // The directory belongs to the agent, which may have made parts of it unreadable.
     let path = home.keep();
     if let Err(err) = remove_tree(&path) {
-        eprintln!("could not remove {}: {err}", path.display());
+        console::err_line(format_args!("could not remove {}: {err}", path.display()));
     }
     json!({ "event": "auth_writeback", "result": result })
 }

@@ -11,6 +11,7 @@ use agent_client_protocol::schema::v1::{
 };
 use agent_client_protocol::{Agent, Client, ConnectionTo, Error, Responder};
 use avirt_core::connection::LogStream;
+use avirt_core::console;
 use avirt_core::harness::{self, Spec, Workload, pick_option};
 use serde_json::json;
 
@@ -47,15 +48,15 @@ fn approve(connection: &LogStream, options: &[PermissionOption]) -> RequestPermi
 fn show(update: &SessionUpdate) {
     if let SessionUpdate::AgentMessageChunk(chunk) = update {
         if let ContentBlock::Text(text) = &chunk.content {
-            print!("{}", text.text);
+            console::out(format_args!("{}", text.text));
             let _flushed = stdout().flush();
         } else {
-            println!("[agent_message_chunk]");
+            console::out_line(format_args!("[agent_message_chunk]"));
         }
     } else {
         let name =
             serde_json::to_value(update).ok().and_then(|value| value.get("sessionUpdate")?.as_str().map(str::to_owned));
-        println!("[{}]", name.unwrap_or_default());
+        console::out_line(format_args!("[{}]", name.unwrap_or_default()));
     }
 }
 

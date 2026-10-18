@@ -6,6 +6,7 @@ mod mediator;
 pub mod profile;
 mod routes;
 
+use crate::console;
 use crate::egress::{Proxy, ProxySpec, WorkloadDir};
 use crate::envelope::{Dir, Envelope, Item, LineSplitter};
 use crate::state::{self, CONTAINER_LABEL, WORKLOAD_LABEL, private_dir};
@@ -272,7 +273,7 @@ impl Workload {
     fn write(&self, line: &str) {
         let mut log = lock(&self.log);
         if let Err(err) = log.write_all(line.as_bytes()) {
-            eprintln!("log write failed: {err}");
+            console::err_line(format_args!("log write failed: {err}"));
         }
     }
 }
@@ -571,7 +572,7 @@ impl Hostd {
         };
         let cleanup = mem::replace(&mut prepared.cleanup, Cleanup::none());
         let child = cmd.spawn();
-        println!("launched {id}");
+        console::out_line(format_args!("launched {id}"));
         let run = Supervised { cleanup, dir, drain, id: id.clone(), proxy, workload };
         self.tracker.spawn(Arc::clone(self).supervise(child, run));
         Ok(id)
@@ -614,7 +615,7 @@ async fn accept_loop(hostd: Arc<Hostd>, listener: TcpListener) -> ! {
             let service = service_fn(move |req| handle_control(Arc::clone(&shared), req));
             let served = http2::Builder::new(TokioExecutor::new()).serve_connection(TokioIo::new(stream), service);
             if let Err(err) = served.await {
-                eprintln!("h2 connection error: {err}");
+                console::err_line(format_args!("h2 connection error: {err}"));
             }
         });
     }
@@ -647,10 +648,14 @@ where
     let swept = state.sweep();
     if !swept.containers.is_empty() || swept.dirs > 0 {
         let names: Vec<String> = swept.containers.iter().map(|name| format!("\"{name}\"")).collect();
-        println!("swept leftovers of a previous run: containers [{}], {} directories", names.join(", "), swept.dirs);
+        console::out_line(format_args!(
+            "swept leftovers of a previous run: containers [{}], {} directories",
+            names.join(", "),
+            swept.dirs
+        ));
     }
     for failure in &swept.failures {
-        eprintln!("sweep could not remove {failure}");
+        console::err_line(format_args!("sweep could not remove {failure}"));
     }
 
     // The control API (`/launch`) is for the command-line interface on this machine only. Containers have no
@@ -659,7 +664,11 @@ where
     let hostd_sock = state.hostd().join("hostd.sock");
     let mediators = UnixListener::bind(&hostd_sock)?;
     fs::set_permissions(&hostd_sock, Permissions::from_mode(0o600))?;
-    println!("avirthostd listening on 127.0.0.1:{}; logs in {}", config.port, config.logs_dir.display());
+    console::out_line(format_args!(
+        "avirthostd listening on 127.0.0.1:{}; logs in {}",
+        config.port,
+        config.logs_dir.display()
+    ));
     let hostd = Arc::new(Hostd {
         config,
         profiles: profiles.into_iter().collect(),
@@ -677,12 +686,12 @@ where
     let accept_mediators = tokio::spawn(mediator_loop(Arc::clone(&hostd), mediators));
     first_signal(&mut sigint, &mut sigterm).await;
 
-    println!("shutting down: stopping containers");
+    console::out_line(format_args!("shutting down: stopping containers"));
     hostd.shutdown.cancel();
     hostd.tracker.close();
     // Keep serving so the stopped containers' streams drain into their logs.
     if time::timeout(Duration::from_mins(1), hostd.tracker.wait()).await.is_err() {
-        eprintln!("timed out waiting for containers to stop");
+        console::err_line(format_args!("timed out waiting for containers to stop"));
     }
     accept.abort();
     accept_mediators.abort();

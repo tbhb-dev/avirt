@@ -12,6 +12,8 @@ use serde_json::Value;
 use tokio::io::{AsyncRead, AsyncWrite};
 use tokio::net::TcpStream;
 
+use crate::console;
+
 /// The boxed request and response body type used on every avirt HTTP/2 connection.
 pub type Body = BoxBody<Bytes, Infallible>;
 
@@ -30,7 +32,7 @@ where
     let (send, conn) = http2::handshake(TokioExecutor::new(), TokioIo::new(io)).await?;
     tokio::spawn(async move {
         if let Err(err) = conn.await {
-            eprintln!("mediator connection error: {err}");
+            console::err_line(format_args!("mediator connection error: {err}"));
         }
     });
     Ok(send)

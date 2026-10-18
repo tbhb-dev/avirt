@@ -2,6 +2,7 @@
 
 use super::{Hostd, ShuttingDown, StreamTask, mediator::constant_time_eq, profile::Refused};
 use crate::api::{HEALTH_PATH, LAUNCH_PATH, LaunchRequest};
+use crate::console;
 use crate::h2c::Body;
 use alloc::sync::Arc;
 use anyhow::Result;
@@ -64,7 +65,7 @@ fn launch_reply(hostd: &Hostd, launched: Result<String>) -> Response<Body> {
             error(StatusCode::SERVICE_UNAVAILABLE, "avirthostd is shutting down")
         }
         Err(err) => {
-            eprintln!("launch failed: {err:#}");
+            console::err_line(format_args!("launch failed: {err:#}"));
             error(StatusCode::INTERNAL_SERVER_ERROR, "launch failed; see avirthostd's output")
         }
     }
@@ -105,7 +106,7 @@ pub(super) async fn serve_workload(hostd: Arc<Hostd>, conn: UnixStream, id: &str
     });
     let served = http2::Builder::new(TokioExecutor::new()).serve_connection(TokioIo::new(conn), service);
     if let Err(err) = served.await {
-        eprintln!("h2 connection error: {err}");
+        console::err_line(format_args!("h2 connection error: {err}"));
     }
 }
 

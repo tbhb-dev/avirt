@@ -7,6 +7,8 @@ mod codex;
 use std::env;
 use std::process::ExitCode;
 
+use avirt_core::console;
+
 /// Runs the agent that `AVIRT_AGENT` names.
 ///
 /// # Panics
@@ -19,7 +21,7 @@ async fn main() -> ExitCode {
         "claude" => claude::run().await,
         "codex" => codex::run().await,
         other => {
-            eprintln!("AVIRT_AGENT must be claude or codex, got \"{other}\"");
+            console::err_line(format_args!("AVIRT_AGENT must be claude or codex, got \"{other}\""));
             ExitCode::from(64)
         }
     }

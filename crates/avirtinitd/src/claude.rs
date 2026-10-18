@@ -6,6 +6,7 @@ use std::process::ExitCode;
 use agent_client_protocol::schema::{ProtocolVersion, v2};
 use agent_client_protocol::{Agent, Client, Error, Responder, V2ConnectionTo};
 use avirt_core::connection::LogStream;
+use avirt_core::console;
 use avirt_core::harness::{self, Spec, Workload, pick_option};
 use serde_json::{Value, json};
 use tokio::sync::mpsc::{UnboundedReceiver, unbounded_channel};
@@ -48,15 +49,15 @@ fn approve(connection: &LogStream, options: &[v2::PermissionOption]) -> v2::Requ
 fn show(update: &v2::SessionUpdate) {
     if let v2::SessionUpdate::AgentMessageChunk(chunk) = update {
         if let v2::ContentBlock::Text(text) = &chunk.content {
-            print!("{}", text.text);
+            console::out(format_args!("{}", text.text));
             let _flushed = stdout().flush();
         } else {
-            println!("[agent_message_chunk]");
+            console::out_line(format_args!("[agent_message_chunk]"));
         }
     } else {
         let name =
             serde_json::to_value(update).ok().and_then(|value| value.get("sessionUpdate")?.as_str().map(str::to_owned));
-        println!("[{}]", name.unwrap_or_default());
+        console::out_line(format_args!("[{}]", name.unwrap_or_default()));
     }
 }
 

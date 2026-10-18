@@ -16,6 +16,7 @@ use anyhow::{Context as _, Result, bail};
 use avirt_core::api::{
     DEFAULT_PORT, HEALTH_PATH, LAUNCH_PATH, LaunchRequest, LaunchResponse, default_url, is_terminal_event,
 };
+use avirt_core::console;
 use avirt_core::h2c;
 use clap::{Args, Parser, Subcommand, ValueEnum};
 use serde_json::{Value, json};
@@ -75,7 +76,7 @@ struct Launch {
 async fn main() -> ExitCode {
     let Command::Launch(args) = Cli::parse().command;
     launch(args).await.unwrap_or_else(|err| {
-        eprintln!("{err:#}");
+        console::err_line(format_args!("{err:#}"));
         ExitCode::FAILURE
     })
 }
@@ -99,17 +100,17 @@ async fn launch(args: Launch) -> Result<ExitCode> {
         .await
         .with_context(|| format!("cannot reach avirthostd at {url}; is `avirthostd` running?"))?;
     if !status.is_success() {
-        eprintln!(
+        console::err_line(format_args!(
             "launch failed ({}): {}",
             status.as_u16(),
             response.get("error").and_then(Value::as_str).unwrap_or("unknown error")
-        );
+        ));
         return Ok(ExitCode::FAILURE);
     }
     let reply: LaunchResponse = serde_json::from_value(response).context("unexpected launch response")?;
     let log_path = PathBuf::from(&reply.log_path);
-    println!("workload {}", reply.workload_id);
-    println!("log     {}", log_path.display());
+    console::out_line(format_args!("workload {}", reply.workload_id));
+    console::out_line(format_args!("log     {}", log_path.display()));
     if args.follow {
         follow(&log_path, &url).await?;
     }
@@ -157,7 +158,7 @@ async fn follow(path: &Path, url: &str) -> Result<()> {
         match complete {
             Some((end, lines)) => {
                 let text = String::from_utf8_lossy(lines);
-                print!("{text}");
+                console::out(format_args!("{text}"));
                 offset = offset.saturating_add(u64::try_from(end)?);
                 last_growth = Instant::now();
                 if text.lines().any(is_terminal_event) {
