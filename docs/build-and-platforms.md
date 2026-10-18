@@ -1,23 +1,17 @@
 ---
 type: Build Reference
 title: Build and platforms
-description: Build targets for the guest and host binaries, how the Swift Containerization shim is gated and linked, Envoy delivery and the libavirtenvoy build, signing, the CI matrix, the toolchain, host privileges per runtime and guest artifact pins.
+description: Build targets for the guest and host binaries, how the Swift Containerization shim is gated and linked, the Rust data-plane stack, signing, the CI matrix, the toolchain, host privileges per runtime and guest artifact pins.
 tags: [avirt, build, ci, platforms, signing, swift]
 implementation: partial
-generated: { by: codex/gpt-6, at: 2026-10-18T02:37:39Z }
+generated: { by: codex/gpt-6, at: 2026-10-18T05:10:25Z }
 ---
 
 # Status: implemented
 
 ## Workspace layout
 
-The root workspace includes `avirt-connect`, the CONNECT authority parser and destination checks shared by Pingora and Envoy. `avirtenvoy` is an excluded standalone workspace with its own `Cargo.lock`. Root workspace builds exclude the Envoy SDK, bindgen, and libclang. `mise run check` checks the root workspace. `mise run check-envoy` checks the excluded module with the SDK git source and libclang available. On a Linux host the module builds into `target/envoy-module/debug/libavirtenvoy.so`.
-
-## Experimental host mediator module
-
-The host mediator can select Envoy v1.40.0 while retaining the relayed `proxy.sock` and `mediator.sock`. Build and run instructions are in [egress](./egress.md#experimental-host-envoy-mode). The module pins the official Rust SDK to the same release commit. `cargo build --locked --manifest-path crates/avirtenvoy/Cargo.toml --target-dir target/envoy-module` builds the cdylib with libclang available, and the bootstrap names it by absolute filename.
-
-Envoy's v1.40.0 [POSIX module loader](https://github.com/envoyproxy/envoy/blob/v1.40.0/source/extensions/dynamic_modules/posix/dynamic_modules.cc) uses `dlopen` to load the module into Envoy's own process. Upstream v1.40.0 [release assets](https://github.com/envoyproxy/envoy/releases/tag/v1.40.0) provide Linux arm64 and x86_64 binaries only. avirt neither distributes nor runs a darwin Envoy. In the implemented mode the operator supplies the Envoy binary by path. avirt neither installs nor downloads it. Only a binary whose version and compiled extensions meet the bootstrap validation test is usable.
+The root workspace includes `avirt-connect` for CONNECT authority parsing and destination checks. `mise run check` checks the root workspace. The implemented mediator uses the [Pingora CONNECT app](./egress.md#pingora-connect-app).
 
 # Status: planned
 
@@ -28,8 +22,7 @@ Envoy's v1.40.0 [POSIX module loader](https://github.com/envoyproxy/envoy/blob/v
 | `avirtinitd` | Linux guests (the workload container) | `aarch64-unknown-linux-musl`, `x86_64-unknown-linux-musl` |
 | `avirtnetd`, `avirtguestd`, `avirtacp`, `avirtagent`, `avirtexec`, `avirtmcp`, `avirtguest` | Linux guests (the workload container), from the avirt base image | `aarch64-unknown-linux-musl`, `x86_64-unknown-linux-musl` |
 | `avirtmediatord` | Linux guests (the mediator) | `aarch64-unknown-linux-musl`, `x86_64-unknown-linux-musl` |
-| `libavirtenvoy` | Envoy, as a <!-- Envoy extension name. --><!-- vale ai-tells.OverusedVocabulary = NO -->dynamic module<!-- vale ai-tells.OverusedVocabulary = YES -->: avirtmedproxyd's Envoy in the mediator and avirtedgeproxyd's Envoy in the edge VM, both Linux (see [Envoy delivery](#envoy-delivery)) | `aarch64-unknown-linux-gnu`, `x86_64-unknown-linux-gnu` |
-| `avirthostd` | The host | macOS arm64, Linux x86_64 and arm64, and Windows x86_64 and arm64 |
+| `avirthostd`, `avirtedgeproxyd`, `avirtapid` | The host | macOS arm64, Linux x86_64 and arm64, and Windows x86_64 and arm64 |
 | `avirt` | The host | macOS arm64, Linux x86_64 and arm64, and Windows x86_64 and arm64 |
 | `avirtsecrets-1password` | The host, as avirtsecretsd's provider plugin (see [1Password](./secrets-1password.md#plugin)) | macOS arm64 built with cgo (`CGO_ENABLED=1`), and Linux x86_64 and arm64 for the all-in-one server image built without it |
 
@@ -39,13 +32,12 @@ The guest binaries don't depend on the host OS. Each host build produces `avirth
 
 | Crate | Contents |
 | --- | --- |
-| `crates/avirt-connect` | CONNECT authority parsing and destination checks shared by both CONNECT engines |
+| `crates/avirt-connect` | CONNECT authority parsing and destination checks |
 | `crates/avirt-core` | The shared library, including the `Runtime` trait (see [compute runtimes](./compute-runtimes.md)) and the `api` module shared by `avirthostd` and the command-line tool |
-| `crates/avirt` | The `avirt` <!-- Preserve the exact term from the glossary. --><!-- vale project.WordList = NO -->operator CLI<!-- vale project.WordList = YES --> |
+| `crates/avirt` | The `avirt` operator CLI |
 | `crates/avirthostd` | The host daemon |
 | `crates/avirtmediatord` | The mediator |
 | `crates/avirtinitd` | The workload container entrypoint |
-| `crates/avirtenvoy` | The Envoy <!-- Envoy extension name. --><!-- vale ai-tells.OverusedVocabulary = NO -->dynamic module<!-- vale ai-tells.OverusedVocabulary = YES -->, a `cdylib` built as `libavirtenvoy` and excluded from the root workspace, that checks CONNECT destinations and reports connection events. Cedar policy and credential injection have planned status |
 | `crates/avirt-runtime-containerization` | The Containerization runtime: a Swift package and a `build.rs` |
 
 `workloads/` contains only the image build directories (see [workload images](#workload-images)).
@@ -90,16 +82,11 @@ Every workload image derives from the avirt base image (see [workload lifecycle]
 
 The implemented images don't have this split: each Containerfile builds from `ubuntu:26.04` and compiles avirtinitd itself (see [Claude](./acp-claude.md#adapter) and [Codex](./acp-codex.md#adapter)).
 
-## Envoy delivery
+## Rust data plane
 
-Envoy runs only on Linux. avirt neither distributes nor runs a darwin Envoy.
+Status: planned. avirtmediatord and avirtedgeproxyd use hyper 1.x for HTTP, h2 0.4.20 for HTTP/2, rustls 0.23 with the ring provider for TLS, tokio-rustls for asynchronous TLS and rcgen for certificate generation. Cedar evaluation runs in-process with `cedar-policy`. SPIFFE verification uses `SpiffeId`, `X509Svid` and `X509Bundle` from `spiffe`, with avirt's verifier, which checks the exact peer ID. It doesn't use a Workload API source.
 
-- **Image.** Every Envoy avirt runs comes from the official `envoyproxy/envoy:distroless-v1.40.0` image, pinned by index digest `sha256:23b72ac1fa94908b2ca7ebf194cc6083cd0d4913210c7d7453e4b2008ca26c84`. Its base is `gcr.io/distroless/base-nossl-debian13`, which has glibc.
-- **Verification.** Upstream omits cosign signatures, attestations, and SBOMs for the image. CI checks the Envoy binary in the image against the release's PGP-clearsigned `checksums.txt.asc`, verified with the Envoy maintainers key `0AFCE836BA4D1D35763C8523D8CDC3750181F31F` that's committed in the Envoy repository.
-- **Pins.** The Envoy version, the image digest and the SDK rev, the v1.40.0 tag commit `9e5580933739775e8bce696a57a2e1bc99368f23`, move together in one change.
-- **libavirtenvoy.** Build libavirtenvoy only as a glibc Linux cdylib, `aarch64-unknown-linux-gnu` and, for amd64, `x86_64-unknown-linux-gnu`, and never for musl, because Envoy loads it into its glibc process with `dlopen`. Constraint: its glibc symbol versions must not exceed those of the runtime image's glibc.
-- **Upgrade gate.** The pinned Envoy must export every undefined `envoy_dynamic_module_callback_*` symbol in the module, and Envoy's own `--mode validate` must pass inside the image.
-- **License.** Include Envoy's Apache-2.0 `LICENSE` and `NOTICE` in every image containing Envoy.
+The mediator binary targets Linux. avirtedgeproxyd is a host binary, including on macOS, and is a host service in the all-in-one image. HTTP parsing, upgrades, flow control, and TLS use the libraries. avirt provides policy, credentials, routing, limits, and lifecycle. The transport checks in [workload topology](./workload-topology.md#admission-and-flow-control) and [half-close behavior](./workload-topology.md#timeouts-and-keepalive) verify the system's properties.
 
 ## Linking
 
@@ -107,20 +94,20 @@ avirthostd loads the shim dylib through an `@executable_path` rpath. The distrib
 
 ## Containerization source
 
-Apple doesn't publish a prebuilt Containerization artifact. Build the library from source with SwiftPM at the pinned tag (0.47.0). `build.rs` uses a prebuilt shim dylib when `AVIRT_SWIFTSHIM_DIR` points at one, and builds from source otherwise. CI publishes the dylib as a checksummed artifact.
+Apple doesn't publish a prebuilt Containerization artifact. The build compiles the library from source with SwiftPM at the pinned tag (0.47.0). `build.rs` uses a prebuilt shim dylib when `AVIRT_SWIFTSHIM_DIR` points at one, and builds from source otherwise. CI publishes the dylib as a checksummed artifact.
 
 ## Signing
 
 - **Development.** macOS avirthostd builds use an ad-hoc signature with the `com.apple.security.virtualization` entitlement. `cargo run` and `cargo test` go through a signing runner configured in `.cargo/config.toml`, so test and run binaries contain the entitlement.
-- **Distribution.** Sign `avirthostd` with Developer ID and notarize it.
-- **Secrets broker.** Sign `avirtsecretsd` and `avirtsecrets-1password` with Developer ID and notarize them. Each has a stable signing identifier that keeps its designated requirements unchanged across releases (see [macOS Keychain](./secrets-keychain.md#code-signing-and-entitlements)).
+- **Distribution.** Distribution builds sign `avirthostd` with Developer ID and notarize it.
+- **Secrets broker.** Distribution builds sign `avirtsecretsd` and `avirtsecrets-1password` with Developer ID and notarize them. Each has a stable signing identifier that keeps its designated requirements unchanged across releases (see [macOS Keychain](./secrets-keychain.md#code-signing-and-entitlements)).
 
 ## CI matrix
 
 | Runner | Builds |
 | --- | --- |
-| macOS | The Swift dylib, then avirthostd, then signing, plus the macOS `avirt` command-line tool |
-| Linux | The guest binaries for both architectures, libavirtenvoy for both glibc targets with the Envoy upgrade gate, the Envoy image checksum check, and the Linux avirthostd and command-line tool |
+| macOS | The Swift dylib, then avirthostd, then signing, plus avirtedgeproxyd, avirtapid and the macOS `avirt` command-line tool |
+| Linux | The guest binaries for both architectures, the Linux avirthostd and command-line tool |
 | Windows, or Linux with `cargo-xwin` | The Windows avirthostd and command-line tool |
 
 Constraint: only a macOS host can build the macOS avirthostd binary.
@@ -149,4 +136,4 @@ Both move together with the Containerization package version. Docker Desktop sup
 
 # Open questions
 
-1. **Envoy on Windows.** How a Windows host runs avirtedgeproxyd's Envoy is open. The edge VM would likely run in WSL2 or Hyper-V.
+1. **Windows off-host enforcement.** The host rule that restricts new off-host connections to avirtedgeproxyd on Windows remains unspecified.

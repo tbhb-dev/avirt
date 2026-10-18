@@ -1,40 +1,40 @@
 ---
 type: CLI Reference
-title: Guest commands
-description: The avirtguest command-line tool runs as uid 1000 inside a workload container and connects to avirtapid through avirtnetd, avirtmedproxyd, and avirtedgeproxyd as the guest-cli principal. Its commands manage other workloads, sessions, logs, and ports under authorization and escalation constraints. Includes a comparison with avirt, output formats, exit codes, and the API call and Cedar action for each command.
+title: Guest CLI
+description: The avirtguest guest CLI runs as uid 1000 inside a workload container and connects to avirtapid through avirtnetd, avirtmediatord, and avirtedgeproxyd as the guest-cli principal. Its commands manage other workloads, sessions, logs, and ports under authorization and escalation constraints. Includes a comparison with avirt, output formats, exit codes, and the API call and Cedar action for each command.
 tags: [avirt, cli, avirtguest, workload-management]
 implementation: planned
-generated: { by: codex/gpt-6, at: 2026-10-18T03:05:39Z }
+generated: { by: codex/gpt-6, at: 2026-10-18T04:29:26Z }
 ---
 
 # Status: planned
 
-`avirtguest`, from `crates/avirtguest`, provides commands inside a workload container. The avirt base image includes it at `/usr/local/bin/avirtguest`, so every workload container has it (see [workload lifecycle](./workload-lifecycle.md#layer-stack)). The agent and the tools it runs use it to manage other workloads on the host, under policy (see [workload management](./components.md#workload-management)). It runs as uid 1000. Within the agent cgroup, it uses the agent's security context (see [workload hardening](./workload-hardening.md#security-contexts)).
+`avirtguest`, from `crates/avirtguest`, is the guest CLI inside a workload container. The avirt base image includes it at `/usr/local/bin/avirtguest`, so every workload container has it (see [workload lifecycle](./workload-lifecycle.md#layer-stack)). The agent and the tools it runs use it to manage other workloads on the host, under policy (see [workload management](./components.md#workload-management)). It runs as uid 1000. Within the agent cgroup, it uses the agent's security context (see [workload hardening](./workload-hardening.md#security-contexts)).
 
-[avirt](./operator-cli.md) is the <!-- Project glossary term. --><!-- vale project.WordList = NO -->operator CLI<!-- vale project.WordList = YES -->, and [avirtadmin](./admin-cli.md) is the host administration command-line tool. avirtguest's commands are a subset of avirt's, with the same names, flags, output formats, and exit codes.
+[avirt](./operator-cli.md) is the operator CLI, and [avirtadmin](./admin-cli.md) is the admin CLI. avirtguest's commands are a subset of avirt's, with the same names, flags, output formats, and exit codes.
 
 ## Path
 
 avirtguest speaks gRPC to avirtapid. Its identity comes solely from the socket it connects on, without an SVID, key, or token.
 
 1. avirtguest connects to `/run/avirt/agent/guest.sock`, which avirtnetd restricts to uid 1000 using `SO_PEERCRED`.
-2. avirtnetd opens a `guest-cli` HTTP/2 stream, `POST /guest-cli`, to avirtmedproxyd on the workload's HTTP/2 connection to its mediator (see [HTTP/2 streams](./workload-topology.md#http2-streams)).
-3. avirtmedproxyd removes any `x-avirt-caller` supplied on the request, then sets `x-avirt-caller` to `spiffe://<td>/ns/<ns>/workload/<uuid>/guest-cli`. It sends the stream to avirtedgeproxyd on the mediator's outbound socket to avirthostd, which routes it by SNI without decrypting TLS.
-4. avirtedgeproxyd accepts that principal only from an avirtmedproxyd SVID of the same workload at its current generation. It evaluates `connect` for the workload and `HostService::"avirtapid"` with `via: "guest-cli"` against the host policy snapshot. It then sets `x-avirt-caller` itself and forwards the stream to avirtapid.
+2. avirtnetd opens a `guest-cli` HTTP/2 stream, `POST /guest-cli`, to avirtmediatord on the workload's HTTP/2 connection to its mediator (see [HTTP/2 streams](./workload-topology.md#http2-streams)).
+3. avirtmediatord removes any `x-avirt-caller` supplied on the request, then sets `x-avirt-caller` to `spiffe://<td>/ns/<ns>/workload/<uuid>/guest-cli`. It sends the stream to avirtedgeproxyd on the mediator's outbound socket to avirthostd, which routes it by SNI without decrypting TLS.
+4. avirtedgeproxyd accepts that principal only from an avirtmediatord SVID of the same workload at its current generation. It evaluates `connect` for the workload and `HostService::"avirtapid"` with `via: "guest-cli"` against the host policy snapshot. It then sets `x-avirt-caller` itself and forwards the stream to avirtapid.
 5. avirtapid accepts `x-avirt-caller` only from `/service/avirtedgeproxyd`, and forwards the call to avirthostd, or with `--host` to an enrolled peer's avirtapid.
 6. avirthostd evaluates the command's action against the host policy snapshot, with `Workload::"<ns>/<uuid>"` as principal and `via: "guest-cli"`, and applies the workload management constraints.
 
 ```mermaid
 flowchart LR
     guest["avirtguest (uid 1000)"] -->|"guest.sock, SO_PEERCRED"| net["avirtnetd"]
-    net -->|"POST /guest-cli stream"| me["avirtmedproxyd: sets x-avirt-caller"]
+    net -->|"POST /guest-cli stream"| me["avirtmediatord: sets x-avirt-caller"]
     me -->|"SNI routing by avirthostd"| fd["avirtedgeproxyd: connect to avirtapid"]
     fd --> proxyd["avirtapid"]
     proxyd --> hostd["avirthostd: action and constraints"]
     proxyd -->|"--host PEER"| peer["peer avirtapid"]
 ```
 
-A build job lacks <!-- Preserve the project term. --><!-- vale project.WordList = NO -->guest CLI<!-- vale project.WordList = YES --> access: avirthostd refuses a `guest-cli` stream from a build job (see [build jobs](./workspace-build.md#build-jobs)).
+A build job lacks guest CLI access: avirthostd refuses a `guest-cli` stream from a build job (see [build jobs](./workspace-build.md#build-jobs)).
 
 ## Command tree
 
@@ -108,12 +108,12 @@ avirtguest has no `--context` and no `--socket`: the socket is always `/run/avir
 
 Both avirtedgeproxyd and avirthostd must permit each call:
 
-- **avirtedgeproxyd.** `connect` from the workload to `HostService::"avirtapid"` with `via: "guest-cli"`, against the host policy snapshot. avirtedgeproxyd refuses workloads without a policy grant for <!-- Preserve the project term. --><!-- vale project.WordList = NO -->guest CLI<!-- vale project.WordList = YES --> access before avirtapid receives a byte.
+- **avirtedgeproxyd.** `connect` from the workload to `HostService::"avirtapid"` with `via: "guest-cli"`, against the host policy snapshot. avirtedgeproxyd refuses workloads without a policy grant for guest CLI access before avirtapid receives a byte.
 - **avirthostd.** The command's action in the [API and policy map](#api-and-policy-map), per action and per resource, against the host policy snapshot. The default decision is denial.
 
 For a command with `--host`, the local avirtedgeproxyd evaluates the connection to the peer. The peer's avirthostd evaluates the command against the peer's host policy snapshot for the workload's identity qualified by this host.
 
-The `guest-cli` principal is inside the agent's trust boundary. avirtguest runs as uid 1000, so any process the agent runs can open the <!-- Preserve the project term. --><!-- vale project.WordList = NO -->guest CLI socket<!-- vale project.WordList = YES -->, and every grant to `guest-cli` is a grant to the agent (see [trust boundaries](./trust-boundaries.md#compromise-scope)). A policy grants it exactly the workload management the agent may do.
+The `guest-cli` principal is inside the agent's trust boundary. avirtguest runs as uid 1000, so any process the agent runs can open the guest CLI socket, and every grant to `guest-cli` is a grant to the agent (see [trust boundaries](./trust-boundaries.md#compromise-scope)). A policy grants it exactly the workload management the agent may do.
 
 ```cedar
 @id("team-a-orchestrator-drives-children")

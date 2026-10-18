@@ -4,12 +4,12 @@ title: Workload lifecycle and layers
 description: The layers a workload container's root filesystem is assembled from (the avirt base image, a harness base image, workspace layers, the configuration layer and the per-workload writable layer), which are read-only and which writable, who produces each and when, where each is cached, how each runtime assembles the stack, and what the workload container's filesystem holds through boot, running and teardown.
 tags: [avirt, workload, images, layers, lifecycle]
 implementation: partial
-generated: { by: codex/gpt-6, at: 2026-10-18T02:37:39Z }
+generated: { by: codex/gpt-6, at: 2026-10-18T04:29:26Z }
 ---
 
 # Status: implemented
 
-A workload container runs one image per agent, `avirt-workload-claude:dev` or `avirt-workload-codex:dev`, each built from `ubuntu:26.04` with Node, the adapter, avirtinitd, and the `agent` user (see [ACP adapter process](./acp.md#adapter-process)). The <!-- Preserve the exact term from the glossary. --><!-- vale project.WordList = NO -->Apple container CLI runtime<!-- vale project.WordList = YES --> gives each workload container the image's layers read-only and its own writable layer, and deletes the container at teardown. The images lack a shared base image and workspace or configuration layers. avirthostd supplies configuration for each launch at run time: avirthostd mounts the Codex scratch home at `CODEX_HOME` and the `cwd` host directory at `/workspace` (see [credentials](./egress-credentials.md#codex)), and passes the rest in the environment (see [avirthostd API](./hostd-api.md)).
+A workload container runs one image per agent, `avirt-workload-claude:dev` or `avirt-workload-codex:dev`, each built from `ubuntu:26.04` with Node, the adapter, avirtinitd, and the `agent` user (see [ACP adapter process](./acp.md#adapter-process)). The Apple container CLI runtime gives each workload container the image's layers read-only and its own writable layer, and deletes the container at teardown. The images lack a shared base image and workspace or configuration layers. avirthostd supplies configuration for each launch at run time: avirthostd mounts the Codex scratch home at `CODEX_HOME` and the `cwd` host directory at `/workspace` (see [credentials](./egress-credentials.md#codex)), and passes the rest in the environment (see [avirthostd API](./hostd-api.md)).
 
 # Status: planned
 
@@ -41,7 +41,7 @@ Read-only means that writes inside the workload container leave the layer's stor
 
 Launches without a workspace or with a `cwd` host directory omit layer 3. A `cwd` directory mounts at `/workspace`. `/proc`, `/sys`, `/dev` and `/run/avirt` are absent from layers. During boot the runtime and avirtinitd mount or create them. Content rules exclude them from layers 3 and 4.
 
-The mediator image isn't part of this stack. It's a separate image with avirtinitd, avirtmediatord, avirtmedproxyd, Envoy, and libavirtenvoy. The avirt builder image (see [workspaces](./workspace-build.md#build-jobs)) derives from the avirt base like a harness base, with `git`, avirt's layer tool and BuildKit in place of a harness.
+The mediator image isn't part of this stack. It's a separate image with avirtinitd and avirtmediatord. The avirt builder image (see [workspaces](./workspace-build.md#build-jobs)) derives from the avirt base like a harness base, with `git`, avirt's layer tool and BuildKit in place of a harness.
 
 ## Base images
 
@@ -83,7 +83,7 @@ avirthostd assembles the stack at launch order step 3, after it has pulled and c
 | --- | --- | --- | --- | --- |
 | Containerization | avirthostd's content-addressed cache keeps an unpacked ext4 root filesystem for the avirt base, and one for each harness base, made by cloning the avirt base's with APFS `clonefile` and unpacking the harness layers into the clone | A composed root filesystem in `cache/rootfs/` per pair of harness base and workspace image, cloned from the harness base's with the workspace layers unpacked into it | Unpacked into the workload container's own clone of the composed root filesystem (or of the harness base's, with no workspace), before the VM starts | The workload container's clone is the VM's writable root block device, in `containers/<id>/`. Its writes are the clone's own blocks. |
 | Docker Desktop | Loaded through the Docker API into the containerd image store, which shares the avirt base's layers between the harness bases by digest | Part of a composed image whose layers are the harness base's, the workspace layers and the configuration layer, loaded as an OCI archive that contains only the blobs the store lacks | The last layer of the composed image, with its `diff_id` appended to the image config | The container's writable layer |
-| <!-- Preserve the exact term from the glossary. --><!-- vale project.WordList = NO -->Apple container CLI<!-- vale project.WordList = YES --> | The implemented images, with no split | Not supported | None | The container's writable layer |
+| Apple container CLI | The implemented images, with no split | Not supported | None | The container's writable layer |
 
 Constraints:
 

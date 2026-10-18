@@ -9,6 +9,6 @@ generated: { by: codex/gpt-6, at: 2026-10-18T03:13:20Z }
 
 # avirtadmin
 
-The local <!-- Preserve the exact term from the glossary. --><!-- vale project.WordList = NO -->admin CLI<!-- vale project.WordList = YES -->. It runs on the host.
+The local admin CLI. It runs on the host.
 
 Status: planned. See [docs/components.md](../../docs/components.md).

@@ -4,7 +4,7 @@ title: Workspace builds
 description: avirtbuilderd and workspace builds, with the three build kinds, sandboxed build jobs, the build pipeline and promotion, caching, build stages with hooks and the Containerfile, immutable and mutable tags, prebuild policies with their triggers and retention, and the Cedar actions, trust boundaries and open questions for builds.
 tags: [avirt, workspaces, builder, buildkit, cel, policy]
 implementation: planned
-generated: { by: codex/gpt-6, at: 2026-10-18T03:05:39Z }
+generated: { by: codex/gpt-6, at: 2026-10-18T05:20:59Z }
 ---
 
 # Status: planned
@@ -15,7 +15,7 @@ This document covers how avirtbuilderd builds workspace images. The workspace im
 
 The build queue, build records, watch registrations, and observed ref heads belong to avirtbuilderd. Its only SVID is `/service/avirtbuilderd`. Signing keys and host control API access remain unavailable to it. It never parses source content or executes build commands itself.
 
-avirtbuilderd serves a gRPC `WorkspaceBuilder` service on its host service listener, which avirtapid forwards for clients: `StartBuild`, `ListBuilds`, `GetBuild`, `ReadBuildLog`, `CancelBuild`, `AddPrebuildPolicy`, `ListPrebuildPolicies` and `RemovePrebuildPolicy`. The commands that call them are in [<!-- Project glossary term. --><!-- vale project.WordList = NO -->operator CLI<!-- vale project.WordList = YES -->](./operator-cli.md#workspaces).
+avirtbuilderd serves a gRPC `WorkspaceBuilder` service on its host service listener, which avirtapid forwards for clients: `StartBuild`, `ListBuilds`, `GetBuild`, `ReadBuildLog`, `CancelBuild`, `AddPrebuildPolicy`, `ListPrebuildPolicies` and `RemovePrebuildPolicy`. The commands that call them are in [operator CLI](./operator-cli.md#workspaces).
 
 ### Build kinds
 
@@ -31,12 +31,12 @@ A build job is a workload that avirthostd creates for avirtbuilderd: a workload 
 
 - **Image.** The workload container runs the avirt builder image, which holds avirtinitd, avirtnetd, avirtexec in build mode, `git`, avirt's layer tool and BuildKit. The build's base image and the input layers are inputs to the build, never the job's own root filesystem.
 - **Identity.** The job's only SVID is its workload SVID in avirtnetd. It has no connection to avirthostd of its own beyond its mediator's, and no access to avirtapid: avirthostd refuses any `guest-cli` stream for a build job.
-- **Inputs.** avirtnetd serves a registry socket to the build runner, and avirtmedproxyd forwards it to avirtregistryd through avirthostd's SNI routing under the job's identity. avirtregistryd grants the job read access to exactly the base image, the source bundle and the include digests of its build, read access to the cache scopes in [caching](#caching), and write access to `staging/<build-id>` only.
-- **Network.** Each other connection goes through avirtnetd's forward proxy, the job's avirtmedproxyd and avirtedgeproxyd, under the job's workload policy snapshot. The build policy for the job permits the sources' hosts for the fetch and the package registries the host policy names for commands.
+- **Inputs.** avirtnetd serves a registry socket to the build runner, and avirtmediatord forwards it to avirtregistryd through avirthostd's SNI routing under the job's identity. avirtregistryd grants the job read access to exactly the base image, the source bundle and the include digests of its build, read access to the cache scopes in [caching](#caching), and write access to `staging/<build-id>` only.
+- **Network.** Each other connection goes through avirtnetd's forward proxy, the build job's avirtmediatord and avirtedgeproxyd, under the job's workload policy snapshot. The build policy for the job permits the sources' hosts for the fetch and the package registries the host policy names for commands.
 - **Credentials.** A private source's credential, such as a short-lived GitHub installation token, is a mediator-injected credential binding for the source's host. The real credential remains outside the job. The mediator intercepts only the fetch step's connections for injection. Build commands use connections without interception or injected credentials. Their environment trusts only the base image's CA bundle.
 - **Security context.** avirtinitd runs the build runner as root inside the build VM with the build security context, which permits the namespaces and mounts BuildKit's OCI worker needs, without applying a Landlock ruleset to it (see [build jobs in sandbox](./sandbox.md#build-jobs)). Build commands run in BuildKit containers with the VM's loopback network, so they reach only avirtnetd's proxy.
 - **Limits.** avirthostd admits the job against the host's resource budgets like any workload, with a wall-clock deadline, and tears it down when it ends. Only the job's logs and its pushes to `staging/<build-id>` persist.
-- **Logs.** The usual workload writers produce the job's workload log and stdio log. `avirt workspace builds logs` reads them through avirtapid.
+- **Logs.** avirthostd writes the job's workload log and stdio log as it does for other workloads. `avirt workspace builds logs` reads them through avirtapid.
 
 Command builds require a runtime with `isolation = VmPerWorkload`. On Docker Desktop, where each workload container shares one kernel, avirtbuilderd runs assembly and fetch builds and refuses command builds with `build requires vm isolation` (see [compute runtimes](./compute-runtimes.md#docker-desktop-runtime)).
 
@@ -62,7 +62,7 @@ sequenceDiagram
     R->>F: off-host registries
     B->>H: create a build job (fetch or command)
     J->>R: read inputs (registry socket, SNI routing)
-    J->>F: fetch sources, install dependencies (avirtmedproxyd)
+    J->>F: fetch sources, install dependencies (avirtmediatord)
     J->>R: push the result to staging/BUILD-ID
     H-->>B: job exited
     B->>R: read the staged manifest and layers
@@ -182,7 +182,7 @@ when { principal.hasTag("avirt.internal/build") && resource has host && resource
 
 1. **Webhook delivery.** avirtbuilderd derives events by polling. Delivery of GitHub webhooks to a host through a relay or a peer remains open.
 2. **Secret content scanning.** The denylist matches paths. Whether avirtbuilderd also scans layer content for credentials before promotion, and whether a finding fails the build or only flags it, is open.
-3. **SSH-only remotes.** A build job can't fetch a remote without an HTTPS form through avirtedgeproxyd using credential injection. Support for SSH remotes and storage of their keys remain open.
+3. **SSH-only remotes.** Credential injection over HTTPS can't fetch a remote without an HTTPS form. This limit applies to avirtbuilderd's ref polling and to build jobs. Support for SSH remotes and storage of their keys remain open.
 4. **Signing.** Whether to sign avirtbuilderd's promoted images and which key to use remain open. Allowing `launch_workspace` to require a signature through `Referrers` is also open.
 5. **Build job namespace.** A build job runs in the workspace's namespace. Using a separate namespace for builds would prevent agent policy from matching them by namespace. Whether to use one remains open.
 6. **Directory sources in prebuilds.** A prebuild refuses a `directory` source, even one whose `path` stays inside the built tree. Reading such a source from the fetched tree in a prebuild remains an open question.

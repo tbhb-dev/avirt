@@ -1,12 +1,12 @@
 ---
 type: README
 title: avirt-connect
-description: CONNECT authority parsing and destination checks shared by both CONNECT engines.
+description: CONNECT authority parsing and destination checks for avirtmediatord's CONNECT app.
 tags: [avirt, crate, avirt-connect]
 implementation: implemented
-generated: { by: codex, at: 2026-10-17T23:00:00Z }
+generated: { by: codex/gpt-6, at: 2026-10-18T04:29:26Z }
 ---
 
 # avirt-connect
 
-CONNECT authority parsing and destination checks shared by Pingora and the Envoy <!-- vale ai-tells.OverusedVocabulary = NO -->dynamic<!-- vale ai-tells.OverusedVocabulary = YES --> module. Run `cargo test -p avirt-connect` for the policy unit tests.
+CONNECT authority parsing and destination checks used by avirtmediatord. Run `cargo test -p avirt-connect` for the policy unit tests.

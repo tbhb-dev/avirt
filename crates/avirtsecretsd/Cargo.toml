@@ -3,7 +3,7 @@ name = "avirtsecretsd"
 version = "0.1.0"
 edition.workspace = true
 rust-version.workspace = true
-description = "The secrets broker, which fetches secrets from providers and serves them as the Envoy secret discovery service."
+description = "The secrets broker fetches secrets from providers and serves the credential broker API. It serves leases for mediator-injected bindings through the broker API."
 publish.workspace = true
 
 [lints]

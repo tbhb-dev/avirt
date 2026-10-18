@@ -158,7 +158,6 @@ exceptions:
   - avirtbuilderd
   - avirtdnsd
   - avirtedgeproxyd
-  - avirtenvoy
   - avirtexec
   - avirtguest
   - avirtguestd
@@ -168,7 +167,6 @@ exceptions:
   - avirtmcp
   - avirtmcpgwd
   - avirtmediatord
-  - avirtmedproxyd
   - avirtmodelgwd
   - avirtnetd
   - avirtoteld
@@ -176,13 +174,10 @@ exceptions:
   - avirtregistryd
   - avirtsecretsd
   - avirtwebd
-  - libavirtenvoy
-  - Envoy
   - Cedar
   - SPIFFE
   - SVID
   - SVIDs
-  - xDS
   - vsock
   - rustls
   - Landlock
@@ -233,7 +228,6 @@ exceptions:
   - ACP
   - MCP
   - SNI
-  - SDS
   - UID
   - OCI
   - ABI
@@ -309,7 +303,6 @@ exceptions:
   - Protocol Specification
   - Security Design
   - Docker Desktop
-  - Envoy Proxy
   - OpenTelemetry Logs
   - SPIFFE Workload API
   - OpenTelemetry

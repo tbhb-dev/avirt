@@ -1,10 +1,10 @@
 ---
 type: Security Design
 title: Egress policies
-description: The Cedar policy model for egress, ingress and the control plane, with the avirt Cedar schema and its entities, actions, context and tags, the enforcement points in avirtmedproxyd, avirtedgeproxyd and avirthostd, name resolution and canonicalization with the restrictions on like, the connect, intercept, passthrough, resolve and request semantics, audit and enforce modes and their exemptions, policy snapshot building, distribution, versioning and expiry, revocation of open flows, the policy prover and the MITM CA name constraints it derives, failure behavior, and worked examples.
+description: The Cedar policy model for egress, ingress and the control plane, with the avirt Cedar schema and its entities, actions, context and tags, the enforcement points in avirtmediatord, avirtedgeproxyd and avirthostd, name resolution and canonicalization with the restrictions on like, the connect, intercept, passthrough, resolve and request semantics, audit and enforce modes and their exemptions, policy snapshot building, distribution, versioning and expiry, revocation of open flows, the policy prover and the MITM CA name constraints it derives, failure behavior, and worked examples.
 tags: [avirt, egress, policy, cedar, prover, policy snapshots, security]
 implementation: planned
-generated: { by: codex/gpt-6, at: 2026-10-18T02:56:34Z }
+generated: { by: codex/gpt-6, at: 2026-10-18T05:20:59Z }
 ---
 
 # Status: planned
@@ -17,16 +17,16 @@ Egress, ingress, and control-plane policy uses Cedar. avirtpolicyd stores polici
 
 | Point | Policy snapshot | Actions | Principal |
 | --- | --- | --- | --- |
-| avirtmedproxyd's Envoy (libavirtenvoy) | Workload policy snapshot | `resolve`, `connect`, `intercept`, `passthrough` and `request` for its workload's egress, and `ingress` for connections to its workload's published ports | Its own `Workload` for egress, the caller in `x-avirt-caller` for `ingress` |
-| avirtedgeproxyd's Envoy (libavirtenvoy) | Host policy snapshot | `resolve` for its DNS proxy, and `connect` for every stream on its egress and peer listeners: workload-to-workload, services, host-local services, external endpoints, the `/guest-cli` stream, peered names, and every host service's off-host connection | Caller's SVID, identifying a local or peer `Workload` or a `HostService`. For a gateway or avirtapid call on behalf of a caller, also the originating principal |
-| avirthostd | Host policy snapshot | Workloads, labels, bindings, ports, services, namespaces, peers, sessions, logs and `launch_workspace`, and host administration (see [actions](#actions)) | Caller: a `Workload` through `guest-cli`, a `User` through avirtapid, `Admin` on the <!-- vale project.WordList = NO -->admin socket<!-- vale project.WordList = YES -->, or a `HostService` |
-| avirtsecretsd | Host policy snapshot | `read_secret`, `manage_secret`, `manage_provider` and `manage_binding` (see [secrets](./secrets.md#cedar)) | avirtmedproxyd's `Workload`, a gateway's or host service's `HostService`, or `Admin` |
+| avirtmediatord | Workload policy snapshot | `resolve`, `connect`, `intercept`, `passthrough` and `request` for its workload's egress, and `ingress` for connections to its workload's published ports | Its own `Workload` for egress, the caller in `x-avirt-caller` for `ingress` |
+| avirtedgeproxyd | Host policy snapshot | `resolve` for its DNS proxy, and `connect` for every stream on its egress and peer listeners: workload-to-workload, services, host-local services, external endpoints, the `/guest-cli` stream, peered names, and every host service's off-host connection | Caller's SVID, identifying a local or peer `Workload` or a `HostService`. For a gateway or avirtapid call on behalf of a caller, also the originating principal |
+| avirthostd | Host policy snapshot | Workloads, labels, bindings, ports, services, namespaces, peers, sessions, logs and `launch_workspace`, and host administration (see [actions](#actions)) | Caller: a `Workload` through `guest-cli`, a `User` through avirtapid, `Admin` on the admin socket, or a `HostService` |
+| avirtsecretsd | Host policy snapshot | `read_secret`, `manage_secret`, `manage_provider` and `manage_binding` (see [secrets](./secrets.md#cedar)) | avirtmediatord's `Workload`, a gateway's or host service's `HostService`, or `Admin` |
 | avirtbuilderd | Host policy snapshot | `build_workspace`, `watch_workspace`, `inspect_build`, `cancel_build`, `inspect_watch` and `unwatch_workspace` (see [workspace builds](./workspace-build.md#policy)) | The caller avirtapid forwards, or `HostService::"avirtbuilderd"` |
 | avirtregistryd | Host policy snapshot | `push_workspace`, `pull_workspace`, `import_workspace`, `export_workspace` and `delete_workspace` (see [workspace registry](./workspace-registry.md#policy)) | The caller avirtapid forwards, a `HostService`, or a build job's `Workload` |
 
-The command-to-action maps are in [<!-- vale project.WordList = NO -->operator CLI<!-- vale project.WordList = YES -->](./operator-cli.md#api-and-policy-map), [<!-- vale project.WordList = NO -->admin CLI<!-- vale project.WordList = YES -->](./admin-cli.md#api-and-policy-map), and [<!-- vale project.WordList = NO -->guest CLI<!-- vale project.WordList = YES -->](./guest-cli.md#api-and-policy-map).
+The command-to-action maps are in [operator CLI](./operator-cli.md#api-and-policy-map), [admin CLI](./admin-cli.md#api-and-policy-map), and [guest CLI](./guest-cli.md#api-and-policy-map).
 
-A connection between two workloads needs permission at three points. The source avirtmedproxyd checks `connect` against the source workload's policy snapshot. avirtedgeproxyd checks `connect` against the host policy snapshot, and the destination avirtmedproxyd checks `ingress` against the destination workload's policy snapshot. Between hosts, each host's avirtedgeproxyd checks its own host policy snapshot. All these checks must permit the connection.
+A connection between two workloads needs permission at three points. The source workload's avirtmediatord checks `connect` against the source workload's policy snapshot. avirtedgeproxyd checks `connect` against the host policy snapshot, and the destination workload's avirtmediatord checks `ingress` against the destination workload's policy snapshot. Between hosts, each host's avirtedgeproxyd checks its own host policy snapshot. All these checks must permit the connection.
 
 Gateways don't run Cedar. avirtmodelgwd applies its per-workload model rules and budgets, and avirtmcpgwd applies its per-workload tool scope (see [components](./components.md#policy-and-credential-placement)).
 
@@ -35,8 +35,8 @@ flowchart LR
     hostd["avirthostd"] -->|"entity revisions"| pol["avirtpolicyd: store, validate, prove, compile"]
     op["avirtadmin (host administration)"] -->|"policy writes"| hostd
     hostd -->|"policy writes"| pol
-    pol -->|"workload policy snapshot, per workload"| me["avirtmedproxyd's Envoy (libavirtenvoy)"]
-    pol -->|"host policy snapshot"| fd["avirtedgeproxyd's Envoy (libavirtenvoy)"]
+    pol -->|"workload policy snapshot, per workload"| me["avirtmediatord"]
+    pol -->|"host policy snapshot"| fd["avirtedgeproxyd"]
     pol -->|"host policy snapshot"| hostd
     pol -->|"host policy snapshot"| bld["avirtbuilderd"]
     pol -->|"host policy snapshot"| reg["avirtregistryd"]
@@ -88,16 +88,16 @@ A label isn't a trust boundary by itself: a policy that keys on a label trusts w
 
 ### Actions
 
-Every control-plane action carries `via` in its context, except avirtsecretsd's administration actions, which avirtadmin alone reaches through avirthostd. An action that specifies a session takes the ACP session id in `session`, and one that omits it applies to every session of the workload.
+Every control-plane action includes `via` in its context, except avirtsecretsd's administration actions, which avirtadmin alone reaches through avirthostd. An action that specifies a session takes the ACP session id in `session`, and one that omits it applies to every session of the workload.
 
 | Action | Evaluated by | Principal | Resource | Context |
 | --- | --- | --- | --- | --- |
-| `resolve` | avirtmedproxyd, avirtedgeproxyd | `Workload`, `HostService` | An avirt name's entity (`Workload`, `Service`, or a peer's `Namespace`), or a `DnsName` | `qtype` (the query type, such as `A`, `AAAA` or `HTTPS`), `via` |
-| `connect` | avirtmedproxyd, avirtedgeproxyd | `Workload`, `HostService` | An avirt name's entity, a peer's `Namespace`, `Peer::"<host>"` for a control-plane call to a peer (see [peering](./peering.md)), `HostService::"avirtapid"` for the `/guest-cli` stream, or a `Destination` | `port`, `via` |
-| `intercept` | avirtmedproxyd | `Workload` | `Destination` on port 443 | None |
-| `passthrough` | avirtmedproxyd | `Workload` | `Destination` | `plaintext` |
-| `request` | avirtmedproxyd | `Workload` | `Destination` | `method`, `path` (canonicalized), `query` (whether the target had a query string) |
-| `ingress` | Destination avirtmedproxyd | The caller in `x-avirt-caller`: `Workload` or `HostService` | The destination `Workload` | `port`, `protocol` (`tcp` or `http`) |
+| `resolve` | avirtmediatord, avirtedgeproxyd | `Workload`, `HostService` | An avirt name's entity (`Workload`, `Service`, or a peer's `Namespace`), or a `DnsName` | `qtype` (the query type, such as `A`, `AAAA` or `HTTPS`), `via` |
+| `connect` | avirtmediatord, avirtedgeproxyd | `Workload`, `HostService` | An avirt name's entity, a peer's `Namespace`, `Peer::"<host>"` for a control-plane call to a peer (see [peering](./peering.md)), `HostService::"avirtapid"` for the `/guest-cli` stream, or a `Destination` | `port`, `via` |
+| `intercept` | avirtmediatord | `Workload` | `Destination` on port 443 | None |
+| `passthrough` | avirtmediatord | `Workload` | `Destination` | `plaintext` |
+| `request` | avirtmediatord | `Workload` | `Destination` | `method`, `path` (canonicalized), `query` (whether the target had a query string) |
+| `ingress` | Destination workload's avirtmediatord | The caller in `x-avirt-caller`: `Workload` or `HostService` | The destination `Workload` | `port`, `protocol` (`tcp` or `http`) |
 | `create_workload` | avirthostd | The caller | The new workload's `Namespace` | `via`, `depth` (the new workload's delegation chain depth), `detached`, `agent` |
 | `list_workloads` | avirthostd | The caller | `Namespace` | `via` |
 | `inspect_workload`, `stop_workload`, `delete_workload` | avirthostd | The caller | The target `Workload` | `via` |
@@ -123,7 +123,7 @@ Every control-plane action carries `via` in its context, except avirtsecretsd's 
 | `enroll_peer`, `update_peer`, `revoke_peer` | avirthostd | `Admin` | The `Peer` | `via` |
 | `inspect_peer` | avirthostd | The caller | `Peer` | `via` |
 | `rotate_ca` | avirthostd | `Admin` | `Host` | `via`, `tier` (`issuing` or `root`) |
-| `read_secret` | avirtsecretsd, per lease | `Workload` (avirtmedproxyd's workload), `HostService` | `Secret` | `via` (`mediator`, `gateway` or `service`), `binding` |
+| `read_secret` | avirtsecretsd, per lease | `Workload` (avirtmediatord's workload), `HostService` | `Secret` | `via` (`mediator`, `gateway` or `service`), `binding` |
 | `manage_secret` | avirtsecretsd | `Admin` | `Secret` | `operation` (`define`, `update`, `rotate`, `revoke`, `import`, `login` or `list`) |
 | `manage_provider` | avirtsecretsd | `Admin` | `Host` | `operation` (`define`, `remove`, `list` or `status`), `provider` |
 | `manage_binding` | avirtsecretsd | `Admin` | `Binding` | `operation` (`define`, `list` or `remove`) |
@@ -142,8 +142,8 @@ Every control-plane action carries `via` in its context, except avirtsecretsd's 
 | `gateway` | An upstream connection that avirtmodelgwd or avirtmcpgwd makes for a workload. Policy checks both the gateway and the workload. |
 | `service` | A host service's own connection |
 | `client` | A `User`, through avirtapid |
-| `admin` | avirtadmin, on avirthostd's <!-- vale project.WordList = NO -->admin socket<!-- vale project.WordList = YES --> |
-| `mediator` | avirtmedproxyd's Envoy reading its workload's binding values, for `read_secret` |
+| `admin` | avirtadmin, on avirthostd's admin socket |
+| `mediator` | avirtmediatord reading its workload's binding values, for `read_secret` |
 
 ### Schema text
 
@@ -206,7 +206,7 @@ type Caller = { via: String };
 
 type Session = { via: String, session?: String };
 
-// Data plane: avirtmedproxyd and avirtedgeproxyd
+// Data plane: avirtmediatord and avirtedgeproxyd
 
 action resolve appliesTo {
   principal: [Workload, HostService],
@@ -487,7 +487,7 @@ action delete_workspace appliesTo {
 
 ## Name resolution
 
-Before evaluating any policy, the enforcing Envoy (avirtedgeproxyd's for workload-to-workload connections and services, avirtmedproxyd's for its own decisions) parses an avirt destination name and resolves it to a canonical Cedar entity:
+Before evaluating any policy, the enforcing process (avirtedgeproxyd for workload-to-workload connections and services, avirtmediatord for its own decisions) parses an avirt destination name and resolves it to a canonical Cedar entity:
 
 - `7e759259.team-a.workload.host.avirt.internal`, `build-7e759259.team-a.workload.host.avirt.internal`, and `quietly-brave-otter.team-a.workload.host.avirt.internal` all resolve to `Workload::"team-a/0192f3a4-5b6c-7d8e-9f01-23457e759259"`. This entity uses the workload's UUIDv7 as its key. It has short ID `7e759259` and parent `Namespace::"team-a"` on this host.
 - the `default` namespace's short form, `7e759259.workload.host.avirt.internal`, resolves to the same entity as its long form.
@@ -498,7 +498,7 @@ Before evaluating any policy, the enforcing Envoy (avirtedgeproxyd's for workloa
 
 Namespace rules use entities, such as `principal in Namespace::"team-a"` and `resource in Namespace::"team-a"`, never string patterns over avirt names. `Namespace::"<host>/team-a" in Namespace::"<host>/team-a"` holds, so `resource in Namespace::"<host>/team-a"` matches every peered name in that namespace. A peer's namespaces are in its `Peer`, so `resource in Peer::"<host>"` matches every peered name of that host.
 
-An authority that specifies an avirt host service, such as `avirtsecretsd.svc.<td>`, never reaches policy: avirtmedproxyd refuses it with 403 (see [egress](./egress.md#avirtmedproxyd-pipeline)).
+An authority that specifies an avirt host service, such as `avirtsecretsd.svc.<td>`, never reaches policy: avirtmediatord refuses it with 403 (see [egress](./egress.md#how-avirtmediatord-handles-egress)).
 
 ### External host canonicalization
 
@@ -545,13 +545,13 @@ Cedar's own semantics apply to every decision: a request requires an applicable 
 - Each policy contains a unique `@id`. The event's `rule` is the `@id` of a determining policy, the lexicographically first when more than one determines the decision.
 - A decision without a determining policy records a reserved rule name instead: `default-deny` (no permit applied), `unknown-name` (an avirt name that resolves to no entity), `evaluation-error`, or `snapshot-expired`. The prover rejects a policy whose `@id` is a reserved rule name.
 
-For one agent connection avirtmedproxyd evaluates, in order:
+For one agent connection, avirtmediatord evaluates, in order:
 
 | Step | Action | Question | On permit | On deny |
 | --- | --- | --- | --- | --- |
 | 1 | `resolve` | May the workload learn this name's address? Checked per DNS query, independently of any later CONNECT. | Return the answer. | `NXDOMAIN`, in both modes |
 | 2 | `connect` | May the workload connect to this destination and port at all? | Continue | 403 `egress denied: <host>:<port>` |
-| 3 | `intercept` | For an external endpoint or model API host on port 443, should avirtmedproxyd act as the agent's TLS endpoint? | TLS interception | Check `passthrough` |
+| 3 | `intercept` | For an external endpoint or model API host on port 443, should avirtmediatord act as the agent's TLS endpoint? | TLS interception | Check `passthrough` |
 | 4 | `passthrough` | May this external connection take TLS passthrough? `context.plaintext` is true for a connection that doesn't start with a TLS ClientHello. | TLS passthrough | 403 `egress denied: <host>:<port>` |
 | 5 | `request` | On an intercepted connection, may the workload send this method and path? Checked per request, including a websocket upgrade request. | Forward the request. | 403 `request denied` |
 
@@ -559,10 +559,10 @@ Constraints:
 
 - The `connect` check must permit access even when `intercept` permits TLS interception. An `intercept` permission alone can't grant access to a destination.
 - The `intercept` check runs only on port 443. On any other port, an external connection requires permission from `passthrough`.
-- An avirt name always takes TLS passthrough without step 3. avirtedgeproxyd and the destination avirtmedproxyd run the authorization checks.
+- An avirt name always takes TLS passthrough without step 3. avirtedgeproxyd and the destination workload's avirtmediatord run the authorization checks.
 - A model API host under TLS passthrough goes to avirtedgeproxyd like any external endpoint, without a credential. The injectors add credentials only on intercepted requests (see [egress credentials](./egress-credentials.md#credential-injectors)).
 - The `request` check applies only to intercepted connections. Only `connect` and `passthrough` determine whether a passthrough connection may proceed. The system never inspects the bytes of a passthrough connection.
-- The `ingress` decision at the destination avirtmedproxyd is independent of the publication: a published port is reachable only by callers that both the host policy snapshot and the destination's `ingress` permit.
+- Publication doesn't grant ingress permission. The host policy snapshot and the destination's `ingress` policy must both permit the caller.
 
 ## Modes
 
@@ -583,7 +583,7 @@ These non-policy checks aren't policy and apply in both modes: authority parsing
 
 ### Contents
 
-A policy snapshot has a scope, one workload or the host, and carries:
+A policy snapshot has a scope, one workload or the host, and contains:
 
 - `scope`, `workload:<uuid>` or `host`.
 - `version`, increasing within its scope and never reused, including across avirtpolicyd restarts, because avirtpolicyd keeps the last version per scope in its state directory.
@@ -592,7 +592,7 @@ A policy snapshot has a scope, one workload or the host, and carries:
 - `issued` and `lifetime`.
 - the compiled policy set and its sha256.
 - the entity revision used to build it, and the entities it contains.
-- the peer table, which maps each enrolled peer's trust domain to its peer host name, so that a caller's SPIFFE ID in `x-avirt-caller` resolves to a qualified entity. Every workload policy snapshot and the host policy snapshot carry it.
+- the peer table, which maps each enrolled peer's trust domain to its peer host name, so that a caller's SPIFFE ID in `x-avirt-caller` resolves to a qualified entity. Every workload policy snapshot and the host policy snapshot include it.
 
 ### Building
 
@@ -609,12 +609,12 @@ avirtpolicyd builds a new policy snapshot for every policy write that changes a 
 
 Over its host service listener, avirtpolicyd streams policy snapshots, authenticated as `/service/avirtpolicyd`:
 
-- libavirtenvoy in each avirtmedproxyd Envoy subscribes, through avirthostd's SNI routing, only to its own workload's scope. It identifies itself with the workload and generation in its SVID.
+- each avirtmediatord subscribes, through avirthostd's SNI routing, only to its own workload's scope. It identifies itself with the workload and generation in its SVID.
 - avirtedgeproxyd, avirthostd, avirtbuilderd, avirtregistryd and avirtsecretsd subscribe to the host scope.
 
 A subscription specifies the version the subscriber has applied. avirtpolicyd sends the current policy snapshot whenever it's newer, always in full, never as a delta. The subscriber acknowledges each version it applies or rejects, with the reason. For each subscriber, avirtpolicyd records the applied version. This makes the time from a write to its enforcement at every point observable.
 
-At launch, avirtpolicyd builds a new workload's policy snapshot after avirthostd registers the workload with it (see [lifecycle](./lifecycle.md#launch-order)). The workload's mediator waits until libavirtenvoy has applied it before sending `confirm` (see [workload topology](./workload-topology.md#launch-handshake)). Deregistration at teardown ends the workload's scope.
+At launch, avirtpolicyd builds a new workload's policy snapshot after avirthostd registers the workload with it (see [lifecycle](./lifecycle.md#launch-order)). The workload's mediator waits until avirtmediatord has applied it before sending `confirm` (see [workload topology](./workload-topology.md#launch-handshake)). Deregistration at teardown ends the workload's scope.
 
 ### Validation and versioning
 
@@ -633,15 +633,15 @@ The subscriber then swaps it in atomically. Each decision uses exactly one polic
 
 ## Revocation of open flows
 
-When a new policy snapshot applies, or the current one expires, each Envoy re-evaluates every open connection against the new state:
+When a new policy snapshot applies, or the current one expires, avirtmediatord and avirtedgeproxyd each re-evaluates every open connection against the new state:
 
-- **avirtmedproxyd, egress.** The connection's `connect`, and `intercept` or `passthrough` for its path. avirtmedproxyd closes a connection whose path the new state would change. It closes an intercepted connection when `intercept` no longer permits it, even if `passthrough` now permits it. The client reconnects onto the new path. An upgraded websocket connection also needs a new `request` check for its upgrade request.
-- **avirtmedproxyd, ingress.** Every open inbound connection's `ingress`.
+- **avirtmediatord, egress.** The connection's `connect`, and `intercept` or `passthrough` for its path. avirtmediatord closes a connection whose path the new state would change. It closes an intercepted connection when `intercept` no longer permits it, even if `passthrough` now permits it. The client reconnects onto the new path. An upgraded websocket connection also needs a new `request` check for its upgrade request.
+- **avirtmediatord, ingress.** Every open inbound connection's `ingress`.
 - **avirtedgeproxyd.** Each open stream's `connect`, for each principal in the original check.
 
 In enforce mode, the enforcement point closes each connection the new state denies at once. Its CONNECT stream gets `RST_STREAM`, and its `conn` event records `error: "revoked"` with the deciding rule and the new `policy_version`. In audit mode the connection remains open, and the enforcement point writes a `would-deny` event.
 
-A model API stream to avirtmodelgwd gets a grace of 15 minutes before it's closed, at avirtmedproxyd and, for the gateway's upstream connection, at avirtedgeproxyd. Every other connection gets none.
+A model API stream to avirtmodelgwd gets a grace of 15 minutes before it's closed, at avirtmediatord and, for the gateway's upstream connection, at avirtedgeproxyd. Every other connection gets none.
 
 Revocation also follows from changes outside policy:
 
@@ -691,14 +691,14 @@ avirthostd then issues the CA (see [egress](./egress.md#mitm-ca-and-leaf-certifi
 - **An empty set.** avirthostd leaves the workload without a MITM CA, `confirm` contains none, and every external connection requires permission from `passthrough`.
 - **An unbounded set.** The CA contains no name constraints.
 
-The constraints remain fixed for the workload's life, because the CA serves every generation. libavirtenvoy also refuses to issue a leaf outside the CA's constraints. A later policy snapshot that permits `intercept` for such a host can't make Envoy accept the connection as its TLS endpoint. The connection takes TLS passthrough if `passthrough` permits it. Otherwise, avirtmedproxyd denies it.
+The constraints remain fixed for the workload's life, because the CA serves every generation. avirtmediatord also refuses to issue a leaf outside the CA's constraints. A later policy snapshot that permits `intercept` for such a host can't make avirtmediatord accept the connection as its TLS endpoint. The connection takes TLS passthrough if `passthrough` permits it. Otherwise, avirtmediatord denies it.
 
 ## Policy failure behavior
 
-- An avirtmedproxyd Envoy without a policy snapshot isn't ready. avirtmediatord waits before sending `confirm`, which prevents the agent from starting.
+- An avirtmediatord process without a policy snapshot isn't ready. avirtmediatord waits before sending `confirm`, which prevents the agent from starting.
 - avirtedgeproxyd without a host policy snapshot refuses every stream with 503, and avirthostd refuses every launch and control-plane call with 503. avirtbuilderd, avirtregistryd and avirtsecretsd refuse the calls subject to their authorization checks with 503.
 - When avirtpolicyd is unreachable, subscribers continue using their current policy snapshots until they expire. An expired policy snapshot denies every new connection, request, DNS query, and control-plane action, in both modes.
-- When a new policy snapshot applies, or the current one expires, each Envoy re-evaluates its open flows (see [revocation of open flows](#revocation-of-open-flows)).
+- When a new policy snapshot applies, or the current one expires, avirtmediatord and avirtedgeproxyd each re-evaluates its open flows (see [revocation of open flows](#revocation-of-open-flows)).
 - If a candidate policy set fails the prover, avirtpolicyd leaves the current policy snapshot in use without building a new one.
 - A Cedar evaluation error is a deny, in both modes.
 - An avirt name that resolves to no entity is a deny, in both modes, before evaluation.
@@ -712,7 +712,7 @@ The `@id` annotation becomes the event's `rule`.
 
 ### Namespaces and workloads
 
-Each workload in `team-a` may connect to every workload and service in `team-a`. Only one workload may connect to the `db` service. avirtedgeproxyd checks both permissions, with the destination avirtmedproxyd's `ingress` as the third check.
+Each workload in `team-a` may connect to every workload and service in `team-a`. Only one workload may connect to the `db` service. avirtedgeproxyd checks both permissions, with the destination workload's avirtmediatord's `ingress` as the third check.
 
 ```cedar
 @id("team-a-internal")
@@ -825,7 +825,7 @@ when { resource has ip && resource.ip.isInRange(ip("203.0.113.0/24")) && resourc
 
 ### Workload management, labels, and bindings
 
-A `ci` workload in `team-a` manages workloads in `team-a` through the <!-- vale project.WordList = NO -->guest CLI<!-- vale project.WordList = YES -->, at most two levels deep. It may set only `project` labels and attach only the GitHub binding. avirthostd still applies the constraints in [workload management](./components.md#workload-management): the child can receive only bindings the creator has.
+A `ci` workload in `team-a` manages workloads in `team-a` through the guest CLI, at most two levels deep. It may set only `project` labels and attach only the GitHub binding. avirthostd still applies the constraints in [workload management](./components.md#workload-management): the child can receive only bindings the creator has.
 
 ```cedar
 @id("team-a-ci-manages-team-a")

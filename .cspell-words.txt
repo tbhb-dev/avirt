@@ -127,8 +127,6 @@ ENOSPC
 ENOSYS
 enum
 env
-Envoy
-envoyproxy
 ENXIO
 EOF
 EOPNOTSUPP
@@ -141,7 +139,6 @@ execveat
 exfiltration
 extraheader
 fd
-fdenvoy
 FFI
 FIFO
 FIFOs
@@ -201,7 +198,6 @@ KVM
 LAN
 Landlock
 launchd
-libavirtenvoy
 libc
 libclang
 libuv
@@ -343,7 +339,6 @@ SANs
 SBOM
 SBOMs
 schan
-SDS
 seccomp
 seccompiler
 secretsd
@@ -459,7 +454,6 @@ WSS
 xattr
 Xcode
 xcrun
-xDS
 XPC
 xwin
 zeroizes

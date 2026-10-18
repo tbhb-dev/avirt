@@ -4,7 +4,7 @@ title: 1Password secrets provider
 description: The 1Password provider for avirtsecretsd, a plugin built on the official 1Password Go SDK, with its reference syntax, service account and desktop app authentication, caching and rate limiting, the mapping from 1Password items to avirt secrets, egress, and its failure modes.
 tags: [avirt, secrets, avirtsecretsd, 1password, provider]
 implementation: planned
-generated: { by: codex/gpt-6, at: 2026-10-18T02:37:39Z }
+generated: { by: codex/gpt-6, at: 2026-10-18T04:29:26Z }
 ---
 
 # Status: planned
@@ -90,7 +90,7 @@ The plugin authenticates to 1Password in one of two modes, set per instance.
 The default mode, and the only one in the all-in-one server image.
 
 - The instance's `bootstrap` reference names the service account token. avirtsecretsd resolves it from a local provider (see [secrets](./secrets.md#bootstrapping)) and passes it to the plugin on an inherited file descriptor. The token is never in the plugin's environment, so the plugin doesn't use the SDK's `OP_SERVICE_ACCOUNT_TOKEN` variable.
-- Grant the service account read access only to the vaults that its secrets reference, with write access where an instance writes back.
+- The service account has read access, and write access where an instance writes back, only to the vaults that its secrets reference.
 - A service account can't read a Personal, Private, or Employee vault. A secret in one of those vaults is reachable only in desktop app mode.
 
 ### Desktop app

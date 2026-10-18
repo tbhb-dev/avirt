@@ -1,4 +1,4 @@
-//! The workload process for generic execution. It doesn't run commands yet.
+//! A stub for the workload process that runs commands.
 
 fn main() -> std::process::ExitCode {
     eprintln!("avirtexec: not implemented");

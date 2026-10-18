@@ -24,7 +24,7 @@ swap:
   above: preceding
   account name: username
   action bar: app bar
-  admin: administrator
+  "admin(?! (?:CLI|(?:Unix )?socket))": administrator
   Ajax: AJAX
   a\.k\.a|aka: or|also known as
   Android device: Android-powered device
@@ -39,7 +39,7 @@ swap:
   cellular network: mobile network
   chapter: documents|pages|sections
   check box: checkbox
-  CLI: command-line tool
+  "(?<!operator )(?<!Operator )(?<!admin )(?<!Admin )(?<!guest )(?<!Guest )(?<!Apple container )CLI": command-line tool
   click on: click|click in
   Cloud: Google Cloud Platform|GCP
   Container Engine: Kubernetes Engine

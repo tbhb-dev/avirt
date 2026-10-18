@@ -1,10 +1,10 @@
 ---
 type: CLI Reference
-title: Operator commands
-description: The avirt operator command-line interface and TUI, with the implemented avirt launch and its log follow, and the planned command tree for workloads, labels and namespaces, ports and services, sessions, logs, workspaces and peers, contexts and authentication to the host, output formats, exit codes, and the API call and Cedar action behind every command.
+title: Operator CLI
+description: The avirt operator CLI and TUI, with the implemented avirt launch and its log follow, and the planned command tree for workloads, labels and namespaces, ports and services, sessions, logs, workspaces and peers, contexts and authentication to the host, output formats, exit codes, and the API call and Cedar action behind every command.
 tags: [avirt, cli, tui, operator]
 implementation: partial
-generated: { by: codex/gpt-6, at: 2026-10-18T02:37:39Z }
+generated: { by: codex/gpt-6, at: 2026-10-18T05:14:22Z }
 ---
 
 # Status: implemented
@@ -78,7 +78,7 @@ Through mise, `mise run launch <agent> "<prompt>"` runs `avirt launch --agent <a
 
 # Status: planned
 
-`avirt` provides a command-line interface and TUI for a host. It doesn't own resources (see [components](./components.md#host-services)). Every command except the local ones (`context`, `workspace init`, `workspace config`, `completion` and `version`) is a gRPC call to avirtapid through avirtedgeproxyd's local client listener. avirtapid forwards each call with the caller's identity in `x-avirt-caller`, to avirthostd, avirtbuilderd or avirtregistryd, or to an enrolled peer's avirtapid. The planned command-line tool never talks to avirthostd directly and omits `--port` and `--url`. `launch --follow` and `logs` stream through avirtapid without reading log files.
+`avirt` provides the operator CLI and TUI for a host. It doesn't own resources (see [components](./components.md#host-services)). Every command except the local ones (`context`, `workspace init`, `workspace config`, `completion` and `version`) is a gRPC call to avirtapid through avirtedgeproxyd's local client listener. avirtapid forwards each call with the caller's identity in `x-avirt-caller`, to avirthostd, avirtbuilderd or avirtregistryd, or to an enrolled peer's avirtapid. The planned command-line tool never talks to avirthostd directly and omits `--port` and `--url`. `launch --follow` and `logs` stream through avirtapid without reading log files.
 
 [avirtadmin](./admin-cli.md) provides host administration commands, and [avirtguest](./guest-cli.md) provides commands inside a workload container. All three tools share the command names, flags, output formats, and exit codes on this page wherever their functions overlap.
 
@@ -94,9 +94,9 @@ flowchart LR
 
 ## Contexts and authentication
 
-`avirt` reaches avirtedgeproxyd's local client listener in the edge VM through `edgeproxy.sock` in the host's runtime directory, a Unix socket backed by vsock, 0600 and owned by the user (see [trust boundaries](./trust-boundaries.md#listeners)).
+`avirt` reaches avirtedgeproxyd's local client listener through `edgeproxy.sock` in the runtime directory, a Unix socket, 0600 and owned by the user (see [trust boundaries](./trust-boundaries.md#listeners)).
 
-The socket's mode authenticates the caller. `avirt` lacks a token, key, or certificate. avirtedgeproxyd identifies the caller as the local user principal (see [components](./components.md#open-questions)). Calls made this way carry `via: "client"` in their Cedar context.
+The socket's mode authenticates the caller. `avirt` lacks a token, key, or certificate. avirtedgeproxyd identifies the caller as the local user principal (see [components](./components.md#open-questions)). Calls made this way include `via: "client"` in their Cedar context.
 
 A **context** names how `avirt` reaches a host. Contexts live in `~/.config/avirt/config.toml`, or under `$XDG_CONFIG_HOME/avirt/`:
 
@@ -204,7 +204,7 @@ avirt launch --agent claude|codex PROMPT
 | `--workspace REF` | A workspace reference in the grammar of [workspace references](./workspaces.md#workspace-references). `dir:PATH` builds the directory first, as `avirt workspace build` does. |
 | `--fresh`, `--allow-local` | As in [resolution](./workspaces.md#resolution) |
 | `--cwd DIR` | A directory on avirthostd's host, mounted read-write at `/workspace`. It excludes `--workspace`. avirt refuses it with `--host`. |
-| `--mode MODE` | The agent's initial mode, carried in the configuration layer (see [ACP](./acp.md)) |
+| `--mode MODE` | The agent's initial mode, included in the configuration layer (see [ACP](./acp.md)) |
 | `--binding ID` | A credential binding to attach, repeatable (see [egress credentials](./egress-credentials.md#bindings)) |
 | `--policy REF` | The workload's policy reference. Default: the host's default for the namespace. |
 | `--interactive` | Keep the session open after each turn, until an operator ends it, `--idle-limit` passes with no turn running (default 1 h), or the workload stops (see [session lifecycle](./acp.md#session-lifecycle-1)) |

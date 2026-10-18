@@ -8,6 +8,6 @@ generated: { by: claude-code/claude-sonnet-5-5, at: 2026-10-17T19:16:42Z }
 
 # Agent instructions: avirt-connect
 
-The library owns CONNECT authority parsing and destination checks shared by both CONNECT engines. Keep policy tests in `src/lib.rs`. Run `cargo test -p avirt-connect`.
+The library owns CONNECT authority parsing and destination checks used by avirtmediatord. Keep policy tests in `src/lib.rs`. Run `cargo test -p avirt-connect`.
 
 See the root [AGENTS.md](../../AGENTS.md) for repository conventions.

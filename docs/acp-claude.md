@@ -4,7 +4,7 @@ title: Claude harness
 description: How avirt runs Claude Code through claude-agent-acp, with the pinned adapter and its bundled versions, how avirtinitd launches it over ACP v2, authentication with the OAuth token and its placeholder, the configuration sources Claude Code reads, the managed settings and managed MCP configuration in the configuration layer, quirks and the egress destinations the harness needs.
 tags: [avirt, acp, claude, harness, claude-agent-acp]
 implementation: partial
-generated: { by: codex/gpt-6, at: 2026-10-18T02:37:39Z }
+generated: { by: codex/gpt-6, at: 2026-10-18T05:14:22Z }
 ---
 
 # Status: implemented
@@ -51,7 +51,7 @@ Claude Code loads project-scoped MCP servers from `.mcp.json` without an approva
 
 - **Draft protocol.** ACP v2 is a draft. The `session/prompt` response contains only a message id, and the turn's outcome arrives as a `state_update`.
 - **Immediate refusal.** A turn that ends before any work starts sends `idle` with a stop reason and no preceding `running`.
-- **Diagnostics.** The adapter redirects `console.log` and its other console methods to stderr, so stdout carries only ACP. The log records its stderr as `agent_stderr` events. `CLAUDE_AGENT_LOGS` names a directory for its own log file, and the environment leaves it unset.
+- **Diagnostics.** The adapter redirects `console.log` and its other console methods to stderr, so stdout sends only ACP. The log records its stderr as `agent_stderr` events. `CLAUDE_AGENT_LOGS` names a directory for its own log file, and the environment leaves it unset.
 
 ## Egress destinations
 
@@ -117,7 +117,7 @@ The overlay limits a workspace's Claude Code configuration:
 
 - `/workspace/.claude/settings.json` and `settings.local.json` still set keys that no managed key sets, such as output style or `CLAUDE.md` imports. They can't add permission rules, hooks, or MCP servers.
 - Claude Code ignores `/workspace/.mcp.json`.
-- `/home/agent/.claude` is a user path in `harness.toml`, so avirthostd refuses a workspace layer that writes this path at launch.
+- `/home/agent/.claude` is a user path in `harness.toml`, so at launch avirthostd refuses a workspace layer that writes this path.
 
 # Open questions
 

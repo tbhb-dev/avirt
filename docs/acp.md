@@ -4,7 +4,7 @@ title: Agent Client Protocol in avirt
 description: How avirt uses the Agent Client Protocol, with the ACP client and agent roles, the stdio adapter, the JSON-RPC tap and log envelope, the session lifecycle avirt drives, its client capabilities, permission requests, error handling and timeouts, the `harness.toml` file, the session control API through the mediator and avirtapid, the avirtacp split and multi-session workloads.
 tags: [avirt, acp, protocol, avirtinitd, avirtacp, harness]
 implementation: partial
-generated: { by: codex/gpt-6, at: 2026-10-18T03:05:39Z }
+generated: { by: codex/gpt-6, at: 2026-10-18T04:29:26Z }
 ---
 
 # Status: implemented
@@ -106,7 +106,7 @@ avirtinitd answers each `session/request_permission` by choosing the first optio
 
 An operator accesses a session only by launching it and reading its log:
 
-- `avirt launch --agent <agent> "<prompt>"` sends `POST /launch` to avirthostd, which starts the workload with that one prompt (see [<!-- Project glossary term. --><!-- vale project.WordList = NO -->operator CLI<!-- vale project.WordList = YES -->](./operator-cli.md) and [avirthostd API](./hostd-api.md#control-api)).
+- `avirt launch --agent <agent> "<prompt>"` sends `POST /launch` to avirthostd, which starts the workload with that one prompt (see [operator CLI](./operator-cli.md) and [avirthostd API](./hostd-api.md#control-api)).
 - `avirt launch --follow` streams `logs/<workload-id>.ndjson` until the `container_exit` meta event.
 
 A running session excludes further prompts, cancellation, and operator permission decisions. avirthostd has no route that stops one workload, and stopping avirthostd stops each running workload.
@@ -226,7 +226,7 @@ flowchart LR
 | `Sessions/AnswerPermission` | `avirt session attach`, interactively | Answers one pending permission request with an `optionId` | `answer_permission` |
 | `Sessions/End` | `avirt session end` | Ends the session | `end_session` |
 
-See the commands in [<!-- Project glossary term. --><!-- vale project.WordList = NO -->operator CLI<!-- vale project.WordList = YES -->](./operator-cli.md#sessions). avirtapid forwards the caller's authenticated identity. avirthostd authorizes each operation against the host policy snapshot before it forwards it, and avirtacp trusts only what arrives on its session control stream. Operator access excludes direct ACP communication and the adapter's stdio. Each operation and its outcome is an envelope on the `/envelopes` stream, so the workload log records who sent each prompt, cancellation, and permission answer.
+See the commands in [operator CLI](./operator-cli.md#sessions). avirtapid forwards the caller's authenticated identity. avirthostd authorizes each operation against the host policy snapshot before it forwards it, and avirtacp trusts only what arrives on its session control stream. Operator access excludes direct ACP communication and the adapter's stdio. Each operation and its outcome is an envelope on the `/envelopes` stream, so the workload log records who sent each prompt, cancellation, and permission answer.
 
 ## Multi-session workloads
 

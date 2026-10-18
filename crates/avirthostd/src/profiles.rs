@@ -25,7 +25,7 @@ impl Profile for Claude {
             )
             .into());
         }
-        // `-e NAME` with no value: the container command-line interface inherits the token from avirthostd's
+        // `-e NAME` with no value: the `container` command inherits the token from avirthostd's
         // environment, so it never appears on argv.
         Ok(Prepared {
             args: vec!["-e".into(), "CLAUDE_CODE_OAUTH_TOKEN".into()],

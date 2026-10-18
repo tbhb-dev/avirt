@@ -4,7 +4,7 @@ title: Workspace registry
 description: avirtregistryd, with zot as a supervised child process, registry storage and repository names, the secondary index, producers, the WorkspaceRegistry search and resolve API, and the Cedar actions, trust boundaries and open questions for the registry.
 tags: [avirt, workspaces, oci, registry, zot, policy]
 implementation: planned
-generated: { by: codex/gpt-6, at: 2026-10-18T02:37:39Z }
+generated: { by: codex/gpt-6, at: 2026-10-18T05:20:59Z }
 ---
 
 # Status: planned
@@ -77,7 +77,7 @@ avirtregistryd doesn't serve the OCI distribution API (`/v2/`) to clients. `avir
 
 | Listener | Where | Transport | Caller identity | Allowed operations |
 | --- | --- | --- | --- | --- |
-| avirtregistryd (`services/avirtregistryd.sock`) | Host, avirtregistryd | Host service listener | avirtapid with `x-avirt-caller`, avirtbuilderd, avirthostd, and build jobs' avirtmedproxyd Envoys of live workloads and current generations | `WorkspaceRegistry` calls for avirtapid, avirtbuilderd and avirthostd, each authorized by Cedar. For a build job, the OCI distribution API on its own grant only. |
+| avirtregistryd (`services/avirtregistryd.sock`) | Host, avirtregistryd | Host service listener | avirtapid with `x-avirt-caller`, avirtbuilderd, avirthostd, and avirtmediatord processes for live build jobs at their current generations | `WorkspaceRegistry` calls for avirtapid, avirtbuilderd and avirthostd, each authorized by Cedar. For a build job, the OCI distribution API on its own grant only. |
 | zot (`127.0.0.1:<port>`) | Host, zot | Loopback TCP, mutual TLS with a private CA | avirtregistryd only | The OCI distribution API and zot's search extension |
 
 | Compromised | Can reach | Can't reach |

@@ -135,6 +135,7 @@ another's
 API's
 APIs
 APM
+application data
 avirt
 avirt-connect
 avirt-core
@@ -146,7 +147,6 @@ avirtauditd
 avirtbuilderd
 avirtdnsd
 avirtedgeproxyd
-avirtenvoy
 avirtexec
 avirtguest
 avirtguestd
@@ -156,7 +156,6 @@ avirtlogd
 avirtmcp
 avirtmcpgwd
 avirtmediatord
-avirtmedproxyd
 avirtmodelgwd
 avirtnetd
 avirtoteld
@@ -188,7 +187,6 @@ descriptor's
 Docker
 else's
 enqueues
-Envoy
 FIFOs
 gitleaks
 Gitpod
@@ -203,7 +201,6 @@ JWTs
 Kata
 keychain's
 launchd
-libavirtenvoy
 libclang
 libuv
 lossy
@@ -243,7 +240,7 @@ Tailscale
 tarball's
 Tauri
 tombi
-TOML
+(?<![.])TOML
 UI's
 UIDs
 ULIDs
@@ -265,5 +262,5 @@ vsock
 webpki
 workspace's
 Xcode
-xDS
 zot
+[Pp]athname

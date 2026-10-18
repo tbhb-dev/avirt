@@ -4,8 +4,7 @@
 # checks) on Linux and macOS, the vendor-drift check, and a RustSec
 # advisory scan. Every job installs the pinned toolchain through mise and
 # runs its gate through `mise run`, so the mise config stays the single
-# definition of what each gate runs. The excluded avirtenvoy module is not
-# built here: it needs libclang and the Envoy SDK source.
+# definition of what each gate runs.
 
 name: ci
 

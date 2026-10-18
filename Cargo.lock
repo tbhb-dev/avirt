@@ -403,10 +403,6 @@ dependencies = [
 ]
 
 [[package]]
-name = "avirtmedproxyd"
-version = "0.1.0"
-
-[[package]]
 name = "avirtmodelgwd"
 version = "0.1.0"
 

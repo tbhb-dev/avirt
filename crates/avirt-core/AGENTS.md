@@ -3,7 +3,7 @@ type: Agent Instructions
 title: "Agent instructions: avirt-core"
 description: "Guidance for AI coding agents working in the `avirt-core` crate."
 tags: [avirt, crate, avirt-core]
-generated: { by: codex/gpt-6, at: 2026-10-18T02:56:30Z }
+generated: { by: codex/gpt-6, at: 2026-10-18T04:29:26Z }
 ---
 
 # Agent instructions: avirt-core
@@ -21,7 +21,7 @@ The shared library. The avirthostd server and the avirtinitd harness both live h
 | `harness` | The avirtinitd harness starts the workload's HTTP/2 connection to its mediator first. It provides the TCP proxy to `proxy.sock` and seccomp (Linux only), plus the scrubbed agent environment and `setpriv` |
 | `connection` | The workload's HTTP/2 connection to its mediator, whose one long-lived POST sends NDJSON envelopes with `x-avirt-token` |
 | `envelope` | `Dir`, `Envelope`, `parse_line`, `MAX_LINE` (16 MiB) and `LineSplitter` |
-| `h2c` | HTTP/2 without encryption client helpers |
+| `h2c` | Cleartext HTTP/2 client helpers |
 
 ## Invariants
 
@@ -32,6 +32,7 @@ The shared library. The avirthostd server and the avirtinitd harness both live h
 - **`POST /workloads/<id>/stream`.** A request with a missing or wrong token gets 403 before any workload state changes. Compare the mediator secret in constant time.
 - **File modes.** Logs are 0700 directories and 0600 files. The runtime directory and workload directories are 0700.
 - **Sweep.** The sweep never writes anything back to the host. Removal restores permissions first and never follows symlinks.
+- **Mediator environment.** Forward only `PATH`, `HOME` and `TMPDIR` from the host environment, plus the per-workload `AVIRT_MEDIATOR_SECRET`.
 - **Secrets.** Never place a secret on argv or in a log line.
 
 ## Testing

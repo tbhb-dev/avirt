@@ -1,10 +1,10 @@
 ---
 type: Component Design
 title: Observability
-description: How avirt records and exposes its behavior through logs, audit, metrics, and traces. Covers workload and host logs, stdout and stderr per runtime, severity and fields, content and access, OCSF delivery, integrity and retention, metric attributes and cardinality, Envoy metrics, trace propagation and spans, sampling and trace context privacy, avirtoteld delivery and backpressure, and bundled dashboards and alerts.
+description: How avirt records and exposes its behavior through logs, audit, metrics, and traces. Covers workload and host logs, stdout and stderr per runtime, severity and fields, content and access, OCSF delivery, integrity and retention, metric attributes and cardinality, metrics from avirtmediatord and avirtedgeproxyd, trace propagation and spans, sampling and trace context privacy, avirtoteld delivery and backpressure, and bundled dashboards and alerts.
 tags: [avirt, observability, logging, audit, ocsf, metrics, tracing, opentelemetry, dashboards]
 implementation: partial
-generated: { by: codex/gpt-6, at: 2026-10-18T03:04:57Z }
+generated: { by: codex/gpt-6, at: 2026-10-18T05:20:59Z }
 ---
 
 # Overview
@@ -21,8 +21,8 @@ avirt produces two kinds of output.
 | Workload stdio log | Durable record | avirthostd's stdio writers | `logs/<workload-id>.stdio.ndjson` | Planned |
 | Audit logs | Durable record | avirthostd and the host services | Each component's audit log, delivered as OCSF by avirtauditd | Planned |
 | Logs | Telemetry | avirtlogd, each daemon, avirthostd's event copies | avirtoteld's destinations | Planned |
-| Metrics | Telemetry | Each daemon, Envoy, libavirtenvoy | avirtoteld's destinations | Planned |
-| Traces | Telemetry | Each daemon, Envoy, avirtacp | avirtoteld's destinations | Planned |
+| Metrics | Telemetry | Each daemon | avirtoteld's destinations | Planned |
+| Traces | Telemetry | Each daemon, avirtacp | avirtoteld's destinations | Planned |
 
 # Status: implemented
 
@@ -40,7 +40,7 @@ The workload ID is 8 random hexadecimal characters. A launch never reuses an ID 
 
 The envelope has fields `{ts, dir, msg}` in that order, with `ts` an RFC 3339 UTC time in milliseconds and `dir` one of `client->agent`, `agent->client`, `meta` and `egress` (see [envelope](./hostd-api.md#envelope) and [meta events](./hostd-api.md#meta-events)). Log lines come from these sources:
 
-- **Workload lines.** avirtinitd builds each envelope and stamps `ts` from the workload container's clock. It sends the envelope in the body of `POST /workloads/<id>/stream`, the one request on the workload's HTTP/2 connection to its mediator (on `mediator.sock`), which today carries only log envelopes. avirthostd splits the request body into lines and writes each line as it arrived. It replaces a line longer than 16 MiB with its own `line_truncated` event.
+- **Workload lines.** avirtinitd builds each envelope and stamps `ts` from the workload container's clock. It sends the envelope in the body of `POST /workloads/<id>/stream`, the one request on the workload's HTTP/2 connection to its mediator (on `mediator.sock`), which today transports only log envelopes. avirthostd splits the request body into lines and writes each line as it arrived. It replaces a line longer than 16 MiB with its own `line_truncated` event.
 - **Egress lines.** The mediator sends one NDJSON `conn` event per proxied connection on its `EGRESS` connection (see [events](./egress.md#events)). avirthostd wraps each in an envelope with `dir: "egress"` and its own `ts`.
 - **avirthostd's events.** avirthostd writes `line_truncated`, `auth_writeback`, `container_error` and `container_exit` itself, with its own `ts`, and holds the errors, the cleanup outcome and `container_exit` until the stream has drained, so `container_exit` is the last line.
 
@@ -74,7 +74,7 @@ avirtlogd acquires the workload containers' output from files the host side writ
 
 - **Containerization.** Containerization doesn't persist container stdio. avirthostd supplies one writer per stream (`LinuxProcessConfiguration.stdout` and `.stderr`), so stdout and stderr arrive separately in avirthostd's process through the Swift dylib. Workloads run with `terminal = false`, because terminal mode merges the streams and rejects a stderr writer. The writers frame the output into `logs/<workload-id>.stdio.ndjson`, as described below.
 - **Docker Desktop.** avirthostd creates each container with the `json-file` log driver and a `max-size` and `max-file` cap. avirtlogd reads those files, and takes each record's identity from avirthostd's record of the container, never from the file (see [components](./components.md#open-questions) for how to access the files).
-- **The <!-- Project glossary runtime name. --><!-- vale project.WordList = NO -->Apple container CLI runtime<!-- vale project.WordList = YES -->.** That runtime writes a merged raw `stdio.log` (without stream tags, timestamps, or rotation) and a `vminitd.log` under `~/Library/Application Support/com.apple.container/containers/<id>/`. avirtlogd doesn't read them. The implemented `container.log` is the only copy of that runtime's output.
+- **The Apple container CLI runtime.** That runtime writes a merged raw `stdio.log` (without stream tags, timestamps, or rotation) and a `vminitd.log` under `~/Library/Application Support/com.apple.container/containers/<id>/`. avirtlogd doesn't read them. The implemented `container.log` is the only copy of that runtime's output.
 
 On the Containerization runtime, avirthostd's writer is on the read path of the workload container's output. Blocking would stall the workload container through vsock, vminitd, and pipe backpressure. A write that throws silently drops the output. The writer must never block:
 
@@ -83,7 +83,7 @@ On the Containerization runtime, avirthostd's writer is on the read path of the 
 3. It frames lines and marks partial lines. It flushes on a timer or a size threshold and caps line length. It encodes invalid UTF-8 as base64.
 4. It flushes on `close()`.
 
-A dedicated writer thread behind the ring writes the per-workload NDJSON file `logs/<workload-id>.stdio.ndjson` (0640, group readable only by avirtlogd's UID), one record per line as `{ts, workload, ns, short_id, stream, partial, text|b64}`. Rotate files and cap their total disk usage. Rotation never removes a segment that avirtlogd hasn't checkpointed past. At the disk cap the writer stops writing and its ring fills. The writer drops further chunks and counts them in a `dropped_bytes` record without stalling the workload. avirtlogd needs only read access to that directory. The VMs, vsock and the virtualization entitlement stay in avirthostd.
+A dedicated writer thread behind the ring writes the per-workload NDJSON file `logs/<workload-id>.stdio.ndjson` (0640, group readable only by avirtlogd's UID), one record per line as `{ts, workload, ns, short_id, stream, partial, text|b64}`. The writer rotates files and caps their total disk usage. Rotation never removes a segment that avirtlogd hasn't checkpointed past. At the disk cap the writer stops writing and its ring fills. The writer drops further chunks and counts them in a `dropped_bytes` record without stalling the workload. avirtlogd needs only read access to that directory. The VMs, vsock and the virtualization entitlement stay in avirthostd.
 
 The VM console, the guest kernel's console plus vminitd's own logs, comes from Containerization's `bootLog` as a file or file handle. avirtlogd reads it as a separate source with `stream=console`.
 
@@ -111,7 +111,7 @@ avirtlogd joins the partial records of one line up to the writer's line cap, and
 
 ### Host service logs
 
-Each avirt daemon logs through `tracing` with a JSON formatter on stderr, one object per line, and also exports each record as OpenTelemetry Logs through the `tracing` log bridge when the deployment includes avirtoteld. stderr is the local copy: avirtinitd captures each child's stderr in server mode, and a direct host install sends it to the supervisor's log. avirtmediatord, avirtmedproxyd and avirtmedproxyd's Envoy write stderr to `logs/<workload-id>.mediator.log` and export through the mediator's outbound socket to avirthostd, which routes the connection to avirtoteld by SNI. `AVIRT_LOG` sets the filter, in `tracing`'s directive syntax, and defaults to `info`.
+Each avirt daemon logs through `tracing` with a JSON formatter on stderr, one object per line, and also exports each record as OpenTelemetry Logs through the `tracing` log bridge when the deployment includes avirtoteld. stderr is the local copy: avirtinitd captures each child's stderr in server mode, and a direct host install sends it to the supervisor's log. avirtmediatord writes stderr to `logs/<workload-id>.mediator.log` and exports through the mediator's outbound socket to avirthostd, which routes the connection to avirtoteld by SNI. `AVIRT_LOG` sets the filter, in `tracing`'s directive syntax, and defaults to `info`.
 
 ### Severity
 
@@ -139,8 +139,8 @@ Each avirt daemon logs through `tracing` with a JSON formatter on stderr, one ob
 | `avirt.src` | `hostd`, `edgeproxy`, `gateway`, `secrets`, `mediator` or `workload` | avirthostd, avirtoteld |
 | `avirt.trust_domain` | The host's trust domain | avirtoteld |
 | `avirt.agent` | `claude` or `codex` | avirthostd |
-| `avirt.decision`, `avirt.rule`, `avirt.mode`, `avirt.policy_version` | A policy decision's outcome, deciding rule, mode, and policy snapshot | libavirtenvoy, avirthostd |
-| `service.name` | The component, such as `avirthostd`, `avirtmediatord`, `envoy-medproxy` or `envoy-edgeproxy` | The producer |
+| `avirt.decision`, `avirt.rule`, `avirt.mode`, `avirt.policy_version` | A policy decision's outcome, deciding rule, mode, and policy snapshot | avirtmediatord, avirtedgeproxyd, avirthostd |
+| `service.name` | The component, such as `avirthostd`, `avirtmediatord` or `avirtedgeproxyd` | The producer |
 
 ### Content and redaction
 
@@ -148,13 +148,13 @@ Workload logs, workload stdio and ACP content are secret. They can contain promp
 
 - **Never logged.** Secret values, placeholder values, header values, request and response bodies, query strings and the contents of `auth.json` never appear in an avirt event, a host service log, a span or a metric (see [events](./egress.md#events-1)). avirt's own events about credentials record fixed reason strings and binding names.
 - **Redaction.** Before export, avirtlogd and avirtoteld replace each match of the placeholder misuse check's patterns (see [placeholders](./egress-credentials.md#placeholders)) and of known credential formats, such as provider API key prefixes, JWTs and PEM private keys, with `[redacted:<kind>]`, and count each replacement in `avirt.log.redactions`. Redaction narrows exposure. It doesn't make content safe to share.
-- **Content off by default.** By default, avirt never records the `gen_ai.input.messages`, `gen_ai.output.messages`, `gen_ai.tool.call.arguments`, and `gen_ai.tool.call.result` attributes, which the semantic conventions mark Opt-In. A namespace can opt in to content in local telemetry, and remote export carries content only for a namespace that opts in to it separately.
+- **Content off by default.** By default, avirt never records the `gen_ai.input.messages`, `gen_ai.output.messages`, `gen_ai.tool.call.arguments`, and `gen_ai.tool.call.result` attributes, which the semantic conventions mark Opt-In. A namespace can opt in to content in local telemetry, and remote export sends content only for a namespace that opts in to it separately.
 - **Remote export.** Export workload stdio log bodies only for namespaces the host configuration specifies. Export only the metadata of each other telemetry record.
 
 | Reader | What | How |
 | --- | --- | --- |
 | A local user, a web UI user, or a workload | One workload's log, by source | `Logs/ReadLog` through avirtapid, authorized by `read_log` with `source` (`acp`, `egress`, `meta` or `stdio`) in the context (see [logs](./operator-cli.md#logs)). The default denies all actions, and a workload caller must follow [workload management](./components.md#workload-management). |
-| avirtadmin | Any workload's log | avirthostd's <!-- Preserve the admin socket interface name. --><!-- vale project.WordList = NO -->admin socket<!-- vale project.WordList = YES -->, as `Admin::"uid:<uid>"` |
+| avirtadmin | Any workload's log | avirthostd's admin socket, as `Admin::"uid:<uid>"` |
 | avirtauditd | Each workload log and audit log, read-only | Group read on the files, by offset |
 | avirtlogd | Workload stdio files, read-only | Group read on `logs/*.stdio.ndjson` (see [listeners](./trust-boundaries.md#listeners)) |
 
@@ -203,7 +203,7 @@ avirtauditd maps each audit event to an OCSF 1.9.0 class, keeps `src` (see [even
 | `conn` events, each decision including `allow`, with the deciding rule, mode and `policy_version` | Network Activity (4001) |
 | `http` events, with their `cred` entries | HTTP Activity (4002) |
 | `dns` events | DNS Activity (4003) |
-| Credential injection, rejection, refresh and broker fetches, from the gateways, libavirtenvoy, and avirtsecretsd | <!-- OCSF event class name. --><!-- vale write-good.TooWordy = NO -->Authorize Session<!-- vale write-good.TooWordy = YES --> (3003) |
+| Credential injection, rejection, refresh and broker fetches, from the gateways, avirtmediatord, and avirtsecretsd | <!-- OCSF event class name. --><!-- vale write-good.TooWordy = NO -->Authorize Session<!-- vale write-good.TooWordy = YES --> (3003) |
 | Web UI authentication and MFA, peer enrollment, and SVID issuance refusals | Authentication (3002) |
 | `auto_approve` permission approvals | API Activity (6003) |
 | Audit chain breaks, `envelope_gap` and `line_truncated` | Application Error (6008) |
@@ -219,7 +219,7 @@ ACP lines aren't audit events. avirtauditd maps the `start` event without its `p
 ### Integrity
 
 - Each audit log line and each workload log line includes `prev`, the SHA-256 of the previous line's bytes in the same file.
-- Each 1000 lines and each 60 s, the writer appends a `checkpoint` record with the `seq` and the hash of the chain's head, signed with its current SVID key and carrying the SVID chain.
+- After every 1000 lines and every 60 s, the writer appends a `checkpoint` record with the `seq` and the hash of the chain's head, signed with its current SVID key and including the SVID chain.
 - avirtauditd verifies `seq` continuity, each `prev` and each checkpoint signature against the SPIFFE bundle, and delivers the checkpoints to each sink with the records they cover.
 - A break is itself an audit event, at `ERROR`, naming the file, the `seq` and the expected and found hashes, and avirtauditd raises the `AuditChainBroken` alert.
 
@@ -229,7 +229,7 @@ A compromised writer can rewrite what it hasn't yet delivered. The chain proves 
 
 - avirthostd and each audit log writer keep a file until each sink has acknowledged it and the local retention period has passed, 30 days by default. They never delete unacknowledged records.
 - At the audit disk cap, avirthostd refuses new launches with 503 and each audit log writer refuses the operations it would record.
-- avirthostd retains an ended workload's log for the same period, then removes it with the workload's record (see [<!-- Project glossary term. --><!-- vale project.WordList = NO -->operator CLI<!-- vale project.WordList = YES -->](./operator-cli.md#open-questions)).
+- avirthostd retains an ended workload's log for the same period, then removes it with the workload's record (see [operator CLI](./operator-cli.md#open-questions)).
 - Workload stdio logs are kept 7 days by default after the workload ends, and aren't audit records.
 
 ## Metrics
@@ -239,7 +239,7 @@ A compromised writer can rewrite what it hasn't yet delivered. The chain proves 
 - Producers export each instrument in [performance metrics](./performance.md) as `avirt.<name>`, such as `avirt.launch.agent_started` and `avirt.egress.connect_setup`. This document adds only the pipeline's own instruments: `avirt.telemetry.shed`, `avirt.stdio.dropped_bytes` and `avirt.log.redactions`.
 - For a metric whose How column says Span, the producer records both a span of that name and a duration histogram of that name. Sampling never thins the histogram.
 - Units are UCUM. Producers record durations in `s`, as the semantic conventions require, and the Unit column of performance metrics is the dashboard display unit.
-- Where the semantic conventions define a metric, avirt emits it too: `http.server.request.duration` and `http.client.request.duration` from the Envoys, `rpc.server.call.duration` from avirtapid and avirthostd, and `gen_ai.client.token.usage` and `gen_ai.client.operation.duration` from avirtmodelgwd.
+- Where the semantic conventions define a metric, avirt emits it too: `http.server.request.duration` and `http.client.request.duration` from avirtmediatord and avirtedgeproxyd, `rpc.server.call.duration` from avirtapid and avirthostd, and `gen_ai.client.token.usage` and `gen_ai.client.operation.duration` from avirtmodelgwd.
 - Counters and histograms use cumulative temporality, so a failed export doesn't lose counts. The next successful export includes them.
 
 ### Attributes and cardinality
@@ -257,24 +257,16 @@ A compromised writer can rewrite what it hasn't yet delivered. The chain proves 
 Metric attributes must exclude the workload's UUIDv7 and short ID, alias, and generated name. They must exclude external hosts, DNS names, paths, conversation or tool call IDs, trace IDs, and user names. These belong on spans, log records, and exemplars.
 
 - **The workload ID.** Host-level instruments don't include workload IDs. An exemplar on a histogram point includes the trace and span IDs of a measurement, and the trace's resource includes `avirt.workload.id`. A dashboard can move from a slow bucket to the workload through its trace.
-- **Per-workload instruments.** `mem.workload`, `mem.mediator`, `cpu.workload`, `cpu.mediator`, `disk.workload` and `connection.frozen_total` describe one workload each, and carry `avirt.workload.id`. Their series end with the workload, and the host's live workload limit bounds them.
-- **Enforcement.** Each SDK instrument has a cardinality limit of 2000 series, past which points go to the `otel.metric.overflow` series. avirtoteld removes each metric attribute outside the table preceding, and `avirt.workload.id` from each instrument except the per-workload ones.
+- **Per-workload instruments.** `mem.workload`, `mem.mediator`, `cpu.workload`, `cpu.mediator`, `disk.workload` and `connection.frozen_total` describe one workload each, and include `avirt.workload.id`. Their series end with the workload, and the host's live workload limit bounds them.
+- **Enforcement.** Each SDK instrument has a cardinality limit of 2000 series, past which points go to the `otel.metric.overflow` series. avirtoteld removes each metric attribute outside the preceding table, and `avirt.workload.id` from each instrument except the per-workload ones.
 
 ### Without a collector
 
 When avirtoteld isn't deployed, producers export nothing over OTLP and write each workload's summaries into its workload log as `meta` `metric` events (see [collection](./performance.md#collection)).
 
-### Envoy stats
+### Metrics from avirtmediatord and avirtedgeproxyd
 
-Both Envoys push their stats with the OpenTelemetry stat sink (`envoy.stat_sinks.open_telemetry`) over gRPC to avirtoteld. Stats use cumulative temporality and tags as attributes.
-
-- **avirtmedproxyd's Envoy.** It pushes through the mediator's outbound socket to avirthostd, which routes it to avirtoteld by SNI, as its own SVID, so avirtoteld stamps the workload's resource attributes.
-- **Selection.** A `stats_matcher` inclusion list keeps the listener, HTTP connection manager, cluster upstream and TLS handshake stats avirt's dashboards use, and drops per-host stats. The <!-- Envoy feature name. --><!-- vale ai-tells.OverusedVocabulary = NO -->dynamic forward proxy<!-- vale ai-tells.OverusedVocabulary = YES --> cluster doesn't emit per-destination stats.
-- **Admin interface.** Each Envoy's <!-- Envoy interface name. --><!-- vale project.WordList = NO -->admin interface<!-- vale project.WordList = YES --> listens only on a Unix socket owned by its UID, and nothing scrapes it.
-
-### libavirtenvoy metrics
-
-libavirtenvoy defines its own counters, gauges and histograms through the <!-- Envoy feature name. --><!-- vale ai-tells.OverusedVocabulary = NO -->dynamic module<!-- vale ai-tells.OverusedVocabulary = YES --> interface, and Envoy exports them with its stats.
+avirtmediatord and avirtedgeproxyd record counters, gauges and histograms through avirt's OpenTelemetry path. Their metrics include connection counts, active streams, TLS handshake results, upstream dial latency, DNS cache outcomes under the same cardinality limits as other daemons. avirtmediatord also records lifecycle and readiness metrics. Each process uses its binary name as `service.name`.
 
 | Instrument | Kind | Attributes |
 | --- | --- | --- |
@@ -301,9 +293,9 @@ flowchart LR
     cli["avirt"] -->|"gRPC metadata"| fd["avirtedgeproxyd"]
     fd --> proxyd["avirtapid"]
     proxyd -->|"gRPC metadata"| hostd["avirthostd"]
-    hostd -->|"bootstrap material, GET /workload"| med["avirtmediatord"]
+    hostd -->|"bootstrap material, GET /workload"| me["avirtmediatord"]
     hostd -->|"bootstrap material"| net["avirtnetd"]
-    net -->|"HTTP/2 stream headers"| me["avirtmedproxyd"]
+    net -->|"HTTP/2 stream headers"| me["avirtmediatord"]
     acp["avirtacp turn span"] -->|"local service socket"| net
     me -->|"h2 CONNECT headers"| fd2["avirtedgeproxyd"]
     me -->|"request headers"| gw["avirtmodelgwd, avirtmcpgwd"]
@@ -315,13 +307,13 @@ flowchart LR
 - **Control plane.** avirt starts a trace for each command and sends `traceparent` to avirtapid through avirtedgeproxyd, whose span joins it. avirtapid and avirthostd continue it.
 - **Into the workload.** avirthostd puts the launch span's `traceparent` into each container's bootstrap material and into `GET /workload`, so avirtmediatord's and avirtnetd's start spans join the launch trace.
 - **Across the workload's connection to its mediator.** avirtnetd sets `traceparent` on each HTTP/2 stream it opens. On an egress stream it uses the main workload process's current turn span, and outside a turn it starts a new trace.
-- **Trust.** Accept a context from a workload, mediator, or peer as a parent, and drop each `tracestate` and `baggage` it includes. Spans that follow it carry the identity attributes avirtoteld stamps from the caller's SVID, so a forged context can misplace spans only within the caller's own workload.
+- **Trust.** Accept a context from a workload, mediator, or peer as a parent, and drop each `tracestate` and `baggage` it includes. Spans that follow it include the identity attributes avirtoteld stamps from the caller's SVID, so a forged context can misplace spans only within the caller's own workload.
 
 ### External endpoints
 
 Trace context never crosses to an external endpoint.
 
-- avirtmedproxyd, avirtedgeproxyd, avirtmodelgwd and avirtmcpgwd don't add a `traceparent`, `tracestate`, `baggage`, `x-request-id`, or `x-envoy-*` header to a request bound for an external endpoint, and an MCP gateway doesn't add trace keys to `_meta`.
+- avirtmediatord, avirtedgeproxyd, avirtmodelgwd and avirtmcpgwd don't add a `traceparent`, `tracestate`, `baggage`, or `x-request-id` header to a request bound for an external endpoint, and an MCP gateway doesn't add trace keys to `_meta`.
 - avirtacp sends the adapter no trace context, because the agent's outbound requests go to external endpoints.
 - Headers and `_meta` keys that the agent itself sends are request content, and pass unchanged.
 - To an enrolled peer, avirtedgeproxyd sends `traceparent` only. A host configuration can turn that off.
@@ -338,7 +330,7 @@ Trace context excludes avirt identifiers. `traceparent` contains only random tra
 | `avirt.launch.connection_attached` | Internal | avirtnetd | At `attached` |
 | `avirt.launch.agent_started` | Internal | avirthostd | At `started` |
 
-Control-plane spans follow the RPC conventions, with `rpc.system.name` `grpc`, `rpc.method` and `rpc.status_code`, and carry the Cedar decision as `avirt.decision` and `avirt.rule`. The spans after the response stay in the launch trace as children of avirthostd's `Workloads/CreateWorkload` span, so one trace covers the launch from the command to `started`. Teardown is its own trace with a span link to the launch.
+Control-plane spans follow the RPC conventions, with `rpc.system.name` `grpc`, `rpc.method` and `rpc.status_code`, and record the Cedar decision as `avirt.decision` and `avirt.rule`. The spans after the response stay in the launch trace as children of avirthostd's `Workloads/CreateWorkload` span, so one trace covers the launch from the command to `started`. Teardown is its own trace with a span link to the launch.
 
 ### ACP turns and tool calls
 
@@ -360,13 +352,13 @@ avirtacp follows the GenAI agent conventions, which are at Development status, a
 
 | Span | Kind | Producer | Attributes |
 | --- | --- | --- | --- |
-| `CONNECT` | Server | avirtmedproxyd, one per agent CONNECT stream | `server.address`, `server.port`, `avirt.dest.kind`, `avirt.path` (`intercept`, `passthrough`), `avirt.decision`, `avirt.rule`, `avirt.policy_version`, `error.type` |
-| `{method}` | Client | avirtmedproxyd, one per request under TLS interception | `http.request.method`, `http.response.status_code`, `server.address`, `url.scheme`, `url.path` (no query), the decision attributes |
+| `CONNECT` | Server | avirtmediatord, one per agent CONNECT stream | `server.address`, `server.port`, `avirt.dest.kind`, `avirt.path` (`intercept`, `passthrough`), `avirt.decision`, `avirt.rule`, `avirt.policy_version`, `error.type` |
+| `{method}` | Client | avirtmediatord, one per request under TLS interception | `http.request.method`, `http.response.status_code`, `server.address`, `url.scheme`, `url.path` (no query), the decision attributes |
 | `CONNECT` | Server | avirtedgeproxyd, one per egress stream | `server.address`, `server.port`, `avirt.dest.kind`, the decision attributes from the host policy snapshot |
 | `chat {model}` | Client | avirtmodelgwd, one per model request | `gen_ai.operation.name`, `gen_ai.provider.name`, `gen_ai.request.model`, `gen_ai.response.model`, `gen_ai.usage.input_tokens`, `gen_ai.usage.output_tokens` where the response reports usage, the provider's request ID as `gen_ai.response.id` |
 | `tools/call {tool}` and the other MCP methods | Client | avirtmcpgwd, one per MCP request | `mcp.method.name`, `mcp.session.id`, `jsonrpc.request.id`, `gen_ai.tool.name`, `gen_ai.operation.name` `execute_tool` for `tools/call` |
 
-The Envoys use their OpenTelemetry tracer, which exports over gRPC to avirtoteld, and libavirtenvoy sets the decision attributes on the active span. DNS queries produce `dns` events and metrics, not spans.
+avirtmediatord and avirtedgeproxyd record spans through `tracing` and export them through avirtoteld, setting decision attributes on each span. DNS queries produce `dns` events and metrics, not spans.
 
 ### Sampling
 
@@ -382,7 +374,7 @@ avirtoteld is a Rust front end that supervises a pinned OpenTelemetry Collector 
 
 - **Front end.** avirtoteld listens on `services/avirtoteld.sock` for OTLP over gRPC with mutual TLS 1.3, authorizes the caller's exact SPIFFE ID (see [listeners](./trust-boundaries.md#listeners)), and rewrites each request's resource attributes: it removes any `avirt.workload.id`, `avirt.workload.short_id`, `avirt.namespace`, `avirt.gen`, `avirt.src` and `avirt.trust_domain` the producer set and stamps the values from the caller's SVID. It then forwards the request to the Collector and returns the Collector's answer to the producer.
 - **Collector.** The child listens only on a Unix socket in avirtoteld's state directory that only avirtoteld's UID can open. avirtoteld generates its configuration from the host configuration without including any secrets. It restarts the child with backoff.
-- **Workload telemetry.** avirtnetd and the main workload process send OTLP on the `/otlp` stream (`POST /otlp`) of the workload's HTTP/2 connection to its mediator, and avirtmedproxyd forwards it to avirtoteld with `x-avirt-src: workload`, which avirtoteld turns into `avirt.src` `workload`.
+- **Workload telemetry.** avirtnetd and the main workload process send OTLP on the `/otlp` stream (`POST /otlp`) of the workload's HTTP/2 connection to its mediator, and avirtmediatord forwards it to avirtoteld with `x-avirt-src: workload`, which avirtoteld turns into `avirt.src` `workload`.
 - **Off-host export.** The Collector's exporters connect through avirtoteld, which forwards each connection to avirtedgeproxyd's egress listener as an h2 CONNECT stream under `/service/avirtoteld`, so the host policy snapshot authorizes each telemetry destination.
 
 | Stage | Components |
@@ -415,8 +407,7 @@ flowchart LR
         runner["avirtacp"] --> net["avirtnetd"]
     end
     subgraph med["mediator"]
-        me["avirtmedproxyd's Envoy + libavirtenvoy"]
-        md["avirtmediatord"]
+        me["avirtmediatord"]
     end
     subgraph host["host"]
         hostd["avirthostd"]
@@ -443,7 +434,6 @@ flowchart LR
     remote(("remote OTLP destinations"))
     net -->|"/otlp stream"| me
     me -->|"SNI routing"| front
-    md -->|"SNI routing"| front
     hostd --> files
     hostd --> journals
     hostd --> front
@@ -471,7 +461,7 @@ avirt includes its dashboards as Grafana dashboard JSON in the repository, provi
 | --- | --- |
 | Host health | Each host service's up state, restarts and degraded state, avirthostd's CPU and memory, live workloads against the limit, launch refusals by reason, disk use of the runtime directory, caches and logs, SVID rotation and issuing CA lifetime, and avirtoteld's queue use, refusals and telemetry dropped with an explicit count |
 | Workload activity | Launches and exits by reason, `launch.agent_started` and `acp.first_update` against their objectives, turns, tool calls by kind and status, permission requests, reconnects of the workload's connection to its mediator and freezes, envelope latency and gaps, and per-workload resources for one selected workload |
-| Egress and policy | Decisions by decision, rule and mode, `would-deny` by rule as the enforce-mode readiness view, errors by kind, connect setup, DNS and dial latency, DNS answers by rcode, top destinations from the `avirt.egress.conn` log records, policy snapshot versions and time to expiry, and prover rejections |
+| Egress and policy | Decisions by decision, rule and mode, `would-deny` by rule as the enforce-mode readiness view, errors by kind, connect setup, DNS and dial latency, DNS answers by rcode, top destinations from the `avirt.egress.conn` log records, policy snapshot versions and time to expiry, prover rejections, active streams, TLS handshakes, and DNS cache outcomes |
 | Credential broker | Injections and rejections by location, hits from the placeholder misuse check, broker fetches and their latency, refresh outcomes, Codex refresh time, provider errors, and time to expiry of each refreshed credential |
 | Model and MCP gateways | Requests, latency and errors by provider and model, token usage, budget use per namespace, and MCP calls by method and outcome |
 | Builds | Queue depth, build duration by kind, failures by stage, cache hit ratio, promotions, and prebuild triggers |
@@ -487,7 +477,7 @@ avirt includes Grafana alert rules with its dashboards, provisioned from files, 
 | `HostDaemonDegraded` | A daemon has used every restart in its budget (see [all-in-one server image](./components.md#all-in-one-server-image)) | Critical |
 | `LaunchesRefused` | avirthostd refused launches with 503 for 5 minutes | Warning |
 | `LaunchSlow` | p95 `launch.agent_started` exceeds its target for 15 minutes | Warning |
-| `PolicySnapshotExpiring` | Any Envoy's `avirt.policy.snapshot_expiry` below 10 minutes | Critical |
+| `PolicySnapshotExpiring` | Either proxy's `avirt.policy.snapshot_expiry` below 10 minutes | Critical |
 | `CredentialMisplaced` | Any placeholder misuse check hit | Warning |
 | `CredentialRefreshFailing` | A credential refresh failed and the credential expires within 30 minutes | Critical |
 | `EventRingRefusing` | `avirt.events.refused` increased in the last 5 minutes | Warning |
@@ -510,8 +500,7 @@ avirt includes Grafana alert rules with its dashboards, provisioned from files, 
 2. **The bundled monitoring stack's licenses.** Grafana, Loki and Tempo are AGPL-3.0, and Prometheus is Apache-2.0. Whether the all-in-one image includes them unmodified, or includes Apache-2.0 alternatives such as Jaeger for traces and VictoriaLogs for logs, is open.
 3. **Bundled monitoring stack authentication.** The stores listen on loopback, where any local process can connect to them. Whether they require authentication from avirtoteld and Grafana is open.
 4. **Exporter transport.** How the Collector child's exporters hand their connections to avirtoteld for avirtedgeproxyd, by a local CONNECT proxy or by avirtoteld forwarding OTLP itself, is open.
-5. **The `/otlp` stream.** The stream needs a place in the [HTTP/2 stream table](./workload-topology.md#http2-streams), a reserved flow-control share and a per-workload rate limit. Its limits are open.
+5. **The `/otlp` stream.** The stream needs a place in the [HTTP/2 stream table](./workload-topology.md#http2-streams), a bounded request queue within the workload's stream limit and a per-workload rate limit. Its limits are open.
 6. **The agent's own telemetry.** Claude Code and Codex can export their own OpenTelemetry. Whether avirt accepts it on an agent socket, labelled `avirt.src` `workload` and off by default, is open.
-7. **libavirtenvoy span attributes.** Whether the <!-- Envoy feature name. --><!-- vale ai-tells.OverusedVocabulary = NO -->dynamic module<!-- vale ai-tells.OverusedVocabulary = YES --> interface lets libavirtenvoy set attributes on Envoy's active span, which the egress spans need, is open.
-8. **Checkpoint verification over time.** Verifying an old checkpoint needs the SPIFFE roots that were in the bundle at the time of signing. Where avirtauditd keeps past bundles is open.
-9. **Ended-workload retention.** Retention for an ended workload's log also forms part of the <!-- Project glossary term. --><!-- vale project.WordList = NO -->operator CLI<!-- vale project.WordList = YES -->'s open question on ended workloads.
+7. **Checkpoint verification over time.** Verifying an old checkpoint needs the SPIFFE roots that were in the bundle at the time of signing. Where avirtauditd keeps past bundles is open.
+8. **Ended-workload retention.** Retention for an ended workload's log also forms part of the operator CLI's open question on ended workloads.
