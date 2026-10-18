@@ -1,5 +1,8 @@
 //! The Containerization runtime, where the `avirtvmd` helper hosts each workload container's VM and the mediator stays a host process.
 
+#[cfg(test)]
+mod tests;
+
 use super::cache::{Artifacts, AvirtvmdPreparer, PINNED};
 use super::images;
 use super::intent::{Intent, State};

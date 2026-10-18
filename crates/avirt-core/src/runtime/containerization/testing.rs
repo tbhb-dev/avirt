@@ -2,8 +2,8 @@
 
 use super::lifecycle::Incarnation;
 use super::proto::{
-    Event, EventKind, ExitStatus, HelperBody, HelperHello, HelperMessage, HostBody, HostMessage, Request, RequestOp,
-    Response, ResponseResult, Started, State, StatusReply, Stopped, WorkloadExited,
+    Event, EventKind, ExitStatus, Failure, HelperBody, HelperHello, HelperMessage, HostBody, HostMessage, Request,
+    RequestOp, Response, ResponseResult, Started, State, StatusReply, Stopped, WorkloadExited,
 };
 use alloc::sync::Arc;
 use anyhow::Result;
@@ -33,6 +33,18 @@ pub(super) struct FakeHelper {
 }
 
 impl FakeHelper {
+    /// Binds `socket` and accepts connections.
+    ///
+    /// # Errors
+    ///
+    /// Returns an error if binding the socket fails.
+    fn bind(socket: &Path, hello: Option<HelperHello>, refuse_starts: bool) -> Result<Self> {
+        let listener = UnixListener::bind(socket)?;
+        let received = Received::default();
+        let task = tokio::spawn(accept(listener, hello, Arc::clone(&received), refuse_starts));
+        Ok(Self { received, task })
+    }
+
     /// Every message received so far, in order.
     #[must_use]
     pub(super) fn received(&self) -> Vec<HostMessage> {
@@ -45,10 +57,16 @@ impl FakeHelper {
     ///
     /// Returns an error if binding the socket fails.
     pub(super) fn spawn(socket: &Path, hello: Option<HelperHello>) -> Result<Self> {
-        let listener = UnixListener::bind(socket)?;
-        let received = Received::default();
-        let task = tokio::spawn(accept(listener, hello, Arc::clone(&received)));
-        Ok(Self { received, task })
+        Self::bind(socket, hello, false)
+    }
+
+    /// Starts the fake on `socket`, answering every `StartWorkload` with a `Failure`.
+    ///
+    /// # Errors
+    ///
+    /// Returns an error if binding the socket fails.
+    pub(super) fn spawn_refusing_starts(socket: &Path, hello: Option<HelperHello>) -> Result<Self> {
+        Self::bind(socket, hello, true)
     }
 }
 
@@ -76,15 +94,15 @@ fn guard(received: &Received) -> MutexGuard<'_, Vec<HostMessage>> {
 
 /// Accepts connections until something aborts the task. The set of connections drops with the task and
 /// takes them down with it.
-async fn accept(listener: UnixListener, hello: Option<HelperHello>, received: Received) {
+async fn accept(listener: UnixListener, hello: Option<HelperHello>, received: Received, refuse_starts: bool) {
     let mut connections = JoinSet::new();
     while let Ok((stream, _)) = listener.accept().await {
-        connections.spawn(converse(stream, hello.clone(), Arc::clone(&received)));
+        connections.spawn(converse(stream, hello.clone(), Arc::clone(&received), refuse_starts));
     }
 }
 
 /// Sends the hello, then records and answers every frame.
-async fn converse(stream: UnixStream, hello: Option<HelperHello>, received: Received) {
+async fn converse(stream: UnixStream, hello: Option<HelperHello>, received: Received, refuse_starts: bool) {
     let mut wire = Framed::new(stream, LengthDelimitedCodec::new());
     if let Some(greeting) = hello {
         let message = HelperMessage::from(HelperBody::Hello(greeting));
@@ -96,7 +114,7 @@ async fn converse(stream: UnixStream, hello: Option<HelperHello>, received: Rece
         let Ok(message) = HostMessage::decode(frame) else { return };
         guard(&received).push(message.clone());
         if let Some(HostBody::Request(request)) = message.into_body()
-            && reply(&mut wire, *request).await.is_err()
+            && reply(&mut wire, *request, refuse_starts).await.is_err()
         {
             return;
         }
@@ -108,13 +126,20 @@ async fn converse(stream: UnixStream, hello: Option<HelperHello>, received: Rece
 /// # Errors
 ///
 /// Returns an error if the connection fails.
-async fn reply(wire: &mut Framed<UnixStream, LengthDelimitedCodec>, request: Request) -> Result<()> {
+async fn reply(
+    wire: &mut Framed<UnixStream, LengthDelimitedCodec>,
+    request: Request,
+    refuse_starts: bool,
+) -> Result<()> {
     let id = request.id;
     let (result, announce) = match request.into_op() {
         Some(RequestOp::Status(_)) => {
             (ResponseResult::Status(StatusReply { exit: None, state: State::Idle.into() }), true)
         }
         Some(RequestOp::Stop(_)) => (ResponseResult::Stopped(Stopped), false),
+        Some(RequestOp::StartWorkload(_)) if refuse_starts => {
+            (ResponseResult::Failure(Failure { message: "the VM can't boot".to_owned() }), false)
+        }
         Some(RequestOp::StartWorkload(_)) | None => (ResponseResult::Started(Started), false),
     };
     let answer = HelperMessage::from(HelperBody::Response(Response::new(id, result)));
