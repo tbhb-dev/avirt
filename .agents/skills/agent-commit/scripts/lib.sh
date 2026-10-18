@@ -9,7 +9,7 @@
 #   1. the environment, AGENT_SKILLS_<KEY> in capitals
 #   2. the machine's file, ~/.config/agent-skills/<repository>.conf
 #   3. the repository's file, agent-skills.conf beside this skill
-# Machine paths belong in the first two.
+# Machine paths belong in the first two. The machine's file is optional.
 # Each file holds `key = value` lines, with `#` comments.
 
 # Before anything else: a CDPATH would make `cd` print a path, and the
@@ -75,12 +75,11 @@ _as_conf_file() {
   ' "$1"
 }
 
-# Keys the repository's own settings file can't set. Each decides for
-# the skill: the reviewer and the account gh
-# has to be signed in as. A commit to the repository could otherwise
-# replace the judge of the next one. They come from the environment or
-# the machine's file alone.
-AS_MACHINE_KEYS=" review_cmd gh_login "
+# Keys the repository's own settings file can't set. The reviewer decides
+# for the skill, and a commit to the repository could otherwise replace
+# the judge of the next one. It comes from the environment or the
+# machine's file alone.
+AS_MACHINE_KEYS=" review_cmd "
 
 # as_conf <key> [default]: the configured value, or the default.
 as_conf() {

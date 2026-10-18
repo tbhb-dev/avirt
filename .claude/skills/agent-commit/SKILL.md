@@ -101,7 +101,7 @@ Both skills can load in one session. Each guard refuses a direct `git commit` an
 
 ## Configuration
 
-`.claude/skills/agent-commit/agent-skills.conf` contains the repository's settings. It sets the reviewer's model and effort, the round bound, and the owner-path pattern. An empty mailbox setting makes reports print. Paths that belong to one machine come from the environment or from `~/.config/agent-skills/<repository>.conf`. A replacement reviewer, `review_cmd`, comes from those two places alone, and the scripts ignore it in the repository's file.
+`.claude/skills/agent-commit/agent-skills.conf` contains the repository's settings. It sets the reviewer's model and effort, the round bound, and the owner-path pattern. An empty mailbox setting makes reports print. The environment and an optional `~/.config/agent-skills/<repository>.conf` override any key. A replacement reviewer, `review_cmd`, comes from those two places alone, and the scripts ignore it in the repository's file.
 
 ## Tests
 

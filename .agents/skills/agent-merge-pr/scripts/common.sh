@@ -14,10 +14,10 @@ AM_DIR=$(cd "$(dirname "${BASH_SOURCE[0]}")" && pwd)
 # shellcheck source-path=SCRIPTDIR source=../../agent-commit/scripts/lib.sh
 . "$AM_DIR/../../agent-commit/scripts/lib.sh"
 
-# The readiness command is a judge, and gh_login says which account may
-# act, so the repository's own settings file can't name either. The library lists the keys it keeps out of
-# that file, and this adds the ones these scripts read.
-AS_MACHINE_KEYS="$AS_MACHINE_KEYS merge_ready_cmd gh_login "
+# The readiness command is a judge, so the repository's own settings file
+# can't name it. The library lists the keys it keeps out of that file, and
+# this adds the ones these scripts read.
+AS_MACHINE_KEYS="$AS_MACHINE_KEYS merge_ready_cmd "
 
 am_need_tools() {
   command -v gh >/dev/null 2>&1 || as_die "gh isn't installed"
