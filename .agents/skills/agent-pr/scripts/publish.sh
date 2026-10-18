@@ -26,8 +26,9 @@
 # read just before it, and the report names it as a rewrite.
 #
 # gh acts as whoever is signed in. Before any write the signed-in login
-# has to be the configured agent account, gh_login, so the skill never
-# acts as the owner.
+# has to be the agent account, gh_login (tbhb-agent unless the environment
+# or the machine's file says otherwise), so the skill never acts as the
+# owner.
 #
 # Usage: publish.sh [--rewrite]
 # Exit: 0 published, 1 refused.
@@ -77,8 +78,10 @@ require_reviewed
 
 command -v gh >/dev/null 2>&1 || as_die "gh is not installed"
 gh auth status >/dev/null 2>&1 || as_die "gh is not authenticated; run gh auth login"
-want_login=$(as_conf gh_login)
-[ -n "$want_login" ] || as_die "gh_login isn't configured; set it to the agent's GitHub account in agent-skills.conf, the environment, or the machine's settings"
+# The agent account defaults to tbhb-agent. Only the environment or the
+# machine's file can change it, never the repository's settings file.
+want_login=$(as_conf gh_login tbhb-agent)
+[ -n "$want_login" ] || as_die "gh_login isn't configured; it is empty in the environment or the machine's settings"
 login=$(gh api user --jq .login 2>/dev/null) || as_die "gh couldn't say which account it is signed in as"
 [ "$login" = "$want_login" ] || as_die "gh is signed in as ${login:-nobody}, not $want_login; nothing was pushed"
 

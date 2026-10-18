@@ -82,7 +82,7 @@ bash .claude/skills/agent-merge-pr/scripts/merge.sh <pr> <head>
 Pass the head commit the review stamped, in full, as the preflight printed it. At each condition below, the script re-reads the live pull request, and it refuses unless every one holds. They run in this order:
 
 1. The stamp covers the draft's bytes and this pull request. The head it records matches the one you passed and the one the pull request has now. The base branch and its commit match the ones the review read, so a pull request moved to another base, or a base that moved since, goes back to review.
-2. `gh` signed in as the agent's own account, the one `gh_login` names. A merge can't be undone, and `gh` acts as whichever account holds the session.
+2. `gh` signed in as the agent's own account, the one `gh_login` names, `tbhb-agent` unless the environment or the machine's file says otherwise. A merge can't be undone, and `gh` acts as whichever account holds the session.
 3. An open pull request that isn't a draft, without the `owner-review` label. That label sends a pull request to the owner.
 4. An approval from the account `required_reviewer` names. Its latest approving, change-requesting, or dismissing review has to be an approval, and the review has to be on the pull request's current head. A change request, a dismissal, no review, an approval of an older head, or an empty `required_reviewer` refuses the merge. A comment or a pending review doesn't count.
 5. A merge state of `CLEAN`. `BEHIND` and `DIRTY` go to the `rebase` skill.
@@ -115,7 +115,7 @@ Both skills can load in one session. The installed guard refuses any `gh pr` ver
 
 ## Configuration
 
-`.claude/skills/agent-commit/agent-skills.conf` holds the repository's settings, shared with the other agent skills. Merging reads `review_squash_criteria`, `lint_squash_cmd`, and `merge_verify_tries`, plus the reviewer's model and effort, the round bound, the mailbox (empty here, so reports print), and the owner-path pattern. The environment and an optional `~/.config/agent-skills/<repository>.conf` override any key. The readiness command (`merge_ready_cmd`) and a replacement reviewer (`review_cmd`) come from those two places alone. Neither works from the repository's file. Before it reads the pull request, `merge.sh` checks that each pattern setting is one `grep` reads, and refuses when one is empty or broken, because a pattern that doesn't match anything would let its check pass. Preflight reports a broken one too.
+`.claude/skills/agent-commit/agent-skills.conf` holds the repository's settings, shared with the other agent skills. Merging reads `review_squash_criteria`, `lint_squash_cmd`, and `merge_verify_tries`, plus the reviewer's model and effort, the round bound, the mailbox (empty here, so reports print), and the owner-path pattern. The environment and an optional `~/.config/agent-skills/<repository>.conf` override any key. The readiness command (`merge_ready_cmd`), the agent's GitHub account (`gh_login`, default `tbhb-agent`), and a replacement reviewer (`review_cmd`) come from those two places alone. Neither works from the repository's file. Before it reads the pull request, `merge.sh` checks that each pattern setting is one `grep` reads, and refuses when one is empty or broken, because a pattern that doesn't match anything would let its check pass. Preflight reports a broken one too.
 
 ## Tests
 

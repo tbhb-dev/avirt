@@ -76,10 +76,11 @@ _as_conf_file() {
 }
 
 # Keys the repository's own settings file can't set. The reviewer decides
-# for the skill, and a commit to the repository could otherwise replace
-# the judge of the next one. It comes from the environment or the
+# for the skill, and the agent account says who may act. A commit to the
+# repository could otherwise replace the judge of the next one, or the
+# account its own publish accepts. They come from the environment or the
 # machine's file alone.
-AS_MACHINE_KEYS=" review_cmd "
+AS_MACHINE_KEYS=" review_cmd gh_login "
 
 # as_conf <key> [default]: the configured value, or the default.
 as_conf() {

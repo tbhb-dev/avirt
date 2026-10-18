@@ -1160,6 +1160,16 @@ hook_command() {
   git rev-parse --verify --quiet refs/heads/feature >/dev/null
 }
 
+@test "the agent account defaults to tbhb-agent" {
+  unset AGENT_SKILLS_GH_LOGIN
+  printf 'the-owner\n' >"$fx/login"
+  stamped
+  merge
+  [ "$status" -eq 1 ]
+  [[ $output == *"gh is signed in as the-owner, not tbhb-agent"* ]] || false
+  [ "$(merged_calls)" = 0 ]
+}
+
 @test "a worktree holding only caches goes after the merge" {
   mkdir -p "$repo/.claude/worktrees/feature/target/debug" "$repo/.claude/worktrees/feature/apm_modules/x"
   printf 'x\n' >"$repo/.claude/worktrees/feature/target/debug/x"

@@ -70,8 +70,10 @@ require_reviewed
 # gh acts as whoever is signed in, and a merge can't be undone, so the
 # signed-in login has to be the configured agent account before
 # anything else reads or writes for this merge.
-want_login=$(as_conf gh_login)
-[ -n "$want_login" ] || as_die "gh_login isn't configured; set it to the agent's GitHub account in agent-skills.conf, the environment, or the machine's settings"
+# The agent account defaults to tbhb-agent. Only the environment or the
+# machine's file can change it, never the repository's settings file.
+want_login=$(as_conf gh_login tbhb-agent)
+[ -n "$want_login" ] || as_die "gh_login isn't configured; it is empty in the environment or the machine's settings"
 login=$(gh api user --jq .login 2>/dev/null) || as_die "gh couldn't say which account it is signed in as"
 [ "$login" = "$want_login" ] || as_die "gh is signed in as ${login:-nobody}, not $want_login; nothing was merged"
 

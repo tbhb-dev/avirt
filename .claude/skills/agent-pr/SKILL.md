@@ -103,7 +103,7 @@ Both skills can load in one session. Each hook refuses a direct `gh pr create`, 
 
 ## Configuration
 
-`.claude/skills/agent-commit/agent-skills.conf` contains the repository's settings for this skill too. Among them are the reviewer and the round bound, the description lint with its Related pattern and title check, and the mailbox, which is empty here so reports print. The environment and an optional `~/.config/agent-skills/<repository>.conf` override any key. A replacement reviewer, `review_cmd`, comes from those two places alone, and the scripts ignore it in the repository's file. `gh_login` holds the agent's GitHub account. With none, `publish.sh` refuses before it writes anything. An empty `lint_pr_cmd` fails the checks, because the description lint has to run.
+`.claude/skills/agent-commit/agent-skills.conf` contains the repository's settings for this skill too. Among them are the reviewer and the round bound, the description lint with its Related pattern and title check, and the mailbox, which is empty here so reports print. The environment and an optional `~/.config/agent-skills/<repository>.conf` override any key. A replacement reviewer, `review_cmd`, comes from those two places alone, and the scripts ignore it in the repository's file. The agent's GitHub account, `gh_login`, defaults to `tbhb-agent`, and only the environment or the machine's file can change it. An empty value makes `publish.sh` refuse before it writes anything. An empty `lint_pr_cmd` fails the checks, because the description lint has to run.
 
 ## Tests
 

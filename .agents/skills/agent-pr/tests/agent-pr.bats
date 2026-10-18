@@ -1439,3 +1439,16 @@ EOF
   [[ $output == *"gh_login isn't configured"* ]] || false
   [ ! -e "$tmp/push.calls" ]
 }
+
+@test "the agent account defaults to tbhb-agent, and the repository's settings file can't change it" {
+  unset AGENT_SKILLS_GH_LOGIN
+  cp -R "$scripts/../../agent-commit" "$tmp/skill"
+  printf 'gh_login = the-owner\n' >"$tmp/skill/agent-skills.conf"
+  run bash -c ". '$tmp/skill/scripts/lib.sh'; as_conf gh_login tbhb-agent"
+  [ "$output" = tbhb-agent ]
+  printf 'the-owner\n' >"$tmp/login"
+  reviewed
+  publish
+  [ "$status" -eq 1 ]
+  [[ $output == *"gh is signed in as the-owner, not tbhb-agent"* ]] || false
+}
