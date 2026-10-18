@@ -180,6 +180,7 @@ hashbrown
 hchan
 HCS
 HEXDIG
+hexdigit
 hidepid
 hostauth
 hostd
@@ -402,6 +403,7 @@ stdout
 subcommand
 subcommands
 subprocess
+subsec
 subtree
 subtrees
 SVID

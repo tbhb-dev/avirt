@@ -184,12 +184,16 @@ description = "Fail when Cargo.lock holds a dependency with a published RustSec 
 run = "cargo deny check advisories"
 
 [tasks.build-image]
-description = "Build one workload image (claude or codex); the repository root is the build context"
+description = "Build one workload image (claude or codex) and save it as an OCI archive in target/images"
 usage = 'arg "<agent>" help="claude or codex"'
-run = "container build -f workloads/${usage_agent}/Containerfile -t avirt-workload-${usage_agent}:dev ."
+run = [
+  "container build -f workloads/${usage_agent}/Containerfile -t avirt-workload-${usage_agent}:dev .",
+  "mkdir -p target/images",
+  "container image save --platform linux/arm64 -o target/images/avirt-workload-${usage_agent}_dev.tar avirt-workload-${usage_agent}:dev",
+]
 
 [tasks.build-images]
-description = "Build both workload images"
+description = "Build both workload images and save their archives"
 depends = ["build-image claude", "build-image codex"]
 
 [tasks.serve]

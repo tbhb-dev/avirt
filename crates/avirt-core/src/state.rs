@@ -41,10 +41,23 @@ pub struct Swept {
 }
 
 impl Root {
+    /// The guest artifact caches (the kernel, the init filesystem, and root filesystems). The sweep
+    /// leaves it alone.
+    #[must_use]
+    pub fn cache(&self) -> PathBuf {
+        self.path.join("cache")
+    }
+
     /// The directory with the socket mediators dial.
     #[must_use]
     pub fn hostd(&self) -> PathBuf {
         self.path.join("hostd")
+    }
+
+    /// Where imported images live. The sweep leaves it alone.
+    #[must_use]
+    pub fn images(&self) -> PathBuf {
+        self.path.join("images")
     }
 
     /// Creates (or reuses) the state root and takes its lock.
