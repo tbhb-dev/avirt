@@ -3,8 +3,8 @@ name = "avirtbuilderd"
 version = "0.1.0"
 edition.workspace = true
 rust-version.workspace = true
-publish.workspace = true
 description = "The builder, which watches VCS and builds repo OCI artifacts for fast workload startup."
+publish.workspace = true
 
 [lints]
 workspace = true

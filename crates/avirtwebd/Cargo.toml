@@ -3,8 +3,8 @@ name = "avirtwebd"
 version = "0.1.0"
 edition.workspace = true
 rust-version.workspace = true
-publish.workspace = true
 description = "The backend for the avirt web UI."
+publish.workspace = true
 
 [lints]
 workspace = true

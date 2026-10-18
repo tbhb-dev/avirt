@@ -5,11 +5,11 @@ edition.workspace = true
 rust-version.workspace = true
 publish.workspace = true
 
+[dependencies]
+agent-client-protocol = { version = "3.4.0", features = ["process", "unstable_protocol_v2"] }
+avirt-core = { path = "../avirt-core" }
+serde_json = { version = "1.0.154", features = ["preserve_order"] }
+tokio = { version = "1.53.3", features = ["macros", "rt-multi-thread"] }
+
 [lints]
 workspace = true
-
-[dependencies]
-avirt-core = { path = "../avirt-core" }
-agent-client-protocol = { version = "3.4.0", features = ["process", "unstable_protocol_v2"] }
-serde_json = { version = "1.0.154", features = ["preserve_order"] }
-tokio = { version = "1.53.3", features = ["rt-multi-thread", "macros"] }

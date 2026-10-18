@@ -1,0 +1,10 @@
+---
+name: avirt
+version: 0.1.0
+description: Shared agent tools for avirt
+target: [claude]
+dependencies:
+  apm:
+    - tbhb-dev/devtools/packages/agents/claude#v0.12.0
+    - tbhb-dev/devtools/packages/agents/common#v0.12.0
+  mcp: []

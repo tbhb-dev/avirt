@@ -1,11 +1,38 @@
 # avirt host toolchain and tasks. Apple `container` (1.5.0 or later) is a prerequisite that mise cannot install.
 # Credentials live in the uncommitted mise.local.toml, which mise loads on top of this file.
 
+[settings]
+lockfile = true
+idiomatic_version_file_enable_tools = []
+
 [tools]
-uv = "latest"
+vendir = "0.46.1"
+apm = "0.33.0"
+shfmt = "3.14.1"
+jq = "1.8.2"
+"go:github.com/tbhb-dev/devtools/cmd/guard-markdown" = "v0.12.0"
 # The one source of truth for the Rust version: the crates' `rust-version` and the images'
 # builder stage (`rust:1.97.1-bookworm`) follow it.
 rust = { version = "1.97.1", profile = "minimal", components = "clippy,rustfmt" }
+
+[env]
+DEVTOOLS_LOCK_PLATFORMS = "linux-x64,macos-arm64"
+DEVTOOLS_GENERATED_PATHS = ".devtools/\n.config/mise/\ntarget/\ntmp/\nspikes/\nlogs/\n.vale/"
+DEVTOOLS_PROSE_GLOB = "*.{md,rs}"
+
+[task_config]
+includes = [
+  ".devtools/tasks/fix.toml",
+  ".devtools/tasks/format.toml",
+  ".devtools/tasks/git-hooks.toml",
+  ".devtools/tasks/leaks.toml",
+  ".devtools/tasks/lint.toml",
+  ".devtools/tasks/pins.toml",
+  ".devtools/tasks/preapproval.toml",
+  ".devtools/tasks/security.toml",
+  ".devtools/tasks/toolchain.toml",
+  ".devtools/tasks/vendir.toml",
+]
 
 [tasks.build]
 description = "Build every crate"
@@ -15,7 +42,7 @@ run = "cargo build --workspace"
 description = "Run the unit tests"
 run = "cargo test --workspace"
 
-[tasks.lint]
+[tasks.lint-rust]
 description = "clippy with warnings denied"
 run = "cargo clippy --workspace --all-targets -- -D warnings"
 
@@ -27,8 +54,8 @@ run = "cargo fmt"
 shell = "bash -c"
 description = "guard-markdown on every tracked Markdown file, then the OKF check on docs/ and on every other Markdown file"
 run = """
-command -v guard-markdown >/dev/null || { echo "guard-markdown not found; install it with: go install github.com/tbhb/repotools/cmd/guard-markdown@latest" >&2; exit 1; }
-git ls-files -z '*.md' | while IFS= read -r -d '' f; do [ -e "$f" ] && printf '%s\\0' "$f"; done | xargs -0 guard-markdown
+command -v guard-markdown >/dev/null || { echo "guard-markdown not found; install it with: go install github.com/tbhb-dev/devtools/cmd/guard-markdown@v0.12.0" >&2; exit 1; }
+git ls-files -z '*.md' ':!:.devtools/**' ':!:.claude/**' ':!:apm_modules/**' | while IFS= read -r -d '' f; do [ -e "$f" ] && printf '%s\\0' "$f"; done | xargs -0 guard-markdown
 uv run --no-project --with pyyaml python scripts/okf-check.py docs
 uv run --no-project --with pyyaml python scripts/okf-check.py --repo .
 """
@@ -76,4 +103,35 @@ run = [
   "cargo fmt --check --manifest-path crates/avirtenvoy/Cargo.toml",
   "cargo clippy --locked --manifest-path crates/avirtenvoy/Cargo.toml --target-dir target/envoy-module --all-targets -- -D warnings",
   "cargo test --locked --manifest-path crates/avirtenvoy/Cargo.toml --target-dir target/envoy-module",
+]
+
+[tasks.lint-prose]
+extends = "devtools:lint-prose"
+
+[tasks.lint-commit-msg]
+extends = "devtools:lint-commit-msg"
+
+[tasks.lint-squash-msg]
+extends = "devtools:lint-squash-msg"
+
+[tasks.lint]
+extends = "devtools:lint"
+run = [
+  "mise run devtools:check-vendored",
+  "mise run devtools:check-pins",
+  "mise run devtools:lint-leaks",
+  "mise run devtools:check-leak-hook",
+  "mise run lint-prose",
+  "mise run devtools:lint-spelling",
+  "mise run devtools:lint-markdown",
+  "mise run devtools:lint-markdown-wrap",
+  "mise run devtools:lint-config",
+  "mise run devtools:lint-yaml",
+  "mise run devtools:lint-toml",
+  "mise run devtools:lint-mise",
+  "mise run devtools:lint-workflows",
+  "mise run devtools:lint-shell",
+  "mise run devtools:lint-shell-fmt",
+  "mise run devtools:lint-curl",
+  "mise run lint-rust",
 ]

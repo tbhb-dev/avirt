@@ -32,7 +32,7 @@ _Loader.yaml_implicit_resolvers = {
 
 SEGMENT = re.compile(r"[A-Za-z0-9_][A-Za-z0-9_.\-]*")
 INDEX_ENTRY = re.compile(r"^\* \[[^\]]+\]\([^)]+\)( - .+)?$")
-SKIP_DIRS = {"docs", "target", "node_modules", "logs"}
+SKIP_DIRS = {"docs", "target", "node_modules", "apm_modules", "tmp", "logs"}
 LINK = re.compile(r"\]\((\./[^)#]+|[A-Za-z0-9_-]+\.md)\)")
 
 

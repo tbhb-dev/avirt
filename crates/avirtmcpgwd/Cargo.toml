@@ -3,8 +3,8 @@ name = "avirtmcpgwd"
 version = "0.1.0"
 edition.workspace = true
 rust-version.workspace = true
-publish.workspace = true
 description = "The MCP gateway."
+publish.workspace = true
 
 [lints]
 workspace = true

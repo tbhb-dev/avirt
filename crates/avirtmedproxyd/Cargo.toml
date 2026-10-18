@@ -3,8 +3,8 @@ name = "avirtmedproxyd"
 version = "0.1.0"
 edition.workspace = true
 rust-version.workspace = true
-publish.workspace = true
 description = "The mediator proxy: supervises the mediator's Envoy with libavirtenvoy and serves it local xDS and SDS."
+publish.workspace = true
 
 [lints]
 workspace = true

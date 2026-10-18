@@ -1,0 +1,6 @@
+# Provider reference syntax uses placeholder vault and item names.
+^docs/secrets\.md$
+# The 1Password syntax example uses explicitly fake vault and item IDs.
+^docs/secrets-1password\.md$
+# Intentional private and CGNAT IP fixtures exercise CONNECT destination rejection.
+^crates/avirt-connect/src/lib\.rs$

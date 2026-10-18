@@ -1,0 +1,11 @@
+.devtools/
+.config/mise/conf.d/
+.vale/
+.claude/
+apm_modules/
+target/
+tmp/
+logs/
+spikes/
+apm.lock.yaml
+vendir.lock.yml

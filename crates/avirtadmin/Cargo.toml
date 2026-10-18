@@ -3,8 +3,8 @@ name = "avirtadmin"
 version = "0.1.0"
 edition.workspace = true
 rust-version.workspace = true
-publish.workspace = true
 description = "The local admin CLI."
+publish.workspace = true
 
 [lints]
 workspace = true

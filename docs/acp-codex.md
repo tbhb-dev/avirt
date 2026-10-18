@@ -4,7 +4,7 @@ title: Codex harness
 description: How avirt runs Codex through codex-acp, with the pinned adapter and its bundled Codex, how avirtinitd launches it over ACP v1, the auth.json seed, refresh and write-back and its planned placeholders, Codex modes, the configuration sources and managed configuration paths Codex reads, quirks and the egress destinations the harness needs.
 tags: [avirt, acp, codex, harness, codex-acp]
 implementation: partial
-generated: { by: claude-code/claude-opus-5-5, at: 2026-10-17T22:30:00Z }
+generated: { by: codex/gpt-6, at: 2026-10-18T02:37:39Z }
 ---
 
 # Status: implemented
@@ -19,24 +19,24 @@ generated: { by: claude-code/claude-opus-5-5, at: 2026-10-17T22:30:00Z }
 
 `workloads/codex/Containerfile` installs the adapter with `npm ci --omit=dev` into `/opt/agent` and puts `/opt/agent/node_modules/.bin` first on `PATH`. The image is `avirt-workload-codex:dev`, or `CODEX_IMAGE` in avirthostd's environment, and sets `AVIRT_AGENT=codex`.
 
-codex-acp is a bridge: it starts the bundled Codex as `codex app-server`, a child process, and translates between ACP and Codex's app-server JSON-RPC. It restarts a crashed app-server with backoff, up to 5 crashes in 5 minutes (`CODEX_ACP_APP_SERVER_CRASH_LIMIT` and `CODEX_ACP_APP_SERVER_CRASH_WINDOW_MS` override both), and allows the app-server 30 s for its handshake.
+codex-acp starts the bundled Codex as `codex app-server`, a child process. It translates between ACP and Codex's app-server JSON-RPC. It restarts a crashed app-server with backoff, up to 5 crashes in 5 minutes (`CODEX_ACP_APP_SERVER_CRASH_LIMIT` and `CODEX_ACP_APP_SERVER_CRASH_WINDOW_MS` override both), and allows the app-server 30 s for its handshake.
 
 ## Launch
 
 avirtinitd starts `codex-acp` as uid 1000 through the common launch path in [ACP](./acp.md#adapter-process), with no extra variables. The adapter inherits `CODEX_HOME=/codex-home` and `INITIAL_AGENT_MODE` from avirtinitd's environment.
 
-- **Protocol.** ACP v1, which codex-acp hardcodes. avirtinitd uses the SDK's `Client.builder()` with the `schema::v1` types and sends `protocolVersion: 1` with the default client capabilities.
-- **Authentication.** avirtinitd makes no `authenticate` call, because the adapter's `chat-gpt` method forces a token refresh on every launch. Codex reads `auth.json` from `CODEX_HOME` itself. The advertised method ids are logged as an `auth_methods` meta event.
-- **Session.** One `session/new` with `cwd` and no MCP servers, then one `session/prompt`. The `session/prompt` response ends the turn and carries the stop reason, and session updates are printed as they arrive, concurrently with the request.
+- **Protocol.** ACP v1, which codex-acp sets in its code. avirtinitd uses the SDK's `Client.builder()` with the `schema::v1` types and sends `protocolVersion: 1` with the default client capabilities.
+- **Authentication.** avirtinitd skips the `authenticate` call, because the adapter's `chat-gpt` method forces a token refresh on every launch. Codex reads `auth.json` from `CODEX_HOME` itself. avirtinitd logs the advertised method ids as an `auth_methods` meta event.
+- **Session.** One `session/new` with `cwd` and no MCP servers, then one `session/prompt`. The `session/prompt` response ends the turn and contains the stop reason. avirtinitd prints session updates as they arrive, concurrently with the request.
 - **Permissions.** Codex's approval requests arrive as `session/request_permission`, and avirtinitd approves them (see [permission requests](./acp.md#permission-requests)).
 
 ## Authentication
 
-avirthostd refuses a codex launch with a 400 unless the host `auth.json` exists (`~/.codex/auth.json`, or `CODEX_HOST_HOME/auth.json`). Per launch, it copies the file into a private scratch directory, mounts that directory at `/codex-home`, and sets `CODEX_HOME=/codex-home`. When the workload container is gone, it writes a refreshed copy back to the host under the rules in [credentials](./egress-credentials.md#codex), and logs the outcome as `auth_writeback`. No host `config.toml` is copied, so `CODEX_HOME` holds only `auth.json` and whatever Codex writes there during the session.
+avirthostd refuses a codex launch with a 400 unless the host `auth.json` exists (`~/.codex/auth.json`, or `CODEX_HOST_HOME/auth.json`). For each launch, it copies the file into a private scratch directory and mounts that directory at `/codex-home`. It sets `CODEX_HOME=/codex-home`. Once the workload container no longer exists, avirthostd writes a refreshed copy back to the host under the rules in [credentials](./egress-credentials.md#codex), and logs the outcome as `auth_writeback`. It skips the host `config.toml`, so `CODEX_HOME` contains only `auth.json` and whatever Codex writes there during the session.
 
 ## Modes
 
-codex-acp reads `INITIAL_AGENT_MODE` at startup. avirthostd passes it through from its own environment when it is set.
+codex-acp reads `INITIAL_AGENT_MODE` at startup. avirthostd passes it through from its own environment when that environment sets it.
 
 | Mode | Codex sandbox and approvals |
 | --- | --- |
@@ -55,17 +55,17 @@ Codex reads, highest precedence first:
 | --- | --- | --- |
 | Requirements | `/etc/codex/requirements.toml` | No |
 | Managed defaults | `/etc/codex/managed_config.toml` | No |
-| Project | `.codex/config.toml` in `/workspace` and its parents, the closest winning | Only if the `cwd` directory holds it |
+| Project | `.codex/config.toml` in `/workspace` and its parents, the closest taking precedence | Only if the `cwd` directory holds it |
 | User | `$CODEX_HOME/config.toml` | No |
 | System | `/etc/codex/config.toml` | No |
 
-codex-acp also merges `CODEX_CONFIG`, a JSON object in its environment, into each session's config, and it is not set. Requirements are constraints that no other layer can loosen. Managed defaults override the user's `config.toml` and CLI `--config` overrides at every startup. Codex loads project `.codex/` layers, including project config, hooks and rules, only for a trusted project, and the trust records live in the user `config.toml`. `CODEX_HOME` holds no `config.toml`, so `/workspace` is untrusted and its `.codex/config.toml` is ignored. `AGENTS.md` files are instructions, not configuration, and Codex reads them whether or not the project is trusted.
+codex-acp also merges `CODEX_CONFIG`, a JSON object in its environment, into each session's config, and it's not set. Requirements are constraints that no other layer can loosen. Managed defaults override the user's `config.toml` and command-line `--config` overrides at every startup. Codex loads project `.codex/` layers, including project config, hooks, and rules, only for a trusted project, and the trust records live in the user `config.toml`. `CODEX_HOME` lacks `config.toml`, so Codex treats `/workspace` as untrusted and ignores its `.codex/config.toml`. `AGENTS.md` files are instructions, not configuration, and Codex reads them regardless of project trust.
 
 ## Quirks
 
 - **Missing first output chunk.** codex-acp 2.2.2 never sends the first `_meta.terminal_output_delta` of a command's output, so that first chunk is absent from Codex workload logs. A command that prints three lines yields only the second and third.
-- **Startup downloads.** At startup Codex downloads large artifacts from several `*.oaiusercontent.com` hosts.
-- **Concurrent refresh.** Two concurrent workloads that start from the same stale refresh token cannot both refresh, so the second one's refresh fails (see [credentials](./egress-credentials.md#codex)).
+- **Startup downloads.** At startup Codex downloads large artifacts from more than one `*.oaiusercontent.com` host.
+- **Concurrent refresh.** When two concurrent workloads start from the same stale refresh token, they can't both refresh. The second one's refresh fails (see [credentials](./egress-credentials.md#codex)).
 
 ## Egress destinations
 
@@ -101,7 +101,7 @@ The keys of `harness.toml` are in [ACP](./acp.md#harnesstoml).
 
 ## Authentication
 
-`CODEX_HOME` is `/home/agent/.codex`, in the workload container's own writable layer, with no host mount. avirtinitd writes `auth.json` there at boot from the placeholder copy of the file that arrives in `confirm`: the `id_token` and `access_token` keep their real header and payload with a placeholder signature, and the `refresh_token` is a placeholder. avirtmodelgwd injects the real tokens on `chatgpt.com` and `api.openai.com`, and avirtmedproxyd intercepts Codex's refresh on `auth.openai.com` and answers it with new placeholders, so no write-back exists. The token shapes, the bindings and the refresh path are in [credentials](./egress-credentials.md#codex-1) and [Codex refresh](./egress-credentials.md#codex-refresh).
+`CODEX_HOME` is `/home/agent/.codex`, in the workload container's own writable layer, with no host mount. avirtinitd writes `auth.json` there at boot from the placeholder copy of the file that arrives in `confirm`: the `id_token` and `access_token` keep their real header and payload with a placeholder signature, and the `refresh_token` is a placeholder. avirtmodelgwd injects the real tokens on `chatgpt.com` and `api.openai.com`, and avirtmedproxyd intercepts Codex's refresh on `auth.openai.com` and answers it with new placeholders, so no write-back exists. The token formats, the bindings and the refresh path are in [credentials](./egress-credentials.md#codex-1) and [Codex refresh](./egress-credentials.md#codex-refresh).
 
 ## Managed configuration
 
@@ -124,15 +124,15 @@ command = "/usr/local/bin/avirtmcp"
 identity = { command = "/usr/local/bin/avirtmcp" }
 ```
 
-The requirements' `mcp_servers` table is an allowlist, so Codex starts no MCP server other than avirtmcp, whatever a project or user `config.toml` defines. The launch's mode also reaches codex-acp as `INITIAL_AGENT_MODE` in `/etc/avirt/launch.toml`, so the ACP session's mode and Codex's defaults agree.
+The requirements' `mcp_servers` table is an allowlist, so Codex starts only avirtmcp as an MCP server, whatever a project or user `config.toml` defines. avirtinitd also passes the launch's mode to codex-acp as `INITIAL_AGENT_MODE` in `/etc/avirt/launch.toml`, so the ACP session's mode and Codex's defaults agree.
 
 ## Workspace configuration
 
-With the overlay in place, a workspace's Codex configuration is limited as follows:
+The overlay limits a workspace's Codex configuration:
 
-- `/workspace/.codex/config.toml` is ignored, because the project is untrusted.
-- `/home/agent/.codex` is a user path in `harness.toml`, so a workspace layer that writes it, such as one that ships a `config.toml` marking `/workspace` trusted, is refused at launch.
-- `AGENTS.md` files are read as instructions.
+- Codex ignores `/workspace/.codex/config.toml`, because it treats the project as untrusted.
+- `/home/agent/.codex` is a user path in `harness.toml`, so avirthostd refuses a workspace layer that writes it at launch. This includes a layer with a `config.toml` marking `/workspace` trusted.
+- Codex reads `AGENTS.md` files as instructions.
 
 ## Egress destinations
 
@@ -146,5 +146,5 @@ The policy rules are in [egress](./egress-policies.md#external-destinations).
 
 # Open questions
 
-1. **Managed defaults and project config.** The managed-configuration documentation places `managed_config.toml` above the user `config.toml` and CLI overrides, but not relative to a trusted project's `.codex/config.toml`. Whether a managed default also overrides project config matters only if a project is ever trusted.
-2. **Modes as requirements.** Whether the overlay also constrains the sandbox and approval values in `requirements.toml` (`allowed_permission_profiles` for Codex 0.138.0 and later), so that an operator's mode change through the session control API cannot leave the launch's mode, is open.
+1. **Managed defaults and project config.** The managed-configuration documentation gives `managed_config.toml` precedence over the user `config.toml` and command-line overrides, but not relative to a trusted project's `.codex/config.toml`. Whether a managed default also overrides project config matters only when a project has trusted status.
+2. **Modes as requirements.** Whether the overlay also constrains the sandbox and approval values in `requirements.toml` (`allowed_permission_profiles` for Codex 0.138.0 and later), so that an operator's mode change through the session control API can't leave the launch's mode, is open.

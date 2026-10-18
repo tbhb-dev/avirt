@@ -3,8 +3,8 @@ name = "avirtnetd"
 version = "0.1.0"
 edition.workspace = true
 rust-version.workspace = true
-publish.workspace = true
 description = "The guest networking daemon: link endpoint, egress, ingress, stub DNS resolver and guest control API."
+publish.workspace = true
 
 [lints]
 workspace = true

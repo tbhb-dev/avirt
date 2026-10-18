@@ -3,8 +3,8 @@ name = "avirtpolicyd"
 version = "0.1.0"
 edition.workspace = true
 rust-version.workspace = true
-publish.workspace = true
 description = "The policy service, which stores, compiles, proves and distributes Cedar policy snapshots."
+publish.workspace = true
 
 [lints]
 workspace = true

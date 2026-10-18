@@ -3,12 +3,12 @@
 use std::collections::HashSet;
 use std::net::{IpAddr, Ipv4Addr, Ipv6Addr};
 
-/// Everything that is not a global unicast address: loopback, private, link-local, CGNAT,
-/// benchmarking, documentation, multicast, reserved and broadcast ranges for IPv4; and for IPv6
+/// Everything that isn't a global unicast address: loopback, private, link-local, CGNAT,
+/// benchmarking, documentation, multicast, reserved, and broadcast ranges for IPv4. For IPv6 it covers
 /// loopback, unspecified, IPv4-compatible, unique-local, link-local, site-local, multicast,
 /// discard, documentation, benchmarking, ORCHID, `ORCHIDv2`, segment-routing SIDs,
 /// IPv4-translated, Teredo, NAT64 and, through their embedded IPv4 address, IPv4-mapped
-/// and 6to4. A destination that lands in one of these is the host or its neighbours, not the
+/// and 6to4. A destination in one of these is the host or its neighbors, not the
 /// internet.
 #[must_use]
 pub fn is_private(ip: IpAddr) -> bool {
@@ -33,7 +33,7 @@ fn v4_special(ip: Ipv4Addr) -> bool {
         || (a == 198 && (b == 18 || b == 19)) // benchmarking
         || (a == 198 && b == 51 && c == 100) // documentation
         || (a == 203 && b == 0 && c == 113) // documentation
-        || a >= 224 // multicast, reserved and broadcast
+        || a >= 224 // multicast, reserved, and broadcast
 }
 
 fn v6_special(ip: Ipv6Addr) -> bool {
@@ -86,9 +86,9 @@ pub fn host_addresses() -> std::io::Result<HashSet<IpAddr>> {
         .collect())
 }
 
-/// Check every resolved address, refusing empty answers and unavailable host interfaces.
+/// Check every resolved address. Refuse empty answers and unavailable host interfaces.
 #[must_use]
-#[allow(clippy::implicit_hasher)] // Matches the host_addresses result shared by both engines.
+#[allow(clippy::implicit_hasher)] // Matches the `host_addresses` result shared by both engines.
 pub fn destination_allowed(addrs: &[IpAddr], own: &std::io::Result<HashSet<IpAddr>>) -> bool {
     let Ok(own) = own else { return false };
     !addrs.is_empty() && addrs.iter().all(|ip| !is_private(*ip) && !is_host_address(*ip, own))
