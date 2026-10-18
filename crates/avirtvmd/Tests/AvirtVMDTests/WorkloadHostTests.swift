@@ -125,4 +125,34 @@ struct WorkloadHostTests {
     await host.stop(graceSeconds: 5)
     #expect(await host.current == .idle)
   }
+
+  @Test("A stop during the start waits for the launch, then stops the workload that launched")
+  func stopDuringStart() async throws {
+    let scratch = try ScratchDirectory()
+    defer { scratch.remove() }
+    let workload = FakeWorkload(exitOnTerminate: true)
+    let gate = AsyncStream.makeStream(of: Void.self)
+    let host = WorkloadHost(workload: "1a2b3c4d") { _ in
+      for await _ in gate.stream { break }
+      return workload
+    }
+    let spec = try spec(scratch)
+    let starting = Task { try await host.start(digest: "a") { spec } }
+    while await host.current != .starting { try await Task.sleep(for: .milliseconds(5)) }
+
+    let stopped = Counter()
+    let stopping = Task {
+      await host.stop(graceSeconds: 5)
+      stopped.increment()
+    }
+    try await Task.sleep(for: .milliseconds(200))
+    #expect(stopped.value == 0)
+    #expect(workload.terminations == 0)
+
+    gate.continuation.yield()
+    await stopping.value
+    try await starting.value
+    #expect(workload.terminations == 1)
+    #expect(await host.waitForExit() == WorkloadOutcome(code: 143, error: ""))
+  }
 }

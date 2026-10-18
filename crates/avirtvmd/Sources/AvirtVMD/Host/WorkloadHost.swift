@@ -53,7 +53,6 @@ actor WorkloadHost {
   private var digest: String?
   private var virtual: (any VirtualWorkload)?
   private var stdio: StdioLog?
-  private var stopWanted = false
   private var startWaiters: [CheckedContinuation<Void, Never>] = []
   private var exitListeners: [UUID: AsyncStream<WorkloadOutcome>.Continuation] = [:]
 
@@ -92,7 +91,6 @@ actor WorkloadHost {
       phase = .running
       watch(launched)
       resumeStartWaiters()
-      if stopWanted { await stop(graceSeconds: 0) }
     } catch {
       phase = .idle
       digest = nil
@@ -105,13 +103,15 @@ actor WorkloadHost {
 
   /// Stops the workload.
   ///
-  /// It sends SIGTERM, then forces a stop after the grace period. Calling it again does nothing more.
+  /// During a start it waits for the start to settle, then stops the workload that launched. It sends
+  /// SIGTERM, then forces a stop after the grace period. Calling it again does nothing more.
   func stop(graceSeconds: UInt32) async {
     switch phase {
     case .idle, .exited:
       return
     case .starting:
-      stopWanted = true
+      await withCheckedContinuation { startWaiters.append($0) }
+      await stop(graceSeconds: graceSeconds)
       return
     case .stopping, .running:
       break
