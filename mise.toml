@@ -10,6 +10,7 @@ vendir = "0.46.1"
 apm = "0.33.0"
 shfmt = "3.14.1"
 jq = "1.8.2"
+"github:EmbarkStudios/cargo-deny" = "0.20.2"
 "go:github.com/tbhb-dev/devtools/cmd/guard-markdown" = "v0.12.0"
 # The one source of truth for the Rust version: the crates' `rust-version` and the images'
 # builder stage (`rust:1.97.1-bookworm`) follow it.
@@ -22,6 +23,7 @@ DEVTOOLS_PROSE_GLOB = "*.{md,rs}"
 
 [task_config]
 includes = [
+  ".devtools/tasks/apm.toml",
   ".devtools/tasks/fix.toml",
   ".devtools/tasks/format.toml",
   ".devtools/tasks/git-hooks.toml",
@@ -88,6 +90,14 @@ run = [
   "cargo test --workspace",
 ]
 
+[tasks.check-all]
+description = "Deeper bar: check and lint plus the full-history gitleaks scan"
+run = ["mise run check", "mise run lint", "mise run devtools:gitleaks"]
+
+[tasks.vuln]
+description = "Fail when Cargo.lock holds a dependency with a published RustSec advisory"
+run = "cargo deny check advisories"
+
 [tasks.build-image]
 description = "Build one workload image (claude or codex); the repository root is the build context"
 usage = 'arg "<agent>" help="claude or codex"'
@@ -124,6 +134,18 @@ run = [
   "cargo test --locked --manifest-path crates/avirtenvoy/Cargo.toml --target-dir target/envoy-module",
 ]
 
+[tasks.lint-draft]
+extends = "devtools:lint-draft"
+
+[tasks.lint-pr-description]
+extends = "devtools:lint-pr-description"
+run = [
+  "bash .claude/skills/pr/scripts/validate-description.sh",
+  "vale --output=ai-tells-agent.tmpl PR_AGENTDESC.md",
+  "cspell --config .cspell.jsonc --no-summary --no-progress PR_AGENTDESC.md",
+  "bash $DEVTOOLS_DIR/scripts/check-leaks.sh PR_AGENTDESC.md",
+]
+
 [tasks.lint-prose]
 extends = "devtools:lint-prose"
 
@@ -138,6 +160,7 @@ extends = "devtools:lint"
 run = [
   "mise run devtools:check-vendored",
   "mise run devtools:check-pins",
+  "mise run devtools:lint-apm",
   "mise run devtools:lint-leaks",
   "mise run devtools:check-leak-hook",
   "mise run lint-prose",

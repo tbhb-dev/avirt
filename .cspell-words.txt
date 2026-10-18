@@ -3,6 +3,7 @@ ACL
 ACP
 addrs
 agentclientprotocol
+AGENTDESC
 agentr
 AGPL
 allowlist
@@ -389,6 +390,7 @@ tbhb
 teardown
 temporality
 TLS
+tmpl
 tombi
 TOML
 toolchain

@@ -1,0 +1,5 @@
+# cargo-deny config for `mise run vuln`, which checks advisories only.
+[advisories]
+# Unmaintained notices fail only for crates the workspace names itself. A
+# transitive crate such as pingora's serde_yaml is not ours to replace.
+unmaintained = "workspace"
