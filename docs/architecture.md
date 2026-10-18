@@ -11,7 +11,7 @@ generated: { by: codex/gpt-6, at: 2026-10-18T05:20:59Z }
 
 `avirt` runs ACP agents (Claude through claude-agent-acp, Codex through codex-acp, see [ACP](./acp.md)) inside isolated containers on an Apple silicon Mac. A mediator handles and logs all network egress. Each avirt binary is Rust, and the ACP client uses the official `agent-client-protocol` crate. The planned data plane consists of avirtmediatord and avirtedgeproxyd.
 
-Status: implemented. The current code has these components. See [topology](#status-planned) and [components](./components.md) for the planned design.
+Status: implemented. The current code has these components. See [topology](#status-implemented) and [components](./components.md) for the planned design.
 
 | Component | Binary | Runs | Role |
 | --- | --- | --- | --- |
@@ -28,6 +28,36 @@ The **control plane** is avirthostd plus the host services that configure and de
 The full planned component inventory, covering the host services, the mediator container, the sandbox container and the all-in-one server image, is in [components](./components.md).
 
 # Topology
+
+## Status: implemented
+
+The mediator is a host process. The sandbox container has no network. Its only connections are two Unix socket files that the container runtime relays to the mediator.
+
+```mermaid
+flowchart LR
+    subgraph workload["sandbox container (--network none, --init)"]
+        agent["agent (uid 1000, no caps, seccomp)"]
+        relay["avirtinitd TCP proxy 127.0.0.1:PORT"]
+        avirtinitd["avirtinitd (root)"]
+        agent -->|HTTPS_PROXY| relay
+    end
+    subgraph host["macOS host"]
+        med["avirtmediatord (one per workload)"]
+        hostd["avirthostd"]
+        logs[("logs/WORKLOAD-ID.ndjson")]
+        upstream(("upstream"))
+        cli["avirt launch"]
+    end
+    relay -->|"/run/avirt/proxy.sock"| psock{{"proxy.sock (0600)"}}
+    psock --> med
+    med -->|"CONNECT"| upstream
+    avirtinitd -->|"/run/avirt/mediator.sock"| usock{{"mediator.sock (0600)"}}
+    usock --> med
+    med -->|"hostd.sock, bytes forwarded unchanged (HTTP/2)"| hostd
+    med -.->|"hostd.sock, egress events"| hostd
+    hostd --> logs
+    cli -->|"POST /launch, 127.0.0.1:8787"| hostd
+```
 
 ## Status: planned
 

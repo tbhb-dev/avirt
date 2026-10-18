@@ -3,9 +3,56 @@ type: Component Design
 title: Egress and TLS termination
 description: Flow authorization, protocol inspection, credential checks, upstream connections, DNS and websockets in avirtmediatord and avirtedgeproxyd, with TLS certificates and egress events.
 tags: [avirt, egress, proxy, tls, networking]
-implementation: planned
+implementation: partial
 generated: { by: codex/gpt-6, at: 2026-10-18T12:00:00Z }
 ---
+
+# Status: implemented
+
+## Path
+
+The sandbox container runs with `--network none`, so TCP, UDP, DNS and IPv6 all fail inside it and only loopback works. The agent's only way out is avirtinitd's TCP proxy to `proxy.sock`, which forwards to the mediator's CONNECT proxy on `proxy.sock` (see [workload topology](./workload-topology.md)). Every client must honour the proxy variables. Claude Code, Codex, Node `fetch` and `https` (with `NODE_USE_ENV_PROXY=1`), npm, git, and curl all do. `git://` and `ssh://` don't work.
+
+## Mediator process
+
+```text
+avirtmediatord --dir DIR --hostd-sock PATH --workload ID
+```
+
+It runs one Pingora 0.9.0 `Server` with two Unix-socket services at 0600: the CONNECT app on `proxy.sock`, and on `mediator.sock` a TCP proxy that forwards the bytes of avirtinitd's HTTP/2 connection unchanged to avirthostd. Stdin EOF or SIGINT means fast shutdown and SIGTERM graceful shutdown with no grace-period delay and at most one second for service runtimes to drain. Either way it first flushes every open connection as an event with `error: "shutdown"`. Stdin EOF ties its lifetime to avirthostd's. Stopping avirthostd with SIGKILL also stops every mediator.
+
+## Pingora CONNECT app
+
+Pingora never reuses connections or checks peers because the socket's mode controls access.
+
+1. Read the request head (at most 8 KiB, 10 s timeout) and parse it with `httparse`. Ignore a connection that closes before sending a byte (a readiness probe). Forward bytes after the blank line upstream, including an early TLS ClientHello.
+2. Accept only `CONNECT host:port` with an explicit port of 1-65535 written as 1 to 5 ASCII digits without a sign or leading zero. Accept a hostname or IP literal, convert it to lowercase, and strip any trailing dot. An authority that looks like IPv4 must be a canonical dotted quad, so reject `2130706433`, `0177.0.0.1`, `0x7f000001`, and `127.1` as malformed.
+3. Resolve the name with `tokio::net::lookup_host`, with a 10 s timeout, and apply the private-address block below to every resolved address. One refused address refuses the whole CONNECT.
+4. Dial the addresses in order, with a 10 s timeout for dialing. Reply `200 Connection Established`, flush, and copy in both directions with byte counts until either side closes or shutdown fires. Omit an idle timeout because model API streams are long-lived.
+
+| Status | Cause |
+| --- | --- |
+| 400 | Malformed head or authority (`bad-request`) |
+| 403 | `private-dest` |
+| 501 | Any method other than CONNECT (`plain-http` for an absolute `http://` URI, else `unsupported-method`) |
+| 502 | DNS or dial failure |
+| 504 | Connection timeout |
+
+The proxy allows and logs other destinations under rule `allow-all`.
+
+## Private-address block (`private-dest`)
+
+The private-address block refuses resolved addresses in non-global ranges: loopback, RFC 1918, CGNAT, link-local, benchmarking, documentation, multicast, reserved and broadcast, and for IPv6 also unique-local, site-local, Teredo, discard, NAT64 (`64:ff9b::/96`, `64:ff9b:1::/48`), 6to4 (through its embedded IPv4) and IPv4-mapped or IPv4-compatible addresses. IPv6 also refuses IPv4-translated `::ffff:0:0:0/96`, benchmarking `2001:2::/48`, ORCHID `2001:10::/28`, ORCHIDv2 `2001:20::/28`, documentation `3fff::/20` and segment-routing SIDs `5f00::/16`. The block also refuses addresses on the host's own interfaces, including global addresses. It reads them with `getifaddrs` on each CONNECT. Failure to read host interfaces refuses the connection with 403. Its event uses rule `private-dest` and error `"host addresses"`.
+
+## Events
+
+Each proxied connection becomes one `dir: "egress"` line in `logs/<workload-id>.ndjson`, written when the connection closes. The mediator flushes connections still open at shutdown with `error: "shutdown"`.
+
+```json
+{"ts":"…","dir":"egress","msg":{"event":"conn","workload":"7e759259","started":"…","method":"CONNECT","host":"api.anthropic.com","port":443,"decision":"allow","rule":"allow-all","bytes_up":1234,"bytes_down":56789,"duration_ms":4200,"error":null}}
+```
+
+To list the hosts a set of workloads used: `jq -r 'select(.dir=="egress") | .msg | "\(.host):\(.port)"' logs/*.ndjson | sort | uniq -c`.
 
 # Status: planned
 

@@ -66,16 +66,18 @@ The sandbox container holds placeholders and the workload's MITM CA certificate,
 
 ## Default-deny egress through one global PEP
 
-### Status: planned
+Every flow leaves through the workload's mediator and, in the planned design, avirtedgeproxyd.
 
-Every flow leaves through the workload's mediator and avirtedgeproxyd. Enforce mode requires a Cedar permit for each flow, request, and DNS query. Each destination check runs outside the sandbox container.
-
-- The sandbox VM has no network device. Its TUN and nftables REDIRECT send TCP, UDP, and ICMP to avirtnetd. DNS to any address on port 53 uses one `/dns` stream per query. [Networking](./networking.md) defines the flow protocols and limits.
-- avirtedgeproxyd checks every real upstream address for non-global ranges and host-interface addresses, using a routing-socket watcher. Synthetic addresses never exempt a destination from `private-dest`.
-- Names come only from the mediator's persistent synthetic table or an explicit CONNECT authority. SNI and Host on real-address flows remain observations. On named flows they must match the flow name, and ECH causes refusal.
-- Passthrough permits access to an endpoint and whatever it tunnels. Distinguishing names at a shared endpoint requires interception. DNS, ICMP payloads and timing remain possible channels under policy.
-- macOS content filtering covers TCP and UDP. Every avirt host daemon other than avirtedgeproxyd also has a process sandbox profile denying non-loopback inet sockets, including ICMP. Linux restricts off-host connections by UID.
-- TCP and UDP ingress require publication and permission from both hosts' edge proxies and the destination mediator. Each UDP association binds its caller, workload generation, publication and tunnel, with expiry, revocation, and amplification limits.
+- **Met.** The sandbox container has no network interface other than loopback, and its only path out is avirtinitd's TCP proxy to `proxy.sock`, the mediator's CONNECT proxy ([egress](./egress.md#path)).
+- **Met.** The mediator accepts only `CONNECT host:port` with an explicit port and a canonical hostname or IP literal ([CONNECT app](./egress.md#pingora-connect-app)).
+- **Met.** The mediator refuses each resolved address in a non-global range or assigned to one of the host's own interfaces, which it reads on each connection ([private-address block](./egress.md#private-address-block-private-dest)).
+- **Future.** Enforce mode requires an explicit Cedar permit for each flow, request, or DNS query. Today the mediator allows each destination that passes the private-address block under rule `allow-all` ([decision semantics](./egress-policies.md#decision-semantics)).
+- **Future.** The sandbox VM has no network device. Its TUN and nftables REDIRECT send TCP, UDP, and ICMP to avirtnetd. DNS to any address on port 53 uses one `/dns` stream per query. [Networking](./networking.md) defines the flow protocols and limits.
+- **Future.** avirtedgeproxyd checks every real upstream address for non-global ranges and host-interface addresses, using a routing-socket watcher. Synthetic addresses never exempt a destination from `private-dest`.
+- **Future.** Names come only from the mediator's persistent synthetic table or an explicit CONNECT authority. SNI and Host on real-address flows remain observations. On named flows they must match the flow name, and ECH causes refusal.
+- **Future.** Passthrough permits access to an endpoint and whatever it tunnels. Distinguishing names at a shared endpoint requires interception. DNS, ICMP payloads and timing remain possible channels under policy.
+- **Future.** macOS content filtering covers TCP and UDP. Every avirt host daemon other than avirtedgeproxyd also has a process sandbox profile denying non-loopback inet sockets, including ICMP. Linux restricts off-host connections by UID.
+- **Future.** TCP and UDP ingress require publication and permission from both hosts' edge proxies and the destination mediator. Each UDP association binds its caller, workload generation, publication and tunnel, with expiry, revocation, and amplification limits.
 
 ## Strong workload identity
 
@@ -113,8 +115,8 @@ A credential binding requires trust in its recipient: an upstream can return an 
 A compromised mediator controls only its own workload's traffic. It can't access a real model or MCP credential. Access to another workload or the network must pass through avirtedgeproxyd.
 
 - **Met.** The mediator starts from an empty environment that contains only its secret ([mediator secret](./identity.md#mediator-secret)).
-- **Met.** avirthostd binds each mediator connection to the workload its connection header names, and serves only that workload's `POST /workloads/<id>/stream` route on it ([sockets](./workload-topology.md#runtime-provided-sockets)).
-- **Future.** The mediator runs in its own VM with no network interface other than loopback. ([mediator network](./egress.md#mediator-network)).
+- **Met.** avirthostd binds each mediator connection to the workload its connection header names, and serves only that workload's `POST /workloads/<id>/stream` route on it ([sockets](./workload-topology.md#sockets)).
+- **Future.** The mediator runs in its own VM with no network interface other than loopback. Today it's a host process with the user's network access and file access ([Pingora CONNECT app](./egress.md#pingora-connect-app)).
 - **Future.** avirtmediatord handles traffic and lifecycle in one process. A parser bug exposes its SVID's private key and mediator-injected credentials inside the per-workload mediator VM, which has no network device ([mediator Landlock rules](./landlock.md#mediator), [compromise scope](./trust-boundaries.md#compromise-scope)).
 - **Future.** The mediator has only placeholders and short-lived mediator-injected credentials. Long-lived real credentials for model or MCP traffic remain outside it ([bindings](./egress-credentials.md#bindings)).
 - **Future.** avirthostd's SNI routing never connects one mediator to another, and each host listener refuses a superseded generation ([SNI routing](./workload-topology.md#sni-routing)).

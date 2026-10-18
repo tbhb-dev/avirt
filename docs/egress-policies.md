@@ -3,9 +3,13 @@ type: Security Design
 title: Egress policies
 description: The Cedar policy model for egress, ingress and the control plane, with the avirt Cedar schema and its entities, actions, context and tags, the enforcement points in avirtmediatord, avirtedgeproxyd and avirthostd, name resolution and canonicalization with the restrictions on like, the connect, intercept, passthrough, resolve and request semantics, audit and enforce modes and their exemptions, policy snapshot building, distribution, versioning and expiry, revocation of open flows, the policy prover and the MITM CA name constraints it derives, failure behavior, and worked examples.
 tags: [avirt, egress, policy, cedar, prover, policy snapshots, security]
-implementation: planned
+implementation: partial
 generated: { by: codex/gpt-6, at: 2026-10-18T05:20:59Z }
 ---
+
+# Status: implemented
+
+The current code has no policy engine. The CONNECT app allows every destination that passes the private-address block and logs it under rule `allow-all` (see [egress](./egress.md#pingora-connect-app)).
 
 # Status: planned
 

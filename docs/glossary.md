@@ -217,7 +217,11 @@ The control message with which avirtmediatord releases a sandbox container to st
 
 ## CONNECT
 
-The HTTP method that opens a tunnel to `host:port`. avirtnetd uses one HTTP/2 CONNECT stream per TCP flow, including transparent TCP, and the optional forward proxy. See [HTTP/2 streams](./networking.md#http2-streams).
+The HTTP method that opens a tunnel to `host:port`. The implemented mediator accepts it through its [CONNECT app](./egress.md#pingora-connect-app). Status: planned. avirtnetd uses one HTTP/2 CONNECT stream per TCP flow received through a transparent listener or the optional forward proxy. See [HTTP/2 streams](./networking.md#http2-streams).
+
+## CONNECT app
+
+The implemented mediator's Pingora CONNECT proxy on `proxy.sock`, which parses the authority, applies the private-address block and dials upstream. See [CONNECT app](./egress.md#pingora-connect-app).
 
 ## Connection token
 

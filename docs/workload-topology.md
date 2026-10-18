@@ -3,9 +3,37 @@ type: Protocol Specification
 title: Workload topology and connections
 description: The connections inside one workload and between workloads (sandbox container, mediator, avirthostd, host services, avirtedgeproxyd), the runtime-provided Unix sockets and avirthostd's SNI routing, the HTTP/2 streams on the workload's connection to its mediator, launch handshake, freeze, reconnect, resuming the `/envelopes` stream and port publication.
 tags: [avirt, workload, protocol, http2]
-implementation: planned
+implementation: partial
 generated: { by: codex/gpt-6, at: 2026-10-18T05:20:59Z }
 ---
+
+# Status: implemented
+
+## Sockets
+
+The sandbox container uses `--network none`. The runtime mounts two Unix socket files into it with `-v` from the workload's private directory `workloads/<id>/` (0700). For each mounted socket file, the runtime forwards connections to the host process listening on it. Both files are mode 0600 on the host, which maps through, so only root in the sandbox container can open them.
+
+| Guest path | Host listener | Traffic |
+| --- | --- | --- |
+| `/run/avirt/mediator.sock` | Mediator | The workload's HTTP/2 connection to its mediator, which today transports only log envelopes, on its one request `POST /workloads/<id>/stream`. The mediator forwards its bytes unchanged to avirthostd. |
+| `/run/avirt/proxy.sock` | Mediator | The CONNECT proxy (see [egress](./egress.md)) |
+
+To connect to avirthostd, the mediator dials its socket `hostd/hostd.sock` (directory 0700, socket 0600). Each connection starts with a one-line connection header naming its kind, the workload and the mediator's secret (see [identity](./identity.md)), read within 5 s:
+
+- `WORKLOAD <id> <secret>`: `avirthostd` binds the connection to that workload and serves only that workload's `POST /workloads/<id>/stream` route over it. The mediator then forwards the HTTP/2 bytes unchanged between avirtinitd (client) and avirthostd's stream handler (server).
+- `EGRESS <id> <secret>`: plain NDJSON egress events, one per proxied connection. `avirthostd` wraps each in the log envelope with `dir: "egress"`. avirthostd accepts only one event connection per workload.
+
+At startup, the mediator opens the `EGRESS` connection. It dials a `WORKLOAD` connection only when the workload's first bytes arrive on `mediator.sock`, so a readiness probe (connect and close) costs avirthostd nothing.
+
+## Connection to the mediator
+
+`avirtinitd` connects to `mediator.sock` within 5 s and completes the HTTP/2 handshake within 5 s. It sends `POST /workloads/<id>/stream` with its connection token (`AVIRT_CONNECTION_TOKEN`), then waits 4 s for the response headers. Retries wait 300 ms. The total limit is 15 s. A 403, 404, 409, or 410 ends retries. A socket file without a listener accepts a connection but never responds, so each step has a timeout. Starting the TCP proxy to `proxy.sock` and the agent requires avirthostd's acceptance of that request. Otherwise, `avirtinitd` fails with a message that identifies the mediator.
+
+## TCP proxy to `proxy.sock`
+
+`avirtinitd` listens on an ephemeral `127.0.0.1` port. It forwards each connection to `proxy.sock`. The agent connects to it through `HTTPS_PROXY` and the related variables (see [workload hardening](./workload-hardening.md)).
+
+Forwarded sockets must never half-close. With a `-v` socket-file mount, sending `SHUT_WR` immediately after the last write loses the peer's reply. To avoid that loss, the TCP proxy omits forwarding a client's end-of-stream. After the client finishes, each read on the other direction has a 30 s idle timeout. When the host side ends or a read idles out, the proxy notifies the client and closes. The log can show a proxied connection lasting longer than the client's connection.
 
 # Status: planned
 
