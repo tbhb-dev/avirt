@@ -365,6 +365,22 @@ impl Hostd {
         result
     }
 
+    /// Runs a launch to completion on the tracker.
+    ///
+    /// A caller that goes away, such as a client that disconnects during a VM boot, drops only its wait.
+    /// The launch still ends in a running workload that avirthostd supervises, or in a full teardown.
+    ///
+    /// # Errors
+    ///
+    /// Returns the launch's error, or an error if the launch task panics.
+    async fn launch_detached(self: &Arc<Self>, agent: String, prompt: String, cwd: Option<PathBuf>) -> Result<String> {
+        let shared = Arc::clone(self);
+        self.tracker
+            .spawn(async move { shared.launch(&agent, &prompt, cwd.as_deref()).await })
+            .await
+            .map_err(|err| anyhow!("the launch task failed: {err}"))?
+    }
+
     /// The workload's log file.
     fn log_path(&self, id: &str) -> PathBuf {
         self.config.logs_dir.join(format!("{id}.ndjson"))
