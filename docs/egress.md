@@ -4,7 +4,7 @@ title: Egress and TLS termination
 description: How the agent's network traffic leaves the workload container, the mediator's CONNECT proxy and private-address block, the planned avirtmedproxyd pipeline, avirtedgeproxyd as policy enforcement point, workload DNS, websockets, TLS termination with the workload's MITM CA and its delivery into the workload container, where policy is evaluated on the data path, the event format and the mediator's lack of a network.
 tags: [avirt, egress, proxy, pingora, envoy, tls]
 implementation: partial
-generated: { by: codex/gpt-6, at: 2026-10-18T02:37:39Z }
+generated: { by: codex/gpt-6, at: 2026-10-18T05:21:55Z }
 ---
 
 # Status: implemented
@@ -162,7 +162,7 @@ After TLS termination, the downstream connection uses h1. Websocket upgrades arr
 Workload policy defines the CA's interception scope. When it creates the workload, avirthostd asks avirtpolicyd's prover for the set of hosts the workload policy snapshot can permit `intercept` for (see [MITM CA name constraints](./egress-policies.md#mitm-ca-name-constraints)):
 
 - **A bounded set.** The CA contains X.509 name constraints whose permitted DNS subtrees are exactly those hosts and domains, so a leaf for any other name fails validation in the agent.
-- **An empty set.** avirthostd never issues a MITM CA and leaves it out of `confirm`. External connections require a `passthrough` permit.
+- **An empty set.** avirthostd leaves the workload without a MITM CA and omits it from `confirm`. External connections require a `passthrough` permit.
 - **An unbounded set.** The CA contains no name constraints.
 
 libavirtenvoy never issues a leaf outside the CA's constraints. A later policy snapshot that permits `intercept` for a host outside them can't intercept that host's TLS. The connection uses TLS passthrough if policy permits `passthrough`. Otherwise, libavirtenvoy denies it.
@@ -180,7 +180,7 @@ It then sets `NODE_EXTRA_CA_CERTS=/run/avirt/ca.pem`, and sets `SSL_CERT_FILE`, 
 | Client | Trust behavior |
 | --- | --- |
 | Claude Code 2.1.300 | No certificate pinning. `CLAUDE_CODE_CERT_STORE` defaults to `bundled,system`, and it appends `NODE_EXTRA_CA_CERTS`. It doesn't load `SSL_CERT_FILE`. |
-| Codex 0.160.1 | Uses rustls with native roots, without pinning. `CODEX_CA_CERTIFICATE` takes precedence over `SSL_CERT_FILE`, and both its HTTP and websocket clients add the bundle. |
+| Codex 0.160.1 | Uses native roots, without pinning. `CODEX_CA_CERTIFICATE` takes precedence over `SSL_CERT_FILE`, and both its HTTP and websocket clients add the bundle. |
 | npm | Honors `NODE_EXTRA_CA_CERTS` and `cafile` without pinning. |
 | git | Honors `GIT_SSL_CAINFO` without pinning. |
 

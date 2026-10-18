@@ -1,7 +1,7 @@
 ---
 type: CLI Reference
-title: Guest commands
-description: The avirtguest command-line tool runs as uid 1000 inside a workload container and connects to avirtapid through avirtnetd, avirtmedproxyd, and avirtedgeproxyd as the guest-cli principal. Its commands manage other workloads, sessions, logs, and ports under authorization and escalation constraints. Includes a comparison with avirt, output formats, exit codes, and the API call and Cedar action for each command.
+title: Guest CLI
+description: The avirtguest guest CLI runs as uid 1000 inside a workload container and connects to avirtapid through avirtnetd, avirtmedproxyd, and avirtedgeproxyd as the guest-cli principal. Its commands manage other workloads, sessions, logs, and ports under authorization and escalation constraints. Includes a comparison with avirt, output formats, exit codes, and the API call and Cedar action for each command.
 tags: [avirt, cli, avirtguest, workload-management]
 implementation: planned
 generated: { by: codex/gpt-6, at: 2026-10-18T04:29:26Z }

@@ -3,7 +3,7 @@ type: Agent Instructions
 title: "Agent instructions: avirtmediatord"
 description: "Guidance for AI coding agents working in the `avirtmediatord` crate."
 tags: [avirt, crate, avirtmediatord]
-generated: { by: codex/gpt-6, at: 2026-10-18T02:56:31Z }
+generated: { by: codex/gpt-6, at: 2026-10-18T05:11:39Z }
 ---
 
 # Agent instructions: avirtmediatord
@@ -26,7 +26,7 @@ The mediator binary. It runs one Pingora `Server` with two Unix-socket services 
 - Produce exactly one event per proxied connection. Flush connections still open at shutdown with `error: "shutdown"`.
 - Create both sockets with mode 0600. Their mode is the access control, so don't loosen it.
 - The secret goes only into the `WORKLOAD` and `EGRESS` connection headers. Never log it or put it on argv.
-- Shut down on stdin EOF. The mediator must stop by the time avirthostd exits.
+- Shut down on stdin EOF so the mediator doesn't stay running after avirthostd exits.
 
 ## Testing
 

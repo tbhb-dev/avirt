@@ -34,7 +34,7 @@ Agents working in this repository should read [AGENTS.md](AGENTS.md). See [docs/
 - `crates/avirtlogd/` contains the `avirtlogd` binary. The log collector gathers workload stdout and stderr, transforms it and sends it to avirtoteld as OpenTelemetry Logs (not implemented).
 - `crates/avirtauditd/` contains the `avirtauditd` binary. The audit logger delivers audit events as OCSF (not implemented).
 - `crates/avirtoteld/` contains the `avirtoteld` binary, the OpenTelemetry Collector for the host (not implemented).
-- `crates/avirtenvoy/` contains the `avirtenvoy` library. This Envoy <!-- vale ai-tells.OverusedVocabulary = NO -->dynamic<!-- vale ai-tells.OverusedVocabulary = YES --> module builds outside the root workspace and checks CONNECT destinations and reports connection events. It doesn't support Cedar policy or credential injection.
+- `crates/avirtenvoy/` contains the `avirtenvoy` library. This Envoy module builds outside the root workspace and checks CONNECT destinations and reports connection events. Cedar policy and credential injection remain planned.
 - `crates/avirtacp/` contains the `avirtacp` binary, the workload process that runs an agent through the Agent Client Protocol (not implemented).
 - `crates/avirtagent/` contains the `avirtagent` binary, the workload process that runs an agent through its native harness (not implemented).
 - `crates/avirtexec/` contains the `avirtexec` binary, the workload process for generic execution (not implemented).
