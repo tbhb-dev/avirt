@@ -58,6 +58,12 @@ const PROXY_SOCKET: &str = "/run/avirt/proxy.sock";
 const RELAY_CONNECTIONS: usize = 128;
 /// How long the downstream direction may remain idle once the client has finished sending. Before
 /// that there is no limit, because model API streams are long-lived and quiet.
+///
+/// The limit replaces relaying the client's end-of-stream. Virtualization.framework drops a
+/// guest `shutdown(SHUT_WR)` that follows the last write by about a millisecond on a vsock
+/// connection that the host accepted, and it truncates a guest `close()` after a large write. The
+/// guest side dials the host through the mounted sockets on both runtimes, so the relay never
+/// forwards the end-of-stream.
 const RELAY_IDLE_AFTER_CLIENT_DONE: Duration = Duration::from_secs(30);
 /// The x32 ABI reaches the same syscalls under numbers with this bit set, which a filter keyed on
 /// the plain numbers would not see. It doesn't exist on the aarch64 images.
