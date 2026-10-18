@@ -27,8 +27,6 @@ publish = false
 #   fix in this code: inlining is the compiler's call, foreign traits such as AsyncRead have many
 #   provided methods, and pingora-core 0.9.0 holds duplicate crate versions.
 # - question_mark_used would ban the `?` operator.
-# - print_stdout and print_stderr would ban the output that avirthostd, avirt and avirtinitd
-#   exist to produce.
 # - The lints for the attributes that switch lints off, for non-ASCII identifier scripts (rustc
 #   non_ascii_idents covers it) and for discarded error values in map_err are left to review.
 all = { level = "deny", priority = -1 }
@@ -133,6 +131,8 @@ path_buf_push_overwrite = "deny"
 pathbuf_init_then_push = "deny"
 pointer_format = "deny"
 precedence_bits = "deny"
+print_stderr = "deny"
+print_stdout = "deny"
 pub_use = "deny"
 pub_without_shorthand = "deny"
 rc_buffer = "deny"

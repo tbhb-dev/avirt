@@ -11,6 +11,7 @@ use std::process::ExitCode;
 
 use anyhow::{Result, bail};
 use avirt_core::api::DEFAULT_PORT;
+use avirt_core::console;
 use avirt_core::hostd;
 use avirt_core::hostd::profile::Config;
 use clap::Parser;
@@ -66,7 +67,7 @@ async fn main() -> ExitCode {
     match serve(Args::parse()).await {
         Ok(()) => ExitCode::SUCCESS,
         Err(err) => {
-            eprintln!("{err:#}");
+            console::err_line(format_args!("{err:#}"));
             ExitCode::FAILURE
         }
     }

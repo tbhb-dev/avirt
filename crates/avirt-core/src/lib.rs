@@ -3,6 +3,7 @@
 
 pub mod api;
 pub mod connection;
+pub mod console;
 pub mod egress;
 pub mod envelope;
 pub mod h2c;

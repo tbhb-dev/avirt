@@ -37,6 +37,7 @@ use tokio::sync::{OwnedSemaphorePermit, Semaphore};
 use tokio::time;
 
 use crate::connection::LogStream;
+use crate::console;
 use crate::envelope::{Dir, MAX_LINE, parse_line};
 
 /// How long to keep trying to reach the mediator before giving up.
@@ -102,7 +103,7 @@ struct Env {
 /// Reports why the run stopped to avirthostd and the operator, closes the connection, and
 /// returns the exit code.
 async fn abort(connection: &LogStream, summary: &str, cause: String) -> ExitCode {
-    eprintln!("{summary}: {cause}");
+    console::err_line(format_args!("{summary}: {cause}"));
     connection.meta(json!({ "event": "error", "message": summary }));
     connection.close(Duration::from_secs(5)).await;
     ExitCode::from(EXIT_UNREACHABLE)
@@ -258,7 +259,7 @@ fn required_env(name: &str) -> Result<String, ExitCode> {
     match env::var(name) {
         Ok(value) if !value.is_empty() => Ok(value),
         _ => {
-            eprintln!("{name} is required");
+            console::err_line(format_args!("{name} is required"));
             Err(ExitCode::from(EXIT_USAGE))
         }
     }
@@ -302,7 +303,7 @@ async fn open_connection(spec: &Spec<'_>, env: &Env) -> Result<LogStream, ExitCo
         match LogStream::open(Path::new(MEDIATOR_SOCKET), &env.workload_id, &env.token, CONNECTION_WAIT).await {
             Ok(connection) => connection,
             Err(err) => {
-                eprintln!("cannot open the workload stream: {err}");
+                console::err_line(format_args!("cannot open the workload stream: {err}"));
                 return Err(ExitCode::from(EXIT_UNREACHABLE));
             }
         };
@@ -391,13 +392,13 @@ where
 fn report(connection: &LogStream, result: Result<String, Error>) -> u8 {
     match result {
         Ok(stop_reason) => {
-            println!();
+            console::out_line(format_args!(""));
             connection.meta(json!({ "event": "exit", "stopReason": stop_reason }));
             u8::from(stop_reason != "end_turn")
         }
         Err(err) => {
             let message = err.to_string();
-            eprintln!("workload failed: {message}");
+            console::err_line(format_args!("workload failed: {message}"));
             connection.meta(json!({ "event": "error", "message": message }));
             connection.meta(json!({ "event": "exit", "stopReason": "error" }));
             EXIT_WORKLOAD_FAILED
@@ -469,7 +470,7 @@ fn tap_line(connection: &LogStream, raw: &str, direction: LineDirection) {
         LineDirection::Stdin => connection.send(Dir::ClientToAgent, parse_line(line)),
         LineDirection::Stdout => connection.send(Dir::AgentToClient, parse_line(line)),
         LineDirection::Stderr => {
-            eprintln!("{line}");
+            console::err_line(format_args!("{line}"));
             connection.meta(json!({ "event": "agent_stderr", "line": line }));
         }
     }

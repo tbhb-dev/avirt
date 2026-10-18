@@ -24,7 +24,7 @@ use core::task::{Context, Poll};
 use core::time::Duration;
 use std::collections::HashMap;
 use std::fs::Permissions;
-use std::io::{self, Read as _};
+use std::io::{self, Read as _, Write as _, stderr};
 use std::os::unix::fs::PermissionsExt as _;
 use std::path::{Path, PathBuf};
 use std::process::ExitCode;
@@ -258,10 +258,10 @@ impl ShutdownSignalWatch for Shutdown {
         let interrupt = signal(SignalKind::interrupt());
         let terminate = signal(SignalKind::terminate());
         if let Err(err) = &interrupt {
-            eprintln!("cannot register the SIGINT handler: {err}");
+            drop(writeln!(stderr(), "cannot register the SIGINT handler: {err}"));
         }
         if let Err(err) = &terminate {
-            eprintln!("cannot register the SIGTERM handler: {err}");
+            drop(writeln!(stderr(), "cannot register the SIGTERM handler: {err}"));
         }
         let (Ok(mut sigint), Ok(mut sigterm)) = (interrupt, terminate) else {
             // Without signal handlers nothing could stop the mediator later, so it stops now and
@@ -385,7 +385,7 @@ fn main() -> ExitCode {
     let args = Args::parse();
     lock(&WORKLOAD).clone_from(&args.workload);
     if let Err(err) = events::connect(&args.hostd_sock, &args.workload, &args.secret) {
-        eprintln!("cannot reach avirthostd at {}: {err}", args.hostd_sock.display());
+        drop(writeln!(stderr(), "cannot reach avirthostd at {}: {err}", args.hostd_sock.display()));
         return ExitCode::FAILURE;
     }
     let server = build_server(args);
