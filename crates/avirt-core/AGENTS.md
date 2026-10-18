@@ -32,6 +32,7 @@ The shared library. The avirthostd server and the avirtinitd harness both live h
 - **`POST /workloads/<id>/stream`.** A request with a missing or wrong token gets 403 before any workload state changes. Compare the mediator secret in constant time.
 - **File modes.** Logs are 0700 directories and 0600 files. The runtime directory and workload directories are 0700.
 - **Sweep.** The sweep never writes anything back to the host. Removal restores permissions first and never follows symlinks.
+- **Mediator environment.** Forward only `PATH`, `HOME` and `TMPDIR` from the host environment, plus the per-workload `AVIRT_MEDIATOR_SECRET`.
 - **Secrets.** Never place a secret on argv or in a log line.
 
 ## Testing

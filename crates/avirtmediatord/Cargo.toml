@@ -11,10 +11,12 @@ avirt-connect = { path = "../avirt-connect" }
 chrono = { version = "0.4.45", default-features = false, features = ["clock"] }
 clap = { version = "4.6.7", features = ["derive", "env"] }
 httparse = "1.10"
-nix = { version = "0.31.3", features = ["signal"] }
 pingora-core = { version = "=0.9.0", default-features = false }
 serde_json = { version = "1.0.154", features = ["preserve_order"] }
 tokio = { version = "1.53.3", features = ["io-util", "macros", "net", "rt", "sync", "time"] }
+
+[dev-dependencies]
+nix = { version = "0.31.3", features = ["signal"] }
 
 [lints]
 workspace = true

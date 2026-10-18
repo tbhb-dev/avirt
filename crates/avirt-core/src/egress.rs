@@ -82,11 +82,7 @@ impl Proxy {
         let mut child = Command::new(bin)
             // Only what it needs: no credentials from avirthostd's environment.
             .env_clear()
-            .envs(
-                ["PATH", "HOME", "TMPDIR", "AVIRT_PROXY_ENGINE", "AVIRT_ENVOY_BIN", "AVIRT_ENVOY_MODULE"]
-                    .iter()
-                    .filter_map(|n| std::env::var_os(n).map(|v| (*n, v))),
-            )
+            .envs(["PATH", "HOME", "TMPDIR"].iter().filter_map(|n| std::env::var_os(n).map(|v| (*n, v))))
             .env("AVIRT_MEDIATOR_SECRET", secret)
             .arg("--dir")
             .arg(dir.path())
