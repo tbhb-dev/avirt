@@ -65,7 +65,7 @@ fn show(update: &SessionUpdate) {
 /// # Errors
 ///
 /// Returns the adapter's error, or an invalid-params error if it doesn't speak ACP v1.
-async fn converse(workload: Workload) -> Result<String, Error> {
+async fn converse(workload: Workload) -> Result<String, Box<Error>> {
     let Workload { agent, connection, prompt, cwd } = workload;
     let permission_connection = connection.clone();
     let init_connection = connection.clone();
@@ -113,4 +113,5 @@ async fn converse(workload: Workload) -> Result<String, Error> {
             Ok(reason.as_str().unwrap_or("unknown").to_owned())
         })
         .await
+        .map_err(Box::new)
 }

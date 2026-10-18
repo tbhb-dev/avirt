@@ -321,7 +321,7 @@ async fn open_connection(spec: &Spec<'_>, env: &Env) -> Result<LogStream, ExitCo
 pub async fn run<F, Fut>(spec: Spec<'_>, workload: F) -> ExitCode
 where
     F: FnOnce(Workload) -> Fut,
-    Fut: Future<Output = Result<String, Error>>,
+    Fut: Future<Output = Result<String, Box<Error>>>,
 {
     let env = match read_env() {
         Ok(env) => env,
@@ -373,23 +373,25 @@ async fn start_agent(spec: &Spec<'_>, env: &Env) -> Result<(LogStream, AcpAgent)
 ///
 /// Returns the workload's error, or an internal error when avirthostd refuses the stream, SIGTERM
 /// arrives, or the process can't register a SIGTERM handler.
-async fn race<Fut>(work: Fut, connection: &LogStream) -> Result<String, Error>
+async fn race<Fut>(work: Fut, connection: &LogStream) -> Result<String, Box<Error>>
 where
-    Fut: Future<Output = Result<String, Error>>,
+    Fut: Future<Output = Result<String, Box<Error>>>,
 {
     let mut sigterm = match signal(SignalKind::terminate()) {
         Ok(handler) => handler,
-        Err(err) => return Err(Error::new(INTERNAL_ERROR, format!("cannot register a SIGTERM handler: {err}"))),
+        Err(err) => {
+            return Err(Box::new(Error::new(INTERNAL_ERROR, format!("cannot register a SIGTERM handler: {err}"))));
+        }
     };
     tokio::select! {
         outcome = work => outcome,
-        reason = connection.rejected() => Err(Error::new(INTERNAL_ERROR, reason)),
-        _ = sigterm.recv() => Err(Error::new(INTERNAL_ERROR, "terminated by SIGTERM")),
+        reason = connection.rejected() => Err(Box::new(Error::new(INTERNAL_ERROR, reason))),
+        _ = sigterm.recv() => Err(Box::new(Error::new(INTERNAL_ERROR, "terminated by SIGTERM"))),
     }
 }
 
 /// Writes the workload's outcome to avirthostd and returns the exit code.
-fn report(connection: &LogStream, result: Result<String, Error>) -> u8 {
+fn report(connection: &LogStream, result: Result<String, Box<Error>>) -> u8 {
     match result {
         Ok(stop_reason) => {
             console::out_line(format_args!(""));
