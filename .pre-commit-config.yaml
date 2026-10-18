@@ -68,7 +68,7 @@ repos:
         stages: [pre-commit]
 
       - id: cargo-deny
-        name: cargo-deny (advisories, bans, sources)
+        name: cargo-deny (advisories, licenses, bans, sources)
         entry: mise run deny
         language: system
         files: ^(Cargo\.toml|Cargo\.lock|deny\.toml|crates/[^/]+/Cargo\.toml)$
