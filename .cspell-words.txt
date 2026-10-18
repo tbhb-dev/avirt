@@ -67,6 +67,7 @@ cafile
 CAINFO
 canonicalization
 canonicalized
+capsys
 CAs
 cdecl
 CDN
@@ -81,6 +82,7 @@ cgroup
 cgroups
 checkpointed
 checksummed
+ches
 chrono
 ciphertext
 clearsigned
@@ -173,6 +175,7 @@ GOAWAY
 Grafana
 gshadow
 guestd
+hardbreak
 hashbrown
 hchan
 HCS
@@ -252,6 +255,7 @@ networkless
 NEWUSER
 nextest
 nftables
+ngrams
 NIC
 NLGRP
 nocapture
@@ -314,6 +318,7 @@ ptmx
 ptrace
 pullable
 pypirc
+pytest
 pyyaml
 qtype
 QUIC
@@ -364,6 +369,7 @@ scrutinee
 seccomp
 seccompiler
 secretsd
+segs
 serde
 setgid
 setgroups
@@ -386,12 +392,16 @@ SNI
 sockaddr
 sockaddr_un
 socketpair
+softbreak
 SPIFFE
+sses
 ssock
 SSRF
 stderr
 stdin
 stdout
+stopword
+stopwords
 subcommand
 subcommands
 subprocess
@@ -484,5 +494,6 @@ xwin
 zerocopy
 zeroizes
 zmij
+zorblax
 zot
 zstd
