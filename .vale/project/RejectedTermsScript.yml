@@ -3,11 +3,12 @@
 # vocabularies/project/accept.txt accepts, and Vale drops any match containing an accepted
 # word, so an existence or substitution rule never fires on them. A script rule matches raw text
 # and is not filtered, so it skips inline code and fenced blocks itself. Replacements:
-# avirt name -> internal name; SPIFFE bundle -> trust bundle; control SVID -> say what it
-# names in plain words.
+# avirt name -> avirt hostname; SPIFFE bundle -> trust bundle; control SVID -> say what it
+# names in plain words. A SPIFFE bundle followed by format or endpoint passes, because those are
+# the SPIFFE specification's own terms.
 extends: script
 message: >-
-  '%s' is a rejected term. Replacements: avirt name, internal name; SPIFFE bundle, trust bundle; control SVID,
+  '%s' is a rejected term. Replacements: avirt name, avirt hostname; SPIFFE bundle, trust bundle; control SVID,
   say what it names.
 level: error
 scope: raw
@@ -16,15 +17,18 @@ script: |
   matches := []
   code := text.re_find("(?s)```.*?```|~~~.*?~~~|`[^`\\n]*`", scope, -1)
   for m in text.re_find("(?i)\\b(?:avirt names?|SPIFFE bundles?|control SVIDs?)\\b", scope, -1) {
-    in_code := false
+    skip := false
     if is_array(code) {
       for c in code {
         if m[0].begin >= c[0].begin && m[0].begin < c[0].end {
-          in_code = true
+          skip = true
         }
       }
     }
-    if !in_code {
+    if !skip && text.has_prefix(text.to_lower(m[0].text), "spiffe bundle") && text.re_match("(?i)^ (?:format|endpoint)\\b", scope[m[0].end:]) {
+      skip = true
+    }
+    if !skip {
       matches = append(matches, {begin: m[0].begin, end: m[0].end})
     }
   }
