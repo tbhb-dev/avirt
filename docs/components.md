@@ -4,12 +4,12 @@ title: Components
 description: The avirt component inventory across the host, the mediator container, the workload container and the all-in-one server image, with where each component runs, what it owns, what it talks to, its startup and failure semantics, its status, and how the current binaries map onto it.
 tags: [avirt, architecture, components, inventory]
 implementation: partial
-generated: { by: claude-code/claude-opus-5-5, at: 2026-10-17T19:00:00Z }
+generated: { by: claude-code/claude-opus-5-5, at: 2026-10-18T01:00:00Z }
 ---
 
 # Overview
 
-`avirt`'s components fall into four placements. avirthostd and the host services that configure and decide make up the control plane, and avirtedgeproxyd and avirtmedproxyd with their Envoys are the data plane. Each workload has a workload container and a mediator container. The all-in-one server image runs the host services in one container as a deployment mode. The Container column names the container a component lives in. Host-side components run directly on the host or together in the all-in-one server image.
+`avirt`'s components fall into five placements. avirthostd and the host services that configure and decide make up the control plane, and avirtedgeproxyd and avirtmedproxyd with their Envoys are the data plane. Each workload has a workload container and a mediator container. The edge VM runs avirtedgeproxyd and its Envoy, and is the only avirt VM with a network interface (see [edge VM](#edge-vm)). The all-in-one server image runs the host services in one container as a deployment mode. The Container column names the container a component lives in. Host-side components run directly on the host or together in the all-in-one server image.
 
 A **workload** is the lifecycle unit, like a pod with a sidecar: the **workload container**, which runs avirtinitd and the agent or another main workload process, plus its **mediator**, the per-workload mediator container that runs avirtmediatord, avirtmedproxyd and avirtmedproxyd's Envoy. Each runs in its own container, which is its own VM on the Containerization runtime and a container on a shared kernel on Docker Desktop (see [compute runtimes](./compute-runtimes.md)).
 
@@ -18,7 +18,7 @@ A **workload** is the lifecycle unit, like a pod with a sidecar: the **workload 
 | avirt | The CLI and TUI client (see [operator CLI](./operator-cli.md)) | host | Partial |
 | avirtadmin | The local admin CLI, which talks directly to avirthostd over a local Unix socket (see [admin CLI](./admin-cli.md)) | host | Planned |
 | avirtwebd | The backend for the avirt web UI | host | Planned |
-| avirtedgeproxyd | The edge proxy: it supervises the host's edge Envoy Proxy with libavirtenvoy and serves it local xDS and SDS. Through that Envoy it is the global policy enforcement point for workload traffic: it publishes services, carries every workload-to-workload connection on this host and between hosts, fronts the host services for local clients and peers, and is the only host service that opens connections off the host | host | Planned |
+| avirtedgeproxyd | The edge proxy: it supervises the host's edge Envoy Proxy with libavirtenvoy and serves it local xDS and SDS. Through that Envoy it is the global policy enforcement point for workload traffic: it publishes services, carries every workload-to-workload connection on this host and between hosts, fronts the host services for local clients and peers, and is the only host service that opens connections off the host | edge | Planned |
 | avirthostd | Owns workload lifecycle, namespaces, workspaces and immutable workload configuration for a single host, and issues SPIFFE identities | host | Partial |
 | avirtapid | The API server: a REST and gRPC API in front of the local avirthostd, peers' avirtapid and services, reached through avirtedgeproxyd | host | Planned |
 | [avirtdnsd](./dns.md) | Makes local and peered workloads and services addressable by name, resolving each name to the edge proxy of the host that serves it | host | Planned |
@@ -31,11 +31,11 @@ A **workload** is the lifecycle unit, like a pod with a sidecar: the **workload 
 | avirtlogd | Acquires workload container logs, transforms them, and sends them to avirtoteld for delivery as OpenTelemetry Logs (see [observability](./observability.md#workload-stdout-and-stderr)) | host | Planned |
 | avirtauditd | Audit logging: it reads the workload logs and every component's audit log and delivers them as OCSF (see [observability](./observability.md#audit)) | host | Planned |
 | avirtoteld | The OpenTelemetry Collector for the host: a Rust front end supervising a pinned Collector built with the OpenTelemetry Collector Builder (see [observability](./observability.md#avirtoteld)) | host | Planned |
-| avirtinitd | One minimal supervisor with three role modes: PID 1 and launcher in the workload container, and supervisor in the mediator container and in the all-in-one server image | workload, mediator, all-in-one | Partial |
+| avirtinitd | One minimal supervisor with three role modes: PID 1 and launcher in the workload container, and supervisor in the mediator container, in the edge VM and in the all-in-one server image | workload, mediator, edge, all-in-one | Partial |
 | avirtmediatord | The mediator's control process: the mediator's connection to avirthostd, the `/control` stream, readiness, generations, lifecycle and identity rotation for itself and avirtmedproxyd's Envoy | mediator | Partial |
 | avirtmedproxyd | The mediator proxy: it supervises the mediator's Envoy Proxy with libavirtenvoy and serves it local xDS and SDS | mediator | Planned |
-| Envoy Proxy | The data plane: avirtmedproxyd's Envoy carries all of the workload's ingress and egress, and avirtedgeproxyd's Envoy carries the host's | mediator, host | Planned |
-| libavirtenvoy | An Envoy dynamic module that evaluates Cedar policy (embedding the `cedar-policy` crate) and injects HTTP and gRPC credentials; the implemented module only checks CONNECT destinations and reports connection events | mediator, host | Partial |
+| Envoy Proxy | The data plane: avirtmedproxyd's Envoy carries all of the workload's ingress and egress, and avirtedgeproxyd's Envoy carries the host's | mediator, edge | Planned |
+| libavirtenvoy | An Envoy dynamic module that evaluates Cedar policy (embedding the `cedar-policy` crate) and injects HTTP and gRPC credentials; the implemented module only checks CONNECT destinations and reports connection events | mediator, edge | Partial |
 | avirtacp | Runs an agent workload through the Agent Client Protocol (see [ACP](./acp.md)) | workload | Partial |
 | avirtagent | Runs an agent workload through its native harness | workload | Planned |
 | avirtexec | Generic execution | workload | Planned |
@@ -54,7 +54,7 @@ The current code has four functional binaries, the shared `avirt-core` and `avir
 | --- | --- | --- |
 | `avirt` | host | The CLI. It talks to avirthostd directly over HTTP on `127.0.0.1:8787` (`POST /launch`), or the URL in `AVIRT_HOSTD_URL`. |
 | `avirthostd` | host | The host daemon: the control API, workload launch and teardown, the Codex `auth.json` seed and write-back, and the workload logs in `logs/<workload-id>.ndjson`. |
-| `avirtmediatord` | host, one process per workload | The mediator as a host process: one Pingora server with the CONNECT proxy on `proxy.sock`, and on `uplink.sock` a TCP proxy that forwards avirtinitd's HTTP/2 connection to avirthostd with the bytes unchanged. |
+| `avirtmediatord` | host, one process per workload | The mediator as a host process: one Pingora server with the CONNECT proxy on `proxy.sock`, and on `mediator.sock` a TCP proxy that forwards avirtinitd's HTTP/2 connection to avirthostd with the bytes unchanged. |
 | `avirtinitd` | workload, as root | The workload container's root process and image entrypoint. Together with the harness in `avirt-core`, it contains the ACP client that avirtacp carries in the planned design (it spawns the adapter as uid 1000 under seccomp and taps every JSON-RPC line, see [ACP](./acp.md)), and the TCP proxy to `proxy.sock` that avirtnetd's forward proxy replaces in the planned design. |
 
 `avirtinitd` is not PID 1 in the current code. The workload container runs with `--init`, so the runtime's init is PID 1 and avirtinitd is its direct child (see [workload hardening](./workload-hardening.md)). There is no mediator container: the mediator is the host process above. Landlock is not applied by the current code. The optional Envoy that avirtmediatord supervises loads libavirtenvoy for CONNECT destination checks. None of avirtedgeproxyd, avirtmedproxyd or the other host services exist.
@@ -130,13 +130,13 @@ These constraints bound what a workload can do through this path, whatever the p
 
 ## avirtedgeproxyd
 
-avirtedgeproxyd is the host's edge proxy. It supervises an Envoy Proxy with libavirtenvoy loaded, the way avirtregistryd supervises zot, and serves that Envoy local xDS and SDS: its listeners and clusters, its `/service/avirtedgeproxyd` SVID and key from avirthostd's issuer, the SPIFFE bundle and the active peers' bundles. Through that Envoy it is the single global policy enforcement point for workload traffic, and the only host service that opens connections off the host.
+avirtedgeproxyd is the host's edge proxy. It supervises an Envoy Proxy with libavirtenvoy loaded, the way avirtregistryd supervises zot, and serves that Envoy local xDS and SDS: its listeners and clusters, its `/service/avirtedgeproxyd` SVID and key from avirthostd's issuer, the SPIFFE bundle and the active peers' bundles. Through that Envoy it is the single global policy enforcement point for workload traffic, and the only host service that opens connections off the host. It runs in the edge VM (see [edge VM](#edge-vm)).
 
 - **Workload to workload.** Every connection from one workload to another passes through avirtedgeproxyd, on the same host and between hosts: avirtmedproxyd, avirtedgeproxyd, the destination avirtmedproxyd, the destination workload container. Between hosts it passes both hosts' avirtedgeproxyd, and each evaluates its own host policy snapshot (see [peering](./peering.md#workload-traffic)).
 - **Services.** Services that workloads expose are published at avirtedgeproxyd, from avirthostd's service records. A record has a name, a namespace, labels, a port, and a backend: a port that a workload publishes, or an authorized host-local service.
-- **Host-local services.** A service running on the host itself outside avirt, such as one bound to the host's `127.0.0.1`, is reachable only as the backend of a service record. The private-address block refuses every other host address.
+- **Host-local services.** A service running on the host itself outside avirt, such as one bound to the host's `127.0.0.1`, is reachable only as the backend of a service record. The private-address block refuses every other host address. How the edge VM reaches such a backend is open (see [networking](./networking.md#open-questions)).
 - **External endpoints.** avirtmedproxyd's Envoys reach the egress listener through avirthostd's SNI routing (see [workload topology](./workload-topology.md#sni-routing)) for connections to external endpoints, which avirtedgeproxyd's Envoy serves as a dynamic forward proxy.
-- **Clients.** On the local client listener it fronts avirthostd, avirtapid, avirtmcpgwd, avirtmodelgwd and avirtwebd: avirt reaches avirtapid over gRPC, avirtwebd reaches it over REST, and web UI users reach avirtwebd. On the peer listener, which binds the addresses in `peering.listen` (default port 8788) and does not exist while that list is empty (see [peering](./peering.md#peer-listener)), it serves active peers only local published ports, services, the SPIFFE bundle endpoint and avirtapid, never avirthostd, avirtmcpgwd or avirtmodelgwd.
+- **Clients.** On the local client listener, which local clients reach through `edgeproxy.sock` in the runtime directory, it fronts avirthostd, avirtapid, avirtmcpgwd, avirtmodelgwd and avirtwebd: avirt reaches avirtapid over gRPC and avirtwebd reaches it over REST. Web UI users on this machine reach avirtwebd through a host loopback port that the runtime forwards into the edge VM. avirtadmin is not a client of avirtedgeproxyd: it uses `admin.sock`. On the peer listener, which peers reach through the host's peer port on the addresses in `peering.listen` (default port 8788), and which does not exist while that list is empty (see [peering](./peering.md#peer-listener)), it serves active peers only local published ports, services, the SPIFFE bundle endpoint and avirtapid, never avirthostd, avirtmcpgwd or avirtmodelgwd.
 - **avirtguest.** avirtguest reaches avirtapid over gRPC from inside the workload container: avirtnetd, avirtmedproxyd, avirtedgeproxyd, avirtapid. avirtedgeproxyd authorizes its `guest-cli` principal against the host policy snapshot as it does other workload traffic.
 - **Host services.** Every off-host connection a host service makes goes through it: avirtmodelgwd and avirtmcpgwd calling upstreams, avirtsecretsd calling remote secret providers, avirtoteld and avirtauditd exporting, avirtbuilderd fetching sources, avirtregistryd importing from peers, and avirtapid calling peers.
 
@@ -159,6 +159,24 @@ flowchart LR
     hs -->|"off-host calls"| fd
 ```
 
+## Edge VM
+
+avirtedgeproxyd and its Envoy run in a Linux container, never directly on macOS. The edge VM runs only avirtedgeproxyd and its Envoy, under avirtinitd, and never shares a VM with another host service. On a direct macOS install every other host service runs natively on the Mac.
+
+| Runtime | Edge VM |
+| --- | --- |
+| Containerization | A Containerization VM with one vmnet NAT interface |
+| Docker Desktop | A container with normal container networking |
+
+In the all-in-one server image, avirtedgeproxyd runs in the image's container with the other host services, and the nftables rule in [off-host enforcement](./networking.md#linux-and-the-all-in-one-server-image) confines off-host flows to its Envoy.
+
+- **Network.** The edge VM is the only avirt VM with a network interface, and its Envoy dials upstreams and peers directly. avirthostd's start check asserts that the edge VM is the only avirt VM with a network device (see [edge VM network](./networking.md#edge-vm-network)). There is no relay component.
+- **Host addresses.** avirthostd pushes the host's own interface addresses to avirtedgeproxyd and updates them on change, and libavirtenvoy refuses those addresses as well as the private ranges (see [edge proxy egress](./egress.md#edge-proxy-egress)).
+- **Local clients.** The avirt CLI reaches the local client listener through `edgeproxy.sock` in the runtime directory, a Unix socket backed by vsock. avirtadmin does not go through the edge proxy: it uses `admin.sock`.
+- **Web UI users.** Web UI users on this machine reach a host loopback port that the runtime forwards into the edge VM.
+- **Peers.** Peers dial the host's address on the peer port, 8788 by default and off unless `peering.listen` is set. The runtime publishes that port into the edge VM's peer listener: on Containerization with the port publishing that `container run --publish` exposes, and on Docker Desktop with `-p`. Peers authenticate by SVID, so the forwarded source address is not needed for authorization.
+- **Host services.** avirtedgeproxyd reaches avirtapid, avirthostd's control API and the other host services that run natively on the Mac over vsock-backed Unix sockets, the same mechanism the mediators use, and never over the network.
+
 ## Policy and credential placement
 
 | Point | Policy | Credentials |
@@ -171,7 +189,7 @@ flowchart LR
 
 ## Host mediator
 
-Status: implemented. avirtmediatord runs on the host with Pingora as its default CONNECT engine. Its experimental Envoy mode starts a supervised Envoy child with a static bootstrap and avirtenvoy's destination filter. Both modes use the existing `proxy.sock`, `uplink.sock` and event envelope; see [egress](./egress.md#experimental-host-envoy-mode). `avirt-connect` provides the authority and destination checks shared by Pingora and the excluded `avirtenvoy` module. Cedar, TLS and credential functions are planned.
+Status: implemented. avirtmediatord runs on the host with Pingora as its default CONNECT engine. Its experimental Envoy mode starts a supervised Envoy child with a static bootstrap and avirtenvoy's destination filter. Both modes use the existing `proxy.sock`, `mediator.sock` and event envelope; see [egress](./egress.md#experimental-host-envoy-mode). `avirt-connect` provides the authority and destination checks shared by Pingora and the excluded `avirtenvoy` module. Cedar, TLS and credential functions are planned.
 
 ## Mediator container
 
@@ -365,7 +383,7 @@ Status: planned. These items have no phase yet (see [roadmap](./roadmap.md#unsch
 9. **Web UI user accounts.** Where web UI user accounts and their credentials are stored, in avirtwebd, in avirthostd, or in a separate store, is open.
 10. **Web UI user identity.** How a web UI user's identity is carried from avirtwebd to avirtapid, and how it maps to a Cedar principal, is open.
 11. **Web UI sessions.** Session handling for web UI users, including lifetime, renewal and revocation, is open.
-12. **Web UI listener.** Which avirtedgeproxyd listener web UI users reach avirtwebd through is open.
+12. **Web UI listener.** Web UI users reach a host loopback port that the runtime forwards into the edge VM. Which avirtedgeproxyd listener in the edge VM that port reaches is open.
 13. **Frontend repository layout.** Where the web UI's frontend app lives in the repository is open.
 14. **Local user principal.** How a local caller on avirtedgeproxyd's local client listener is represented as a Cedar principal and carried in `x-avirt-caller` is open.
-15. **Enforcing the off-host rule on the host.** avirtedgeproxyd is the only host service that opens connections off the host. Which host mechanism enforces that for the other daemons, beyond their configuration, is open (see [networking](./networking.md#off-host-enforcement)).
+15. **Content filter prototype.** On macOS a Network Extension content filter drops every non-loopback flow from avirt-signed host processes. Whether it holds needs a prototype, and dropping avirt-signed processes is the property to test (see [networking](./networking.md#open-questions)).

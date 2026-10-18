@@ -4,7 +4,7 @@ title: avirt architecture
 description: What avirt is, its components, the workload topology as implemented and as planned, and where each part is specified.
 tags: [avirt, architecture, overview]
 implementation: partial
-generated: { by: claude-code/claude-opus-5-5, at: 2026-10-17T19:00:00Z }
+generated: { by: claude-code/claude-opus-5-5, at: 2026-10-18T01:00:00Z }
 ---
 
 # Overview
@@ -17,7 +17,7 @@ Status: implemented. The current code has these components. The planned design i
 | --- | --- | --- | --- |
 | avirthostd | `avirthostd` | On the host, one per user | Serves the control API, launches workloads, owns real credentials (see [secrets](./secrets.md#status-implemented)), writes logs |
 | CLI | `avirt` | On the host, per invocation | The operator CLI: `avirt launch` asks avirthostd to start a workload and can follow its log (see [operator CLI](./operator-cli.md#status-implemented)) |
-| Mediator | `avirtmediatord` | One per workload | Pingora CONNECT proxy, and a TCP proxy that forwards avirtinitd's HTTP/2 connection on `uplink.sock` to avirthostd with the bytes unchanged |
+| Mediator | `avirtmediatord` | One per workload | Pingora CONNECT proxy, and a TCP proxy that forwards avirtinitd's HTTP/2 connection on `mediator.sock` to avirthostd with the bytes unchanged |
 | avirtinitd | `avirtinitd` | As root inside the workload container, one per workload | ACP client that spawns the agent adapter, taps every JSON-RPC line (see [ACP](./acp.md#status-implemented)), runs a TCP proxy from the agent's `HTTPS_PROXY` to `proxy.sock`, and applies the agent's sandbox |
 | Agent | The adapter plus its tools | Inside the workload container as uid 1000 | The ACP agent itself (`AVIRT_AGENT=claude\|codex`) |
 
@@ -51,7 +51,7 @@ flowchart LR
     relay -->|"/run/avirt/proxy.sock"| psock{{"proxy.sock (0600)"}}
     psock --> med
     med -->|"CONNECT"| upstream
-    avirtinitd -->|"/run/avirt/uplink.sock"| usock{{"uplink.sock (0600)"}}
+    avirtinitd -->|"/run/avirt/mediator.sock"| usock{{"mediator.sock (0600)"}}
     usock --> med
     med -->|"hostd.sock, bytes forwarded unchanged (HTTP/2)"| hostd
     med -.->|"hostd.sock, egress events"| hostd
@@ -66,6 +66,7 @@ The mediator runs in its own container, and like the workload container it has n
 - **Workload container.** Its only connection is its HTTP/2 connection to its mediator, whose client end is avirtnetd. avirtnetd holds the workload SVID and serves the agent's forward proxy.
 - **Mediator.** avirtmediatord holds the mediator's connection to avirthostd, its SVIDs and the workload lifecycle, and avirtmedproxyd supervises the data plane, its Envoy with libavirtenvoy. That Envoy terminates the agent's TLS, evaluates Cedar policy locally, and sends each connection either directly to one of avirt's host services or to avirtedgeproxyd.
 - **Host.** avirthostd owns workload lifecycle and the SPIFFE issuer, avirtsecretsd owns the real credentials (see [secrets](./secrets.md)), avirtpolicyd distributes policy snapshots, avirtmodelgwd and avirtmcpgwd inject model and MCP credentials, avirtregistryd stores and indexes workspace images, and avirtedgeproxyd is the single global policy enforcement point and the only host service that opens connections off the host (see [components](./components.md#avirtedgeproxyd)).
+- **Edge VM.** avirtedgeproxyd and its Envoy run in the edge VM, a Linux container and the only avirt VM with a network interface (see [edge VM](./components.md#edge-vm)).
 - **Names and namespaces.** Every workload is in one host-local namespace, and avirtdnsd resolves avirt names to the edge proxy of the host that serves them (see [DNS](./dns.md#avirt-names)).
 
 ```mermaid
@@ -76,14 +77,16 @@ flowchart LR
         policy["avirtpolicyd: Cedar policy snapshots"]
         svc["avirtdnsd, avirtoteld"]
         gw["avirtmodelgwd, avirtmcpgwd"]
-        fd["avirtedgeproxyd and its Envoy"]
         logs[("logs/WORKLOAD-ID.*")]
         hostauth[("~/.codex/auth.json")]
         hostd --> logs
         secrets <--> hostauth
         gw --> secrets
-        gw --> fd
     end
+    subgraph edge["edge VM (vmnet NAT)"]
+        fd["avirtedgeproxyd and its Envoy"]
+    end
+    gw --> fd
     subgraph medvm["mediator (no network)"]
         med["avirtmediatord: SVIDs, lifecycle"]
         mp["avirtmedproxyd"]
@@ -123,7 +126,7 @@ Status: planned. These hold for every runtime and every phase once the planned d
 3. TLS terminates only at named endpoints: avirtnetd and avirtmedproxyd's Envoy on the workload's HTTP/2 connection to its mediator, avirtmediatord or avirtmedproxyd's Envoy and avirthostd on the mediator's connection to avirthostd, and avirtmedproxyd's Envoy and its destination on the mediator's outbound socket and its ingress listener. The runtime's socket forwarding, avirthostd's SNI routing, Docker named volumes and avirtedgeproxyd's tunnels carry ciphertext.
 4. Every listener reachable across a container or host boundary requires mutual TLS from the first byte. The local listeners inside the workload container that do not are enumerated in [trust boundaries](./trust-boundaries.md#local-exceptions).
 5. uid 1000 in the workload container never holds an SVID or its key, the SPIFFE bundle, a CA key, or a real credential.
-6. The workload container and the mediator have no network interface other than loopback, and avirtedgeproxyd is the only host service that opens connections off the host.
+6. The workload container and the mediator have no network interface other than loopback, avirtedgeproxyd is the only host service that opens connections off the host, and the edge VM it runs in is the only avirt VM with a network interface.
 7. Each Envoy evaluates policy locally from a versioned policy snapshot. No request waits on a policy call, and a missing or expired policy snapshot denies.
 8. The mediator holds no long-lived real credential for model or MCP traffic.
 9. Every workload-to-workload connection passes through avirtedgeproxyd on each host it touches, and a mediator never connects to another mediator directly.

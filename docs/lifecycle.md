@@ -4,7 +4,7 @@ title: Lifecycle and state
 description: The order in which avirthostd launches and tears down a workload, avirthostd shutdown, the on-disk runtime directory, the startup cleanup after a crash, and path-length limits.
 tags: [avirt, lifecycle, state, cleanup]
 implementation: partial
-generated: { by: claude-code/claude-opus-5-5, at: 2026-10-17T19:00:00Z }
+generated: { by: claude-code/claude-opus-5-5, at: 2026-10-18T01:00:00Z }
 ---
 
 # Status: implemented
@@ -21,12 +21,12 @@ sequenceDiagram
     participant A as adapter (uid 1000)
     CLI->>C: POST /launch
     C->>C: prepare (Codex: seed CODEX_HOME), register the workload, workload dir
-    C->>S: spawn (proxy.sock, uplink.sock, hostd.sock)
+    C->>S: spawn (proxy.sock, mediator.sock, hostd.sock)
     S->>C: EGRESS id secret (event connection)
     C->>C: probe both sockets until they accept
-    C->>K: container run --network none --init -v proxy.sock -v uplink.sock
+    C->>K: container run --network none --init -v proxy.sock -v mediator.sock
     C-->>CLI: workloadId, logPath
-    R->>S: uplink.sock (first bytes)
+    R->>S: mediator.sock (first bytes)
     S->>C: WORKLOAD id secret, then HTTP/2 bytes forwarded unchanged
     R->>C: POST /workloads/id/stream (token), 200 headers
     R->>R: start the TCP proxy to proxy.sock, then seccomp
@@ -105,7 +105,7 @@ The Containerization runtime adds these to the runtime directory:
 | `cache/rootfs/` | Composed root filesystems, one per pair of harness base and workspace image (see [workspaces](./workspaces.md#composing-the-root-filesystem)) |
 | `images/` | avirthostd's content-addressed cache with the unpacked avirt base, harness base and mediator images, and the configuration layers (see [workload lifecycle](./workload-lifecycle.md#assembly-per-runtime)) |
 | `admin.sock` | avirthostd's admin socket for avirtadmin, 0600 and owned by avirthostd's UID (see [admin CLI](./admin-cli.md)) |
-| `edgeproxy.sock` | avirtedgeproxyd's local client listener, 0600 and user-owned (see [trust boundaries](./trust-boundaries.md#listeners)) |
+| `edgeproxy.sock` | A Unix socket backed by vsock to avirtedgeproxyd's local client listener in the edge VM, 0600 and user-owned (see [trust boundaries](./trust-boundaries.md#listeners)) |
 
 Every planned runtime adds `services/`, which holds the host services' listener sockets (`services/<name>.sock`, 0660 with a group holding only the UIDs allowed to connect, see [trust boundaries](./trust-boundaries.md#listeners)) and avirthostd's issuer socket.
 

@@ -11,18 +11,18 @@ generated: { by: claude-code/claude-opus-5-5, at: 2026-10-17T19:00:00Z }
 
 ## Container
 
-The workload container runs with `--network none` and `--init`. With `--init` the runtime's init is PID 1 and avirtinitd is its direct child: init reaps orphaned processes and passes `container stop` to avirtinitd as SIGTERM. `avirtinitd` handles SIGTERM by recording a `terminated by SIGTERM` error, closing its HTTP/2 connection on `uplink.sock` and exiting with code 2. The image (`ubuntu:26.04`) has its own uid 1000 user removed, so that uid 1000 is `agent`. There is no `USER` line, and avirtinitd starts as root.
+The workload container runs with `--network none` and `--init`. With `--init` the runtime's init is PID 1 and avirtinitd is its direct child: init reaps orphaned processes and passes `container stop` to avirtinitd as SIGTERM. `avirtinitd` handles SIGTERM by recording a `terminated by SIGTERM` error, closing its HTTP/2 connection on `mediator.sock` and exiting with code 2. The image (`ubuntu:26.04`) has its own uid 1000 user removed, so that uid 1000 is `agent`. There is no `USER` line, and avirtinitd starts as root.
 
 ## Agent process
 
 After avirthostd accepts `POST /workloads/<id>/stream` on the workload's HTTP/2 connection to its mediator, avirtinitd starts the adapter as `agent`:
 
 ```text
-env -u AVIRT_WORKLOAD_ID -u AVIRT_PROMPT -u AVIRT_CWD -u AVIRT_UPLINK_TOKEN -u AVIRT_AGENT
+env -u AVIRT_WORKLOAD_ID -u AVIRT_PROMPT -u AVIRT_CWD -u AVIRT_CONNECTION_TOKEN -u AVIRT_AGENT
   setpriv --reuid=agent --regid=agent --init-groups --inh-caps=-all --bounding-set=-all --no-new-privs -- <adapter>
 ```
 
-The agent has all five capability sets at zero and `NoNewPrivs: 1`. Its environment has `HOME=/home/agent` and the proxy variables below. It does not carry the workload ID, the prompt or the connection token (`AVIRT_UPLINK_TOKEN`). Credentials and `CODEX_HOME` pass through.
+The agent has all five capability sets at zero and `NoNewPrivs: 1`. Its environment has `HOME=/home/agent` and the proxy variables below. It does not carry the workload ID, the prompt or the connection token (`AVIRT_CONNECTION_TOKEN`). Credentials and `CODEX_HOME` pass through.
 
 ```text
 HTTPS_PROXY  https_proxy  HTTP_PROXY  http_proxy  ALL_PROXY  =  http://127.0.0.1:PORT
@@ -44,7 +44,7 @@ Claude Code, Codex, Node, npm and git work under these filters (Node falls back 
 
 ## What the agent can still do
 
-It can use the proxy, see its own filesystem plus the mounted `/workspace` or `CODEX_HOME`, and spend CPU. It cannot open a socket other than AF_UNIX, AF_INET or AF_INET6, and it has no route anywhere except loopback. It cannot open `proxy.sock` or `uplink.sock` (they are `root:root 0600`), read `/proc/1/fd`, `/proc/1/mem` or `/proc/1/environ`, or kill PID 1. Permission requests are auto-approved (see [permission requests](./acp.md#permission-requests)), so the agent runs any tool inside the workload with no human in the loop.
+It can use the proxy, see its own filesystem plus the mounted `/workspace` or `CODEX_HOME`, and spend CPU. It cannot open a socket other than AF_UNIX, AF_INET or AF_INET6, and it has no route anywhere except loopback. It cannot open `proxy.sock` or `mediator.sock` (they are `root:root 0600`), read `/proc/1/fd`, `/proc/1/mem` or `/proc/1/environ`, or kill PID 1. Permission requests are auto-approved (see [permission requests](./acp.md#permission-requests)), so the agent runs any tool inside the workload with no human in the loop.
 
 # Status: planned
 

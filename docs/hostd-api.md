@@ -57,7 +57,7 @@ Without `cwd`, the agent works in the image's empty `/workspace`. With `cwd`, av
 | `CLAUDE_CODE_OAUTH_TOKEN` | `avirthostd`, passed to Claude | none | Claude credential (see [credentials](./egress-credentials.md)) |
 | `AVIRT_HOSTD_URL` | `avirt` | the local avirthostd on `--port` | avirthostd URL |
 
-`avirtinitd` reads `AVIRT_WORKLOAD_ID`, `AVIRT_PROMPT`, `AVIRT_CWD` and `AVIRT_UPLINK_TOKEN`, set by avirthostd, and `AVIRT_AGENT`, set in each workload image. The mediator reads `AVIRT_MEDIATOR_SECRET`.
+`avirtinitd` reads `AVIRT_WORKLOAD_ID`, `AVIRT_PROMPT`, `AVIRT_CWD` and `AVIRT_CONNECTION_TOKEN`, set by avirthostd, and `AVIRT_AGENT`, set in each workload image. The mediator reads `AVIRT_MEDIATOR_SECRET`.
 
 ## Log files
 

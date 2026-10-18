@@ -125,7 +125,7 @@ flowchart LR
 | Metric | Definition | Unit | Where | How | Runtimes | Class |
 | --- | --- | --- | --- | --- | --- | --- |
 | `runtime.create_failures` | VM or container creation failures by cause: XPC and Virtualization.framework create or start errors, non-zero `container` or `docker` exits | count | avirthostd | Counter | All | diag |
-| `runtime.retries` | Dials of the workload's connection to its mediator, dials of the mediator's connection to avirthostd and `uplink.sock` connect attempts beyond the first, per workload | count | Mediator, avirtinitd | Counter | All | diag |
+| `runtime.retries` | Dials of the workload's connection to its mediator, dials of the mediator's connection to avirthostd and `mediator.sock` connect attempts beyond the first, per workload | count | Mediator, avirtinitd | Counter | All | diag |
 | `mediator.restarts` | Mediator restarts per workload, and workloads ended because restarts ran out | count | avirthostd | Counter | Containerization, Docker | diag |
 | `workload.errors` | `container_error` events by reason | count | avirthostd | Counter, from the log | All | diag |
 | `sweep.findings` | Items found at startup that a previous avirthostd left, by kind | count | avirthostd | Counter | All | diag |

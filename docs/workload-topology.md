@@ -15,7 +15,7 @@ The workload container runs with `--network none` and two Unix socket files moun
 
 | Guest path | Host listener | Carries |
 | --- | --- | --- |
-| `/run/avirt/uplink.sock` | Mediator | The workload's HTTP/2 connection to its mediator, which today carries only log envelopes, on its one request `POST /workloads/<id>/stream`. The mediator forwards its bytes unchanged to avirthostd. |
+| `/run/avirt/mediator.sock` | Mediator | The workload's HTTP/2 connection to its mediator, which today carries only log envelopes, on its one request `POST /workloads/<id>/stream`. The mediator forwards its bytes unchanged to avirthostd. |
 | `/run/avirt/proxy.sock` | Mediator | The CONNECT proxy (see [egress](./egress.md)) |
 
 The mediator dials avirthostd's socket `hostd/hostd.sock` (directory 0700, socket 0600). Each connection starts with a one-line connection header naming its kind, the workload and the mediator's secret (see [identity](./identity.md)), read within 5 s:
@@ -23,11 +23,11 @@ The mediator dials avirthostd's socket `hostd/hostd.sock` (directory 0700, socke
 - `WORKLOAD <id> <secret>`: `avirthostd` binds the connection to that workload and serves only that workload's `POST /workloads/<id>/stream` route over it. The mediator then forwards the HTTP/2 bytes unchanged between avirtinitd (client) and avirthostd's stream handler (server).
 - `EGRESS <id> <secret>`: plain NDJSON egress events, one per proxied connection. `avirthostd` wraps each in the log envelope with `dir: "egress"`. Only one event connection per workload is accepted.
 
-The mediator opens the `EGRESS` connection at startup. It dials a `WORKLOAD` connection only when the workload's first bytes arrive on `uplink.sock`, so a readiness probe (connect and close) costs avirthostd nothing.
+The mediator opens the `EGRESS` connection at startup. It dials a `WORKLOAD` connection only when the workload's first bytes arrive on `mediator.sock`, so a readiness probe (connect and close) costs avirthostd nothing.
 
 ## Connection to the mediator
 
-`avirtinitd` connects to `uplink.sock` within 5 s, completes the HTTP/2 handshake within 5 s, sends `POST /workloads/<id>/stream` with its connection token (`AVIRT_UPLINK_TOKEN`), and waits 4 s for the response headers. A failed attempt is retried after 300 ms, for 15 s overall. A 403, 404, 409 or 410 is final and is not retried. A socket file whose listener is gone accepts a connect and then says nothing, so every step has a timeout. `avirtinitd` starts neither its TCP proxy to `proxy.sock` nor the agent until avirthostd has accepted that request, and fails with a message naming the mediator otherwise.
+`avirtinitd` connects to `mediator.sock` within 5 s, completes the HTTP/2 handshake within 5 s, sends `POST /workloads/<id>/stream` with its connection token (`AVIRT_CONNECTION_TOKEN`), and waits 4 s for the response headers. A failed attempt is retried after 300 ms, for 15 s overall. A 403, 404, 409 or 410 is final and is not retried. A socket file whose listener is gone accepts a connect and then says nothing, so every step has a timeout. `avirtinitd` starts neither its TCP proxy to `proxy.sock` nor the agent until avirthostd has accepted that request, and fails with a message naming the mediator otherwise.
 
 ## TCP proxy to `proxy.sock`
 

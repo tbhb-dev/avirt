@@ -4,7 +4,7 @@ title: Security principles
 description: avirt's security thesis, its scope and what it expects of the layers outside it, its extension points, and its core security principles, each with concrete properties tagged Met, In Progress, Future or Out of Scope against the current code.
 tags: [avirt, security, principles, threat-model]
 implementation: partial
-generated: { by: claude-code/claude-opus-5-5, at: 2026-10-17T23:30:00Z }
+generated: { by: claude-code/claude-opus-5-5, at: 2026-10-18T01:00:00Z }
 ---
 
 # Overview
@@ -70,10 +70,12 @@ The workload container holds placeholders and the workload's MITM CA certificate
 The agent's only way out is its workload's mediator, every connection needs an explicit permit, and avirtedgeproxyd is the one policy enforcement point for every connection that leaves a workload for another workload, a service or the internet.
 
 - **Met.** The workload container has no network interface other than loopback, and its only path out is avirtinitd's TCP proxy to `proxy.sock`, the mediator's CONNECT proxy ([egress](./egress.md#path)).
-- **Met.** The mediator accepts only `CONNECT host:port` with an explicit port and a canonical hostname or IP literal ([CONNECT app](./egress.md#connect-app)).
+- **Met.** The mediator accepts only `CONNECT host:port` with an explicit port and a canonical hostname or IP literal ([CONNECT app](./egress.md#pingora-connect-app)).
 - **Met.** Every resolved address is refused when it is in a non-global range or assigned to one of the host's own interfaces, read on every connection ([private-address block](./egress.md#private-address-block-private-dest)).
 - **Future.** A connection, request or DNS query is allowed only by an explicit Cedar permit in enforce mode. Today every destination that passes the private-address block is allowed under rule `allow-all` ([decision semantics](./egress-policies.md#decision-semantics)).
 - **Future.** avirtedgeproxyd is the policy enforcement point for every workload-to-workload, service, host-local service and external connection, and the only host service that opens connections off the host ([avirtedgeproxyd](./components.md#avirtedgeproxyd), [networking](./networking.md#off-host-enforcement)).
+- **Future.** avirtedgeproxyd and its Envoy run in the edge VM, the only avirt VM with a network interface, and on macOS a Network Extension content filter drops every non-loopback flow from avirt-signed host processes, so the edge VM is the only way off the host ([edge VM](./components.md#edge-vm), [macOS host](./networking.md#macos-host)).
+- **Future.** avirtedgeproxyd refuses the host's own interface addresses, which avirthostd pushes to it and updates on change, as well as the non-global ranges ([edge proxy egress](./egress.md#edge-proxy-egress)).
 - **Future.** Workload DNS goes through the `resolve` action, which applies as evaluated in audit mode too, and every query is logged ([workload DNS](./egress.md#workload-dns)).
 - **Future.** The `Host` of a request under TLS interception must equal its CONNECT host, and the SNI of a connection under TLS passthrough must equal its CONNECT host ([avirtmedproxyd pipeline](./egress.md#avirtmedproxyd-pipeline)).
 - **Future.** Inbound connections reach only the ports a workload publishes, through avirtedgeproxyd and under the destination workload's `ingress` policy ([ingress](./workload-topology.md#ingress)).
@@ -82,7 +84,7 @@ The agent's only way out is its workload's mediator, every connection needs an e
 
 Every connection across a container or host boundary is authenticated by a short-lived SPIFFE identity bound to one workload and one mediator generation, and no VM can ask for an identity it was not issued.
 
-- **Met.** Each workload's connections to avirthostd are authenticated by per-workload random secrets: the connection token (`AVIRT_UPLINK_TOKEN`), held only by avirtinitd and removed from the agent's environment, and the mediator secret, held only by the mediator ([identity](./identity.md#status-implemented)).
+- **Met.** Each workload's connections to avirthostd are authenticated by per-workload random secrets: the connection token (`AVIRT_CONNECTION_TOKEN`), held only by avirtinitd and removed from the agent's environment, and the mediator secret, held only by the mediator ([identity](./identity.md#status-implemented)).
 - **Future.** Every listener reachable across a container or host boundary requires mutual TLS with SPIFFE X.509-SVIDs from the first byte, and authorizes the caller's exact ID ([listeners](./trust-boundaries.md#listeners)).
 - **Future.** No SPIFFE Workload API exists in any VM. avirthostd delivers each container's bootstrap SVID at creation and pushes every later SVID over an authenticated connection ([bootstrap](./identity.md#bootstrap)).
 - **Future.** Long-lived keys are generated where they are used, and avirthostd zeroizes each bootstrap key after handing it to the runtime ([design invariants](./architecture.md#design-invariants)).
@@ -98,7 +100,7 @@ The agent is confined by several independent layers, and escaping one leaves the
 - **Met.** Each workload container runs in its own VM under the Apple container CLI runtime ([compute runtimes](./compute-runtimes.md#apple-container-cli-runtime)).
 - **Met.** The agent runs as uid 1000 with every capability set empty and `no_new_privs`, and its environment carries no workload ID, prompt or connection token ([agent process](./workload-hardening.md#agent-process)).
 - **Met.** Seccomp denies `AF_VSOCK`, `AF_NETLINK` and `AF_PACKET` sockets and io_uring, to avirtinitd and everything it starts, before the agent starts ([seccomp](./workload-hardening.md#seccomp)).
-- **Met.** `proxy.sock` and `uplink.sock` are `root:root 0600`, and the agent cannot read `/proc/1/fd`, `/proc/1/mem` or `/proc/1/environ` or signal PID 1 ([what the agent can still do](./workload-hardening.md#what-the-agent-can-still-do)).
+- **Met.** `proxy.sock` and `mediator.sock` are `root:root 0600`, and the agent cannot read `/proc/1/fd`, `/proc/1/mem` or `/proc/1/environ` or signal PID 1 ([what the agent can still do](./workload-hardening.md#what-the-agent-can-still-do)).
 - **Future.** `socket()` allows only `AF_UNIX`, `AF_INET` and `AF_INET6`, and the denylist blocks fileless exec, cross-process memory access, kernel exploit primitives, mounts and user namespaces ([denylist](./workload-hardening.md#denylist)).
 - **Future.** Landlock confines the agent's filesystem writes to `/workspace`, `/home/agent` and `/tmp`, and the agent does not start without it ([sandbox](./sandbox.md)).
 - **Future.** Every workload helper runs under its own UID and profile, and `/proc` is mounted with `hidepid=invisible` ([security contexts](./workload-hardening.md#security-contexts)).
@@ -212,7 +214,7 @@ Peered hosts trust each other's identities explicitly and narrowly: a peer authe
 1. **Secrets at rest.** Whether durable secrets are encrypted at rest, such as the SPIFFE root key in the macOS Keychain, and how avirtsecretsd stores what it caches from providers, is open.
 2. **Base image pinning.** Whether the avirt base, the harness bases and the mediator image pin their own base images by digest and their downloads by checksum is open.
 3. **Extension callouts.** Which filter positions `ext_proc` and `ext_authz` take in each Envoy relative to libavirtenvoy, what they see under TLS passthrough, and how they fail, is open.
-4. **Off-host enforcement.** Which host mechanism enforces that only avirtedgeproxyd opens connections off the host is open (see [off-host enforcement](./networking.md#off-host-enforcement)).
+4. **Off-host enforcement.** Whether the Network Extension content filter enforces the off-host rule on macOS needs a prototype. The property to test is that it drops every non-loopback flow from avirt-signed host processes (see [networking](./networking.md#open-questions)).
 
 # Threat model
 

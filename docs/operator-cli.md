@@ -4,7 +4,7 @@ title: Operator CLI
 description: The avirt operator CLI and TUI, with the implemented avirt launch and its log follow, and the planned command tree for workloads, labels and namespaces, ports and services, sessions, logs, workspaces and peers, contexts and authentication to the host, output formats, exit codes, and the API call and Cedar action behind every command.
 tags: [avirt, cli, tui, operator]
 implementation: partial
-generated: { by: claude-code/claude-opus-5-5, at: 2026-10-17T22:30:00Z }
+generated: { by: claude-code/claude-opus-5-5, at: 2026-10-18T01:00:00Z }
 ---
 
 # Status: implemented
@@ -94,7 +94,7 @@ flowchart LR
 
 ## Contexts and authentication
 
-The local client listener is a Unix socket in the host's runtime directory, `edgeproxy.sock`, 0600 and owned by the user (see [trust boundaries](./trust-boundaries.md#listeners)). The socket's mode is the authentication: `avirt` holds no token, key or certificate, and avirtedgeproxyd identifies the caller as the local user principal (see [components](./components.md#open-questions)). Calls made this way carry `via: "client"` in their Cedar context.
+`avirt` reaches avirtedgeproxyd's local client listener in the edge VM through `edgeproxy.sock` in the host's runtime directory, a Unix socket backed by vsock, 0600 and owned by the user (see [trust boundaries](./trust-boundaries.md#listeners)). The socket's mode is the authentication: `avirt` holds no token, key or certificate, and avirtedgeproxyd identifies the caller as the local user principal (see [components](./components.md#open-questions)). Calls made this way carry `via: "client"` in their Cedar context.
 
 A **context** names how `avirt` reaches a host. Contexts live in `~/.config/avirt/config.toml`, or under `$XDG_CONFIG_HOME/avirt/`:
 

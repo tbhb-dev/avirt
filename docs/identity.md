@@ -11,7 +11,7 @@ generated: { by: claude-code/claude-opus-5-5, at: 2026-10-17T19:00:00Z }
 
 ## Connection token
 
-`avirthostd` draws a random 128-bit token per workload and passes it only to avirtinitd (`-e AVIRT_UPLINK_TOKEN`, inherited by name, removed from the agent's environment). The `POST /workloads/<id>/stream` request on the workload's HTTP/2 connection to its mediator must carry it in `x-avirt-token`. A missing or wrong token gets a 403 before the workload's state changes.
+`avirthostd` draws a random 128-bit token per workload and passes it only to avirtinitd (`-e AVIRT_CONNECTION_TOKEN`, inherited by name, removed from the agent's environment). The `POST /workloads/<id>/stream` request on the workload's HTTP/2 connection to its mediator must carry it in `x-avirt-token`. A missing or wrong token gets a 403 before the workload's state changes.
 
 ## Mediator secret
 

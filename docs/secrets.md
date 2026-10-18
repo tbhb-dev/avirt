@@ -18,7 +18,7 @@ avirtsecretsd does not exist. avirthostd holds the two credentials the current c
 - **Claude.** avirthostd reads `CLAUDE_CODE_OAUTH_TOKEN` from its own environment per launch, refuses a claude launch with a 400 when it is unset or empty, and passes it to the workload container by name with `-e`, so the value never appears on argv. `mise run serve` loads it from the gitignored `mise.local.toml`.
 - **Codex.** avirthostd reads `~/.codex/auth.json` (or `$CODEX_HOST_HOME/auth.json`) per launch, seeds a private copy for the workload, and writes a refreshed copy back to the host file when the workload ends, under the `auth.json.lock` flock.
 
-The seed, the write-back rules and the `auth_writeback` outcomes are in [egress credentials](./egress-credentials.md#codex). The per-workload connection token (`AVIRT_UPLINK_TOKEN`) and mediator secret that avirthostd draws for each workload are identity material, described in [identity](./identity.md#status-implemented).
+The seed, the write-back rules and the `auth_writeback` outcomes are in [egress credentials](./egress-credentials.md#codex). The per-workload connection token (`AVIRT_CONNECTION_TOKEN`) and mediator secret that avirthostd draws for each workload are identity material, described in [identity](./identity.md#status-implemented).
 
 # Status: planned
 

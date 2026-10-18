@@ -4,7 +4,7 @@ title: Glossary
 description: One definition for every avirt term and every standard term the avirt docs rely on, from workload, mediator, avirtedgeproxyd and the control plane to SPIFFE, SDS and OCI referrers, each with the document section that specifies it.
 tags: [avirt, glossary, terminology, reference]
 implementation: partial
-generated: { by: claude-code/claude-opus-5-5, at: 2026-10-18T01:30:00Z }
+generated: { by: claude-code/claude-opus-5-5, at: 2026-10-18T01:00:00Z }
 ---
 
 # Overview
@@ -95,7 +95,7 @@ The host service that answers avirt names with the address of avirtedgeproxyd on
 
 ## avirtedgeproxyd
 
-The edge proxy: the host service that supervises the host's edge Envoy with libavirtenvoy and serves it local xDS and SDS. Through that Envoy it is the single global policy enforcement point for workload-to-workload, service, host-local service and external connections, and the only component that opens connections off the host. It is part of the data plane. Status: planned. See [avirtedgeproxyd](./components.md#avirtedgeproxyd).
+The edge proxy: the host service that supervises the host's edge Envoy with libavirtenvoy and serves it local xDS and SDS. Through that Envoy it is the single global policy enforcement point for workload-to-workload, service, host-local service and external connections, and the only component that opens connections off the host. It runs in the edge VM. It is part of the data plane. Status: planned. See [avirtedgeproxyd](./components.md#avirtedgeproxyd).
 
 ## avirtexec
 
@@ -223,11 +223,11 @@ The control message with which avirtmediatord releases a workload container to s
 
 ## CONNECT
 
-The HTTP method with which a proxy-aware client asks a forward proxy to open a tunnel to `host:port`, and the only method avirt's egress path accepts. See [CONNECT app](./egress.md#connect-app).
+The HTTP method with which a proxy-aware client asks a forward proxy to open a tunnel to `host:port`, and the only method avirt's egress path accepts. See [CONNECT app](./egress.md#pingora-connect-app).
 
 ## CONNECT app
 
-The implemented mediator's Pingora CONNECT proxy on `proxy.sock`, which parses the authority, applies the private-address block and dials upstream. See [CONNECT app](./egress.md#connect-app).
+The implemented mediator's Pingora CONNECT proxy on `proxy.sock`, which parses the authority, applies the private-address block and dials upstream. See [CONNECT app](./egress.md#pingora-connect-app).
 
 ## Connection header
 
@@ -235,7 +235,7 @@ The first line the implemented mediator writes on each connection to avirthostd'
 
 ## Connection token
 
-The random 128-bit token avirthostd gives only avirtinitd as `AVIRT_UPLINK_TOKEN`, which the implemented `POST /workloads/<id>/stream` request must carry in `x-avirt-token`. Mutual TLS replaces it in the planned design. See [connection token](./identity.md#connection-token).
+The random 128-bit token avirthostd gives only avirtinitd as `AVIRT_CONNECTION_TOKEN`, which the implemented `POST /workloads/<id>/stream` request must carry in `x-avirt-token`. Mutual TLS replaces it in the planned design. See [connection token](./identity.md#connection-token).
 
 ## Containerization runtime
 
@@ -272,6 +272,10 @@ The Envoy cluster type with which avirtedgeproxyd's Envoy resolves and dials ext
 ## Dynamic module
 
 Envoy's interface for loading a shared library that adds filters to Envoy, through which libavirtenvoy runs. Status: planned. See [avirtmedproxyd pipeline](./egress.md#avirtmedproxyd-pipeline).
+
+## Edge VM
+
+The Linux container that runs only avirtedgeproxyd and its Envoy, under avirtinitd, and the only avirt VM with a network interface: a Containerization VM with a vmnet NAT interface on the Containerization runtime, and a container with normal container networking on Docker Desktop. Status: planned. See [edge VM](./components.md#edge-vm).
 
 ## Egress event
 
@@ -687,7 +691,7 @@ The immutable record avirthostd keeps for a workload: its namespace, IDs, alias,
 
 ## Workload container
 
-The container, its own VM on the Containerization runtime, in which avirtinitd and the agent or another main workload process run, with no network interface other than loopback. Its only way out is the workload's HTTP/2 connection to its mediator, which in the implemented system carries only log envelopes, on `uplink.sock`. See [workload container](./components.md#workload-container) and [connection to the mediator](./workload-topology.md#connection-to-the-mediator).
+The container, its own VM on the Containerization runtime, in which avirtinitd and the agent or another main workload process run, with no network interface other than loopback. Its only way out is the workload's HTTP/2 connection to its mediator, which in the implemented system carries only log envelopes, on `mediator.sock`. See [workload container](./components.md#workload-container) and [connection to the mediator](./workload-topology.md#connection-to-the-mediator).
 
 ## Workload ID
 

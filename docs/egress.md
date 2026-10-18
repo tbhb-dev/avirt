@@ -4,7 +4,7 @@ title: Egress and TLS termination
 description: How the agent's network traffic leaves the workload container, the mediator's CONNECT proxy and private-address block, the planned avirtmedproxyd pipeline, avirtedgeproxyd as policy enforcement point, workload DNS, websockets, TLS termination with the workload's MITM CA and its delivery into the workload container, where policy is evaluated on the data path, the event format and the mediator's lack of a network.
 tags: [avirt, egress, proxy, pingora, envoy, tls]
 implementation: partial
-generated: { by: claude-code/claude-opus-5-5, at: 2026-10-17T23:00:00Z }
+generated: { by: claude-code/claude-opus-5-5, at: 2026-10-18T01:00:00Z }
 ---
 
 # Status: implemented
@@ -19,13 +19,13 @@ The workload container runs with `--network none`, so TCP, UDP, DNS and IPv6 all
 avirtmediatord --dir DIR --hostd-sock PATH --workload ID
 ```
 
-It runs one Pingora 0.9.0 `Server` with two Unix-socket services at 0600: the CONNECT app on `proxy.sock`, and on `uplink.sock` a TCP proxy that forwards the bytes of avirtinitd's HTTP/2 connection unchanged to avirthostd. Stdin EOF or SIGINT means fast shutdown and SIGTERM graceful shutdown with no grace-period delay and at most one second for service runtimes to drain. Either way it first flushes every open connection as an event with `error: "shutdown"`. Stdin EOF ties its lifetime to avirthostd's, so a SIGKILLed avirthostd takes every mediator down with it.
+It runs one Pingora 0.9.0 `Server` with two Unix-socket services at 0600: the CONNECT app on `proxy.sock`, and on `mediator.sock` a TCP proxy that forwards the bytes of avirtinitd's HTTP/2 connection unchanged to avirthostd. Stdin EOF or SIGINT means fast shutdown and SIGTERM graceful shutdown with no grace-period delay and at most one second for service runtimes to drain. Either way it first flushes every open connection as an event with `error: "shutdown"`. Stdin EOF ties its lifetime to avirthostd's, so a SIGKILLed avirthostd takes every mediator down with it.
 
 ## Experimental host Envoy mode
 
-Pingora is the default engine. `avirtmediatord --proxy-engine envoy --envoy-bin /absolute/path/to/envoy --envoy-module /absolute/path/to/libavirtenvoy.dylib` selects the experimental Envoy v1.40.0 engine. The equivalent environment variables are `AVIRT_PROXY_ENGINE=envoy`, `AVIRT_ENVOY_BIN` and `AVIRT_ENVOY_MODULE`; avirthostd forwards only these additional configuration variables to its mediator child. The remaining mediator arguments and the secret source are unchanged.
+Pingora is the default engine. `avirtmediatord --proxy-engine envoy --envoy-bin /absolute/path/to/envoy --envoy-module /absolute/path/to/libavirtenvoy.so` selects the experimental Envoy v1.40.0 engine. The equivalent environment variables are `AVIRT_PROXY_ENGINE=envoy`, `AVIRT_ENVOY_BIN` and `AVIRT_ENVOY_MODULE`; avirthostd forwards only these additional configuration variables to its mediator child. The remaining mediator arguments and the secret source are unchanged.
 
-The mediator writes a static `envoy.json` at 0600 in the workload's directory and starts Envoy through a guardian child. Envoy listens on `envoy.sock` at 0600. The existing `proxy.sock` accept loop relays bytes to that listener; Envoy accepts HTTP/1.1 CONNECT only, the avirtenvoy HTTP filter checks destinations, and a dynamic forward proxy cluster opens raw TCP tunnels. The module and filter are mandatory local bootstrap resources; a load failure prevents listener readiness. The `uplink.sock` TCP proxy, the `WORKLOAD` and `EGRESS` connection headers, secrets and workload relay are unchanged.
+The mediator writes a static `envoy.json` at 0600 in the workload's directory and starts Envoy through a guardian child. Envoy listens on `envoy.sock` at 0600. The existing `proxy.sock` accept loop relays bytes to that listener; Envoy accepts HTTP/1.1 CONNECT only, the avirtenvoy HTTP filter checks destinations, and a dynamic forward proxy cluster opens raw TCP tunnels. The module and filter are mandatory local bootstrap resources; a load failure prevents listener readiness. The `mediator.sock` TCP proxy, the `WORKLOAD` and `EGRESS` connection headers, secrets and workload relay are unchanged.
 
 The guardian receives no mediator secret and watches a pipe held by avirtmediatord. EOF kills and reaps Envoy, including when avirtmediatord is killed. Envoy and its guardian run in their own process group, separate from avirtmediatord. Envoy exit shuts down avirtmediatord with exit status 1. On shutdown, avirtmediatord closes the guardian pipe, kills the entire Envoy process group and drains the module event reader before the relay connections close and before closing EGRESS. The stdin watch runs on a dedicated thread, so shutdown does not wait for avirthostd to close stdin. Open streams are reported with `error: "shutdown"` using their latest module snapshot.
 
@@ -33,11 +33,13 @@ The module checks all resolved addresses with the shared Pingora destination pol
 
 Runtime parity is unverified. Envoy may reject a malformed HTTP head before the module runs, in which case there is no module connection event. Envoy's upstream failure statuses and plain-method classification differ from Pingora's status table below. Exact event counts, byte counts, early tunnel data, long streams, and shutdown behavior require live validation. This mode remains opt-in; the phase 4 parity gates are pending.
 
-To prepare an end-to-end run, build the mediator and host daemon with `cargo build --locked -p avirtmediatord -p avirthostd`, build the module with `cargo build --locked --manifest-path crates/avirtenvoy/Cargo.toml --target-dir target/envoy-module`, and supply an Envoy v1.40.0 binary with the HTTP dynamic-module and dynamic forward proxy extensions. On macOS use the absolute `target/envoy-module/debug/libavirtenvoy.dylib` path. The bootstrap validation test runs only when both `AVIRT_ENVOY_BIN` and `AVIRT_ENVOY_MODULE` are set; otherwise it prints `skipped: set AVIRT_ENVOY_BIN and AVIRT_ENVOY_MODULE` and returns, without searching PATH. Set both variables, then run `cargo test -p avirtmediatord envoy_validates_bootstrap_when_available -- --nocapture` to validate that the supplied binary loads the generated bootstrap and module. Start avirthostd with those variables and `AVIRT_PROXY_ENGINE=envoy`, then use the normal launch command. Run the regression suite and both agents' positive checks before claiming parity.
+To prepare an end-to-end run, build the mediator and host daemon with `cargo build --locked -p avirtmediatord -p avirthostd`, build the module with `cargo build --locked --manifest-path crates/avirtenvoy/Cargo.toml --target-dir target/envoy-module`, and supply an Envoy v1.40.0 binary with the HTTP dynamic-module and dynamic forward proxy extensions. Constraint: avirt ships and runs no darwin Envoy, so this mode runs only where avirtmediatord runs on a Linux host (see [Envoy delivery](./build-and-platforms.md#envoy-delivery)). The bootstrap validation test runs only when both `AVIRT_ENVOY_BIN` and `AVIRT_ENVOY_MODULE` are set; otherwise it prints `skipped: set AVIRT_ENVOY_BIN and AVIRT_ENVOY_MODULE` and returns, without searching PATH. Set both variables, then run `cargo test -p avirtmediatord envoy_validates_bootstrap_when_available -- --nocapture` to validate that the supplied binary loads the generated bootstrap and module. Start avirthostd with those variables and `AVIRT_PROXY_ENGINE=envoy`, then use the normal launch command. Run the regression suite and both agents' positive checks before claiming parity.
 
 ### Status: planned
 
 HTTP/2 CONNECT, generation restart, fencing and workload freeze are planned.
+
+Interim dev mode, experimental. Before the mediator moves into its own VM (see [roadmap](./roadmap.md#phases)), `AVIRT_PROXY_ENGINE=envoy` has avirtmediatord run Envoy in a `container run --publish-socket` container on `container`'s default network. Known gap: avirthostd does not yet push the host's interface addresses in this mode, so libavirtenvoy refuses the non-global ranges but not the host's own global addresses.
 
 ## Pingora CONNECT app
 
@@ -134,7 +136,7 @@ avirtedgeproxyd's egress listener accepts h2 CONNECT streams over mutual TLS fro
 | 502 | DNS or dial failure |
 | 504 | Connect timeout |
 
-The private-address block refuses an address in any non-global range listed under [private-address block](#private-address-block-private-dest), and any address assigned to one of the host's own interfaces, global ones included. The interface addresses are read with `getifaddrs` on each connection, so an address added while a workload runs is covered. A dial to a peer's peer listener is exempt from the non-global range refusal, private and CGNAT ranges included, but only for the addresses in that peer's enrollment record, and never for an address of the host's own interfaces.
+The private-address block refuses an address in any non-global range listed under [private-address block](#private-address-block-private-dest), and any address assigned to one of the host's own interfaces, global ones included. avirthostd pushes the addresses of the host's own interfaces to avirtedgeproxyd and pushes an update whenever they change, so an address added while a workload runs is covered. The interfaces inside the edge VM are not the source (see [edge VM network](./networking.md#edge-vm-network)). A dial to a peer's peer listener is exempt from the non-global range refusal, private and CGNAT ranges included, but only for the addresses in that peer's enrollment record, and never for an address of the host's own interfaces.
 
 avirtedgeproxyd never sees the plaintext of a connection whose TLS avirtmedproxyd or a gateway opens to the upstream: that TLS session runs inside the tunnel. Workload-to-workload bytes are opaque to it too. It records one `conn` event per connection, attributed to the caller's workload, with `src: "edgeproxy"`.
 
@@ -207,4 +209,4 @@ Egress policy is Cedar, evaluated locally in each Envoy from a versioned policy 
 
 ## Mediator network
 
-The mediator has no network interface other than loopback, on every runtime. It has no NAT, no bridge, no resolver and no firewall ruleset, and it runs without `CAP_NET_ADMIN`. Its only connections are the runtime-provided Unix sockets in [workload topology](./workload-topology.md#runtime-provided-sockets). The private-address block runs at avirtedgeproxyd, where external names are resolved, and avirtedgeproxyd is the only host service that opens connections off the host.
+The mediator has no network interface other than loopback, on every runtime. It has no NAT, no bridge, no resolver and no firewall ruleset, and it runs without `CAP_NET_ADMIN`. Its only connections are the runtime-provided Unix sockets in [workload topology](./workload-topology.md#runtime-provided-sockets). The private-address block runs at avirtedgeproxyd, where external names are resolved, and avirtedgeproxyd is the only host service that opens connections off the host, from the edge VM (see [edge VM](./components.md#edge-vm)).

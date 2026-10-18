@@ -4,7 +4,7 @@ title: Peering
 description: How two avirt hosts peer, with peer host names as fully qualified DNS names, out-of-band enrollment with enrollment files and fingerprints, trust bundle exchange, root rotation, revocation and removal, discovery and transport over avirtedgeproxyd's peer listener, what crosses a peering and what never does, policy on both sides with cross-host delegation chain and the keepalive that bounds a workload created from a peer, pairwise topology, failure modes, observability and audit, and the avirtadmin and avirt commands.
 tags: [avirt, peering, federation, spiffe, edge-proxy, policy, security]
 implementation: planned
-generated: { by: claude-code/claude-opus-5-5, at: 2026-10-17T23:30:00Z }
+generated: { by: claude-code/claude-opus-5-5, at: 2026-10-18T01:00:00Z }
 ---
 
 # Status: planned
@@ -155,9 +155,9 @@ An enrollment record holds one or more addresses for the peer listener, each a `
 
 | Source | How |
 | --- | --- |
-| Static | The peer host name, the enrollment file's `addresses`, and `avirtadmin peer set HOST --address ADDR`, repeatable. A DNS name is resolved by avirtedgeproxyd at each dial, through the host's resolver and never through avirtdnsd. |
+| Static | The peer host name, the enrollment file's `addresses`, and `avirtadmin peer set HOST --address ADDR`, repeatable. A DNS name is resolved by avirtedgeproxyd at each dial, through its Envoy's resolver in the edge VM and never through avirtdnsd. |
 | mDNS and DNS-SD | Off by default. With `peering.mdns = true` in the host configuration, avirthostd announces `_avirt-peer._tcp.local` with the peer listener's port and a TXT record `tdh=` holding the first 16 bytes of SHA-256 over the trust domain, base32. It browses for the same type and adds a discovered address to the record whose trust domain hashes to that value, after the addresses configured statically. A discovered address expires with its mDNS TTL. A peer host name under `local`, such as `mac-studio.local`, is itself resolved by mDNS. `avirtadmin peer discover` lists announcements on the LAN, for enrollment. |
-| Tailnet | A tailnet such as Tailscale is a network like any other. A peer's MagicDNS name, such as `studio.tail1234.ts.net`, can be its peer host name, a tailnet address is a static address, and the peer listener binds to the tailnet interface through `peering.listen`. The tailnet's own node identity and ACLs are not avirt identities: the mutual TLS handshake still authenticates the peer. |
+| Tailnet | A tailnet such as Tailscale is a network like any other. A peer's MagicDNS name, such as `studio.tail1234.ts.net`, can be its peer host name, a tailnet address is a static address, and the peer port binds to the tailnet interface through `peering.listen`. The tailnet's own node identity and ACLs are not avirt identities: the mutual TLS handshake still authenticates the peer. |
 
 Constraint: avirtedgeproxyd's private-address block refuses non-global and host addresses for workload egress (see [edge proxy egress](./egress.md#edge-proxy-egress)). A connection to the peer listener of an enrolled peer is not workload egress: it may dial a private, CGNAT or link-local address, but only an address in that peer's record or one that a DNS name in the record resolves to, and never an address assigned to one of this host's own interfaces.
 
@@ -167,7 +167,7 @@ avirt does no NAT traversal. Each direction of a peering needs the dialing host 
 
 | Item | Value |
 | --- | --- |
-| Bind | `peering.listen`, a list of `address:port`, empty by default. With it empty, the host has no peer listener and can only dial out. The default port is 8788. In the all-in-one server image, this is the one port the container publishes for peering. |
+| Bind | `peering.listen`, a list of `address:port`, empty by default, for the host's peer port. The runtime publishes the peer port into the edge VM's peer listener. With it empty, the host has no peer listener and can only dial out. The default port is 8788. In the all-in-one server image, this is the one port the container publishes for peering. |
 | Transport | TCP, TLS 1.3 only, mutual, ALPN `h2` only |
 | Server identity | `spiffe://<td>/service/avirtedgeproxyd`, with every name in `peering.hosts` as a DNS SAN. A dialing peer requires the URI SAN and the DNS SAN of the peer host name it recorded. |
 | Client identity | Exactly `spiffe://<peer td>/service/avirtedgeproxyd` of a peer whose state is not `suspended`, verified against that trust domain's own bundle only, never against another peer's bundle or this host's |

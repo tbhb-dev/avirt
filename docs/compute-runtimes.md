@@ -4,7 +4,7 @@ title: Compute runtimes
 description: The runtime interface avirthostd uses for its per-workload primitives, the Containerization runtime that hosts Apple VMs inside avirthostd, the Docker Desktop runtime, and the Apple container CLI runtime the current code uses.
 tags: [avirt, runtime, containerization, docker, apple-container]
 implementation: partial
-generated: { by: claude-code/claude-opus-5-5, at: 2026-10-17T19:00:00Z }
+generated: { by: claude-code/claude-opus-5-5, at: 2026-10-18T01:00:00Z }
 ---
 
 # Apple container CLI runtime
@@ -80,6 +80,7 @@ Status: planned. This is the Apple runtime.
 
 - **Workload VM:** no network.
 - **Mediator VM:** no network. Its connections are the four Unix sockets below.
+- **Edge VM:** one vmnet NAT interface, and the only avirt VM with a network device, which avirthostd's start check asserts. It runs only avirtedgeproxyd and its Envoy, under avirtinitd. The runtime publishes the peer port into its peer listener with the port publishing that `container run --publish` exposes, and forwards a host loopback port into it for web UI users. `edgeproxy.sock` in the runtime directory is a Unix socket backed by vsock into it, and avirtedgeproxyd reaches avirtapid, avirthostd's control API and the other host services over vsock-backed Unix sockets, as the mediators do (see [edge VM](./components.md#edge-vm)).
 
 ## Unix sockets
 
@@ -129,14 +130,17 @@ flowchart LR
         mp -->|"local xDS and SDS"| me
     end
     hs["host services"]
-    fd["avirtedgeproxyd"]
+    subgraph evm["edge VM (vmnet NAT)"]
+        fd["avirtedgeproxyd and its Envoy"]
+    end
     fwd <-->|"workload connection over vsock (ciphertext)"| net
     fwd <-->|"workload connection and ingress over vsock (ciphertext)"| me
     core <-->|"connection to avirthostd over vsock, mTLS"| med
     core <-->|"connection to avirthostd: /envelopes and events"| me
     me -->|"outbound socket over vsock"| fwd
     fwd -->|"by SNI (ciphertext)"| hs
-    fwd -->|"by SNI (ciphertext)"| fd
+    fwd -->|"by SNI over vsock (ciphertext)"| fd
+    fd -->|"vsock-backed Unix sockets"| hs
     fd -->|"external endpoints, peer hosts"| net2(("internet"))
 ```
 
@@ -155,6 +159,7 @@ Status: planned.
 | Workload image | A composed image of the harness base's layers, the workspace layers and the configuration layer, loaded through the Docker API and tagged `avirt.internal/composed:<hex>` (see [workload lifecycle](./workload-lifecycle.md#assembly-per-runtime)). The container's writable layer is the per-workload writable layer. |
 | Mediator network | `--network none` (only `lo`) |
 | Workload network | `--network none` (only `lo`, no docker.sock, no `/run/host-services`) |
+| Edge VM | A container running only avirtedgeproxyd and its Envoy under avirtinitd, with normal container networking, the only avirt container with a network. The peer port is published into it with `-p`, and it reaches the host sockets through single-file bind mounts, as the mediators do. How `edgeproxy.sock` and avirthostd's SNI routing reach its listeners is open (see [networking](./networking.md#open-questions)). |
 | Workload outer layer | `--cap-drop ALL --cap-add SETUID,SETGID,SETPCAP,KILL,NET_BIND_SERVICE --security-opt no-new-privileges`, with Docker's default seccomp profile left in place. The default profile blocks io_uring, bpf, userfaultfd, perf, mount, setns, unshare, `CLONE_NEWUSER`, keyctl and `AF_VSOCK`/`AF_PACKET`/`AF_ALG`. avirtinitd's filter adds ptrace, memfd_create, process_vm_* and `AF_NETLINK`. |
 | Mediator outer layer | `--cap-drop ALL --cap-add SETUID,SETGID --security-opt no-new-privileges`, with Docker's default seccomp profile left in place. avirtinitd in mediator mode needs only `SETUID` and `SETGID`, to start avirtmediatord and avirtmedproxyd under their own UIDs. |
 | AF_VSOCK | No host surface, though the kernel has vsock. `avirtinitd` still denies it. |
@@ -168,14 +173,15 @@ Docker Desktop workloads must never use `--pid=host` or mount docker.sock. Each 
 flowchart LR
     subgraph mac["macOS host"]
         hostd["avirthostd and SNI routing"]
-        fd["avirtedgeproxyd"]
         csock{{"workloads/ID/c.sock"}}
         ssock{{"workloads/ID/s.sock"}}
         hostd --- csock
         hostd --- ssock
-        hostd -->|"by SNI"| fd
     end
     subgraph vm["Docker Desktop VM (one shared kernel)"]
+        subgraph edge["edge VM's container (container networking)"]
+            fd["avirtedgeproxyd and its Envoy"]
+        end
         subgraph wl["workload container (--network none)"]
             net["avirtnetd"]
         end
@@ -188,5 +194,6 @@ flowchart LR
     end
     s -.->|"file bind mount"| csock
     s -.->|"file bind mount"| ssock
+    fd -.->|"file bind mounts of host sockets"| hostd
     fd --> inet(("internet"))
 ```

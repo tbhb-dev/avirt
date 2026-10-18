@@ -4,14 +4,14 @@ title: avirtenvoy
 description: "The Envoy dynamic module that checks CONNECT destinations and reports connection events to avirtmediatord."
 tags: [avirt, crate, avirtenvoy]
 implementation: partial
-generated: { by: claude-code/claude-sonnet-5-5, at: 2026-10-17T19:16:42Z }
+generated: { by: claude-code/claude-opus-5-5, at: 2026-10-18T01:00:00Z }
 ---
 
 # avirtenvoy
 
 ## Status: implemented
 
-The crate provides the Envoy HTTP dynamic module for avirtmediatord's optional Envoy engine. Shared destination policy lives in `avirt-connect`. Build with `cargo build --locked --manifest-path crates/avirtenvoy/Cargo.toml --target-dir target/envoy-module`. The output is `target/envoy-module/debug/libavirtenvoy.dylib` on macOS and `target/envoy-module/debug/libavirtenvoy.so` on Linux. The module is excluded from the root workspace.
+The crate provides the Envoy HTTP dynamic module for avirtmediatord's optional Envoy engine. Shared destination policy lives in `avirt-connect`. Build with `cargo build --locked --manifest-path crates/avirtenvoy/Cargo.toml --target-dir target/envoy-module`. On a Linux host the output is `target/envoy-module/debug/libavirtenvoy.so`. The module ships only as a glibc Linux cdylib (see [Envoy delivery](../../docs/build-and-platforms.md#envoy-delivery)). The module is excluded from the root workspace.
 
 The module uses `envoy-proxy-dynamic-modules-rust-sdk` from [Envoy v1.40.0](https://github.com/envoyproxy/envoy/tree/v1.40.0/source/extensions/dynamic_modules/sdk/rust), pinned to commit `9e5580933739775e8bce696a57a2e1bc99368f23`. The SDK is a git dependency. Building it requires libclang; Xcode supplies it on macOS. The module’s own `Cargo.lock` pins prettyplease 0.2.37, compatible with bindgen 0.73.2's syn 2 dependency.
 

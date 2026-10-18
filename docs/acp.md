@@ -23,7 +23,7 @@ generated: { by: claude-code/claude-opus-5-5, at: 2026-10-17T22:30:00Z }
 avirtinitd spawns the adapter as a stdio subprocess, the ACP stdio transport: newline-delimited JSON-RPC 2.0 on stdin and stdout, with stderr free for diagnostics. The command line is:
 
 ```text
-env -u AVIRT_WORKLOAD_ID -u AVIRT_PROMPT -u AVIRT_CWD -u AVIRT_UPLINK_TOKEN -u AVIRT_AGENT \
+env -u AVIRT_WORKLOAD_ID -u AVIRT_PROMPT -u AVIRT_CWD -u AVIRT_CONNECTION_TOKEN -u AVIRT_AGENT \
   setpriv --reuid=agent --regid=agent --init-groups --inh-caps=-all --bounding-set=-all --no-new-privs \
   -- <adapter command>
 ```
@@ -32,7 +32,7 @@ The adapter command is a bare name found on `PATH`, which the image sets to star
 
 The adapter starts only after these steps, in order:
 
-1. `AVIRT_WORKLOAD_ID`, `AVIRT_PROMPT` and `AVIRT_UPLINK_TOKEN` are present and non-empty, else avirtinitd exits 64. `AVIRT_CWD` defaults to `/workspace`.
+1. `AVIRT_WORKLOAD_ID`, `AVIRT_PROMPT` and `AVIRT_CONNECTION_TOKEN` are present and non-empty, else avirtinitd exits 64. `AVIRT_CWD` defaults to `/workspace`.
 2. avirthostd has accepted `POST /workloads/<id>/stream` on the workload's HTTP/2 connection to its mediator (see [workload topology](./workload-topology.md#connection-to-the-mediator)), and avirtinitd has written the `start` meta event.
 3. avirtinitd's TCP proxy to `proxy.sock` is listening (see [workload topology](./workload-topology.md#tcp-proxy-to-proxysock)).
 4. The seccomp filters are installed (see [workload hardening](./workload-hardening.md#seccomp)).

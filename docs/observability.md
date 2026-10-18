@@ -40,7 +40,7 @@ The workload ID is 8 random hexadecimal characters, and a launch never reuses an
 
 The envelope is `{ts, dir, msg}` in that field order, with `ts` an RFC 3339 UTC time in milliseconds and `dir` one of `client->agent`, `agent->client`, `meta` and `egress` (see [envelope](./hostd-api.md#envelope) and [meta events](./hostd-api.md#meta-events)). Lines reach the log three ways:
 
-- **Workload lines.** avirtinitd builds each envelope, stamps `ts` from the workload container's clock, and sends it in the body of `POST /workloads/<id>/stream`, the one request on the workload's HTTP/2 connection to its mediator (on `uplink.sock`), which today carries only log envelopes. avirthostd splits the request body into lines and writes each line as it arrived. It replaces a line longer than 16 MiB with its own `line_truncated` event.
+- **Workload lines.** avirtinitd builds each envelope, stamps `ts` from the workload container's clock, and sends it in the body of `POST /workloads/<id>/stream`, the one request on the workload's HTTP/2 connection to its mediator (on `mediator.sock`), which today carries only log envelopes. avirthostd splits the request body into lines and writes each line as it arrived. It replaces a line longer than 16 MiB with its own `line_truncated` event.
 - **Egress lines.** The mediator sends one NDJSON `conn` event per proxied connection on its `EGRESS` connection (see [events](./egress.md#events)). avirthostd wraps each in an envelope with `dir: "egress"` and its own `ts`.
 - **avirthostd's events.** avirthostd writes `line_truncated`, `auth_writeback`, `container_error` and `container_exit` itself, with its own `ts`, and holds the errors, the cleanup outcome and `container_exit` until the stream has drained, so `container_exit` is the last line.
 
@@ -492,7 +492,7 @@ avirt ships Grafana alert rules with its dashboards, provisioned from files, and
 | `CredentialRefreshFailing` | A credential refresh failed and the credential expires within 30 minutes | Critical |
 | `EventRingRefusing` | `avirt.events.refused` increased in the last 5 minutes | Warning |
 | `WorkloadLogNearCap` | A workload log past its soft cap | Warning |
-| `UplinkGap` | Any `envelope_gap` event | Warning |
+| `EnvelopeGap` | Any `envelope_gap` event | Warning |
 | `StdioDropped` | `avirt.stdio.dropped_bytes` increased | Info |
 | `MediatorRestartsExhausted` | A workload ended because its mediator restarts ran out | Warning |
 | `IssuingCAExpiring` | The issuing CA expires within 24 hours with no successor | Critical |

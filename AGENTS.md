@@ -22,7 +22,7 @@ Every crate lives directly under `crates/`, and each directory is named after it
 | --- | --- | --- | --- |
 | `avirthostd` | Binary | Host | The host daemon: control API, workload launch and teardown, logs, Codex `auth.json` write-back |
 | `avirt` | Binary `avirt` | Host | The operator CLI: `avirt launch` |
-| `avirtmediatord` | Binary | Host (one per workload) | The CONNECT proxy (Pingora by default, optional Envoy), and the TCP proxy that forwards avirtinitd's HTTP/2 connection on `uplink.sock` to avirthostd with the bytes unchanged |
+| `avirtmediatord` | Binary | Host (one per workload) | The CONNECT proxy (Pingora by default, optional Envoy), and the TCP proxy that forwards avirtinitd's HTTP/2 connection on `mediator.sock` to avirthostd with the bytes unchanged |
 | `avirtmedproxyd` | Binary | Mediator (one per workload) | The mediator proxy: supervises the mediator's Envoy with libavirtenvoy and serves it local xDS and SDS (not implemented) |
 | `avirtinitd` | Binary | Linux guest only (the workload) | The ACP client: spawns the adapter, taps JSON-RPC, drops to uid 1000 under seccomp |
 | `avirt-connect` | Library | Both | CONNECT authority parsing and destination checks, shared by both CONNECT engines |
