@@ -20,6 +20,8 @@ The per-workload VM host helper. It's a SwiftPM package rather than a Cargo crat
 | `Sources/AvirtVMD/Helper.swift` | `runHelper`, which orders startup: incarnation, lock, socket, then serving until stdin closes or a `Stop` arrives |
 | `Sources/AvirtVMD/Control/` | `ControlServer` (the handshake and the requests), the length framing, `Incarnation`, the stdin watcher, and the peer user check |
 | `Sources/AvirtVMD/Protocol/` | `avirtvmd.proto`, the wire contract, and `Messages.swift` with aliases for the generated types. `SwiftProtobufPlugin` generates the Swift at build time and needs `protoc` on `PATH` |
+| `Sources/AvirtVMD/Host/` | `WorkloadHost`, the workload's lifecycle (idle, starting, running, exited, stopping), `LaunchSpec`, and `launchContainer`, which boots the VM through Containerization |
+| `Sources/AvirtVMD/Stdio/` | `StdioLog`, the never-block ring and the NDJSON writer for the workload's stdout, stderr, and console |
 | `Sources/AvirtVMD/Prepare/` | The one-shot `prepare` steps: `fetch`, `extract`, `initfs`, and `rootfs`. Each writes only to the paths on its command line (`--out`, and `--store` for `initfs`) and prints one JSON object |
 | `Sources/AvirtVMD/Sys.swift` | The C library calls that need an `unsafe` expression. No other file may use one |
 | `Tests/AvirtVMDTests/` | The tests, and `fixtures/` with the golden protocol encodings |
@@ -32,7 +34,11 @@ The per-workload VM host helper. It's a SwiftPM package rather than a Cargo crat
 - Bind `<dir>/v.sock` with mode 0600 and refuse a connection from any user but this process's, judged by `LOCAL_PEERCRED`. Remove the socket on a clean exit.
 - Every frame is a 4-byte big-endian length and one Protocol Buffers message of at most 1 MiB. `FrameDecoder` rejects a longer length before it buffers any of the body, which the `NIOExtras` decoder doesn't, so the package doesn't use `NIOExtras`.
 - The helper sends `HelperHello` first on every connection, and the peer replies with `HostHello` or `Refusal` within 5 seconds. A version outside the helper's range gets `Refusal` with `REFUSAL_CODE_UNSUPPORTED_VERSION`. A connection that completes the handshake replaces the previous one.
-- `Status` and `Stop` in the idle state always get an answer. `StartWorkload` fails until the VM host exists.
+- `Status` and `Stop` in the idle state always get an answer. `StartWorkload` with the digest of a start under way or running answers `Started` once the workload runs, and another digest fails.
+- Starting a workload creates `container_dir` with mode 0700 and clones the read-only root filesystem into it with APFS `clonefile`. When the clone fails, the start fails, with no fallback to a full copy.
+- The VM has no network. The container gets only the sockets and shares in the request, and `useInit` is on.
+- The stdio log is `O_EXCL` with mode 0600, and writing to it can't block: a chunk that doesn't fit the 4 MiB ring counts toward `dropped_bytes`. Each record has `ts`, `workload`, `ns`, `short_id`, `stream`, `partial`, and `text` or `b64`. A line over 64 KiB comes out in pieces, and the file stops growing at 256 MiB.
+- Stop the workload (SIGTERM, then a forced stop) before the helper exits, on `Stop` and on end-of-file on stdin.
 - Never log or print an incarnation, a prompt, a token, or an environment value.
 - Don't use `@unchecked Sendable`, `nonisolated(unsafe)`, or an `unsafe` expression outside `Sys.swift`. Don't lower the language mode or the warning policy.
 

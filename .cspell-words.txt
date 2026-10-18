@@ -18,6 +18,7 @@ args
 argv
 ASCII
 async
+attoseconds
 auditd
 AUDITSYSCALL
 AUTOUPDATER
@@ -124,6 +125,7 @@ EACCES
 EAFNOSUPPORT
 ECDSA
 edgeproxy
+EINTR
 EISDIR
 ELF
 ELOOP

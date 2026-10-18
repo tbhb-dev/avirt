@@ -26,6 +26,13 @@ private let incarnationTimeout = Duration.seconds(5)
 ///   - stdin: The descriptor avirthostd writes the incarnation to and then keeps open.
 /// - Returns: The process exit code, one of the `HelperExit` values.
 public func runHelper(workload: String, directory: String, stdin: Int32 = STDIN_FILENO) async -> Int32 {
+  await runHelper(workload: workload, directory: directory, stdin: stdin, launcher: launchContainer)
+}
+
+/// [`runHelper`] with another way to start the workload's VM, for tests.
+func runHelper(
+  workload: String, directory: String, stdin: Int32, launcher: @escaping Launcher
+) async -> Int32 {
   let watcher = StdinWatcher(descriptor: stdin)
   guard case .line(let text) = await watcher.readFirstLine(timeout: incarnationTimeout),
     let incarnation = Incarnation(hex: text)
@@ -47,8 +54,10 @@ public func runHelper(workload: String, directory: String, stdin: Int32 = STDIN_
   let socketPath = directory + "/v.sock"
   let listener: NIOAsyncChannel<ControlChannel, Never>
   let (stopRequests, stopSink) = AsyncStream.makeStream(of: Shutdown.self)
+  let host = WorkloadHost(workload: workload, launcher: launcher)
   let server = ControlServer(
     identity: Identity(workload: workload, incarnation: incarnation),
+    host: host,
     requestStop: { stopSink.yield(.stopRequested) }
   )
   do {
@@ -76,6 +85,8 @@ public func runHelper(workload: String, directory: String, stdin: Int32 = STDIN_
     tasks.cancelAll()
   }
 
+  // Stop the workload before exiting, so a VM never outlives its helper.
+  await host.stop(graceSeconds: 5)
   Sys.removeFile(at: socketPath)
   try? await group.shutdownGracefully()
   return HelperExit.ok

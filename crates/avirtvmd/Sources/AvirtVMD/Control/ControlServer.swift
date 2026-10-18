@@ -28,13 +28,19 @@ private actor ConnectionSlot {
 /// Serves the control channel on `v.sock`: the handshake, then requests and answers.
 struct ControlServer: Sendable {
   let identity: Identity
+  /// The workload's lifecycle, which the requests drive.
+  let host: WorkloadHost
   /// Called after the answer to a `Stop` request is written.
   let requestStop: @Sendable () -> Void
   private let slot = ConnectionSlot()
   private let userID: UInt32
 
-  init(identity: Identity, userID: UInt32 = Sys.currentUID(), requestStop: @escaping @Sendable () -> Void) {
+  init(
+    identity: Identity, host: WorkloadHost, userID: UInt32 = Sys.currentUID(),
+    requestStop: @escaping @Sendable () -> Void
+  ) {
     self.identity = identity
+    self.host = host
     self.userID = userID
     self.requestStop = requestStop
   }
@@ -118,33 +124,63 @@ struct ControlServer: Sendable {
     }
     await slot.claim { try? await channel.close() }
 
-    while let frame = try await frames.next() {
-      guard case .request(let request)? = try HostMessage(frameBody: frame).body else {
-        log("the peer sent something other than a request")
-        return
+    try await withThrowingTaskGroup(of: Void.self) { group in
+      group.addTask { await announceExit(through: outbound) }
+      while let frame = try await frames.next() {
+        guard case .request(let request)? = try HostMessage(frameBody: frame).body else {
+          log("the peer sent something other than a request")
+          break
+        }
+        group.addTask { try await serve(request, through: outbound) }
       }
-      let (response, stopping) = answer(request)
-      var message = HelperMessage()
-      message.response = response
-      try await outbound.write(message.frameBody())
-      if stopping {
-        outbound.finish()
-        requestStop()
-        return
-      }
+      group.cancelAll()
+    }
+  }
+
+  /// Sends an `Event` when the workload exits, or at once if it already has.
+  private func announceExit(through outbound: NIOAsyncChannelOutboundWriter<ByteBuffer>) async {
+    guard let outcome = await host.waitForExit() else { return }
+    var event = HelperMessage()
+    event.event = .with {
+      $0.workloadExited = .with { $0.exit = outcome.proto }
+    }
+    try? await outbound.write(event.frameBody())
+  }
+
+  /// Answers one request.
+  ///
+  /// Answering `Stop` also ends the helper.
+  private func serve(
+    _ request: Request, through outbound: NIOAsyncChannelOutboundWriter<ByteBuffer>
+  ) async throws {
+    let (response, stopping) = await answer(request)
+    var message = HelperMessage()
+    message.response = response
+    try await outbound.write(message.frameBody())
+    if stopping {
+      outbound.finish()
+      requestStop()
     }
   }
 
   /// The answer to one request, and whether it ends the helper.
-  func answer(_ request: Request) -> (response: Response, stopping: Bool) {
+  func answer(_ request: Request) async -> (response: Response, stopping: Bool) {
     var response = Response()
     response.id = request.id
     switch request.op {
-    case .startWorkload?:
-      response.failure = .with { $0.message = "this avirtvmd can't start a workload VM" }
+    case .startWorkload(let start)?:
+      do {
+        try await host.start(digest: start.specDigest) {
+          try LaunchSpec(request: start, workload: identity.workload)
+        }
+        response.started = .init()
+      } catch {
+        response.failure = .with { $0.message = "\(error)" }
+      }
     case .status?:
-      response.status = .with { $0.state = .idle }
-    case .stop?:
+      response.status = await host.reply()
+    case .stop(let stop)?:
+      await host.stop(graceSeconds: stop.graceSeconds)
       response.stopped = .init()
       return (response, true)
     case nil:

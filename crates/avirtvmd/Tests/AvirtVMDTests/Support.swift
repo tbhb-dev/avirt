@@ -37,6 +37,9 @@ let testIdentity = Identity(
   incarnation: Incarnation(bytes: Array(0...15))
 )
 
+/// A launcher for tests that never start a VM.
+let refusingLauncher: Launcher = { _ in throw StartFailure(description: "no VM in this test") }
+
 /// Connects a client that frames messages the way the helper does.
 func connect(to socket: String, group: MultiThreadedEventLoopGroup) async throws -> ControlChannel {
   try await ClientBootstrap(group: group).connect(unixDomainSocketPath: socket) { channel in
@@ -53,6 +56,7 @@ func connect(to socket: String, group: MultiThreadedEventLoopGroup) async throws
 /// Runs `body` against a control server bound in a scratch directory.
 func withServer(
   userID: UInt32 = Sys.currentUID(),
+  launcher: @escaping Launcher = refusingLauncher,
   _ body: (_ socket: String, _ group: MultiThreadedEventLoopGroup, _ stops: Counter) async throws -> Void
 ) async throws {
   let scratch = try ScratchDirectory()
@@ -61,7 +65,9 @@ func withServer(
   let socket = scratch.path + "/v.sock"
   let listener = try await ControlServer.bind(path: socket, group: group)
   let stops = Counter()
-  let server = ControlServer(identity: testIdentity, userID: userID, requestStop: { stops.increment() })
+  let host = WorkloadHost(workload: testIdentity.workload, launcher: launcher)
+  let server = ControlServer(
+    identity: testIdentity, host: host, userID: userID, requestStop: { stops.increment() })
   let serving = Task { try await server.serve(on: listener) }
   do {
     try await body(socket, group, stops)

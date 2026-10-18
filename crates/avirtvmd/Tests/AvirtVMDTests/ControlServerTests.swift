@@ -168,4 +168,66 @@ struct ControlServerTests {
       }
     }
   }
+
+  @Test("A started workload is cloned, announced, and reported with its exit")
+  func startThenExit() async throws {
+    let scratch = try ScratchDirectory()
+    defer { scratch.remove() }
+    try Data("base image".utf8).write(to: URL(fileURLWithPath: scratch.path + "/base.ext4"))
+    let workload = FakeWorkload(exitOnTerminate: true)
+    try await withServer(
+      launcher: { _ in workload },
+      { socket, group, _ in
+        let client = try await connect(to: socket, group: group)
+        try await client.executeThenClose { inbound, outbound in
+          var frames = inbound.makeAsyncIterator()
+          _ = try #require(await frames.nextHelperMessage())
+          try await outbound.write(hostMessage { $0.hello = .with { $0.version = 1 } })
+          try await outbound.write(
+            hostMessage {
+              $0.request = .with {
+                $0.id = 5
+                $0.startWorkload = .with {
+                  $0.specDigest = "digest"
+                  $0.rootfsBasePath = scratch.path + "/base.ext4"
+                  $0.containerDir = scratch.path + "/container"
+                  $0.stdioLogPath = scratch.path + "/stdio.ndjson"
+                }
+              }
+            })
+          let started = try #require(await frames.nextHelperMessage())
+          guard case .response(let response)? = started.body, case .started? = response.result else {
+            Issue.record("the answer wasn't started: \(String(describing: started.body))")
+            return
+          }
+          let attributes = try FileManager.default.attributesOfItem(atPath: scratch.path + "/container")
+          #expect(attributes[.posixPermissions] as? Int == 0o700)
+          #expect(
+            try String(contentsOfFile: scratch.path + "/container/rootfs.ext4", encoding: .utf8) == "base image")
+
+          workload.exit(with: 7)
+          let event = try #require(await frames.nextHelperMessage())
+          guard case .event(let exited)? = event.body else {
+            Issue.record("the next frame wasn't an event")
+            return
+          }
+          #expect(exited.workloadExited.exit.code == 7)
+
+          try await outbound.write(
+            hostMessage {
+              $0.request = .with {
+                $0.id = 6
+                $0.status = .init()
+              }
+            })
+          let status = try #require(await frames.nextHelperMessage())
+          guard case .response(let reply)? = status.body, case .status(let report)? = reply.result else {
+            Issue.record("the answer wasn't a status")
+            return
+          }
+          #expect(report.state == .exited)
+          #expect(report.exit.code == 7)
+        }
+      })
+  }
 }
