@@ -1,7 +1,7 @@
 ---
 type: README
 title: avirt-connect
-description: CONNECT authority parsing and destination checks shared by both CONNECT engines.
+description: CONNECT authority parsing and destination checks for avirtmediatord's CONNECT app.
 tags: [avirt, crate, avirt-connect]
 implementation: implemented
 generated: { by: codex/gpt-6, at: 2026-10-18T04:29:26Z }

@@ -88,8 +88,10 @@ pub fn host_addresses() -> std::io::Result<HashSet<IpAddr>> {
 
 /// Check every resolved address. Refuse empty answers and unavailable host interfaces.
 #[must_use]
-#[allow(clippy::implicit_hasher)] // Matches the `host_addresses` result shared by both engines.
-pub fn destination_allowed(addrs: &[IpAddr], own: &std::io::Result<HashSet<IpAddr>>) -> bool {
+pub fn destination_allowed<S: std::hash::BuildHasher>(
+    addrs: &[IpAddr],
+    own: &std::io::Result<HashSet<IpAddr, S>>,
+) -> bool {
     let Ok(own) = own else { return false };
     !addrs.is_empty() && addrs.iter().all(|ip| !is_private(*ip) && !is_host_address(*ip, own))
 }
@@ -305,10 +307,12 @@ mod tests {
     #[test]
     fn destination_check_fails_closed() {
         let global = ip("93.184.216.34");
-        assert!(!destination_allowed(&[global], &Err(std::io::Error::other("x"))));
+        let failed: std::io::Result<HashSet<IpAddr>> = Err(std::io::Error::other("x"));
+        assert!(!destination_allowed(&[global], &failed));
         assert!(!destination_allowed(&[], &Ok(HashSet::new())));
         assert!(destination_allowed(&[global], &Ok(HashSet::new())));
-        assert!(!destination_allowed(&[global], &Ok([global].into_iter().collect())));
+        let own: std::io::Result<HashSet<IpAddr>> = Ok([global].into_iter().collect());
+        assert!(!destination_allowed(&[global], &own));
         assert!(Target::parse("example.com:443").is_some());
     }
 
