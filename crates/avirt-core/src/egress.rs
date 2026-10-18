@@ -23,6 +23,9 @@ use tokio::time::{self, Instant};
 /// Longest path `sockaddr_un` can hold on macOS, including the final NUL.
 const SUN_PATH_MAX: usize = 104;
 
+/// The sockets in a workload directory. Every path must fit, and the longest name is the one at risk.
+const SOCKET_NAMES: [&str; 3] = ["proxy.sock", "mediator.sock", "v.sock"];
+
 /// A workload's private directory (0700), `workloads/<workload-id>/`.
 ///
 /// It holds the proxy socket and the mediator socket. Dropping it removes the directory and
@@ -39,9 +42,11 @@ impl WorkloadDir {
     /// inside it would not fit in `sockaddr_un`.
     pub fn create(parent: &Path, id: &str) -> Result<Self> {
         let path = parent.join(id);
-        let longest = path.join("proxy.sock");
-        if longest.as_os_str().len() >= SUN_PATH_MAX {
-            bail!("{} is too long for a Unix socket path", longest.display());
+        for name in SOCKET_NAMES {
+            let socket = path.join(name);
+            if socket.as_os_str().len() >= SUN_PATH_MAX {
+                bail!("{} is too long for a Unix socket path", socket.display());
+            }
         }
         DirBuilder::new().mode(0o700).create(&path)?;
         Ok(Self(path))
