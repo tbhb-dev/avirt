@@ -1,0 +1,182 @@
+---
+# Main quality gate. avirt is a Rust workspace, so the gates are the full
+# lint bar, the check aggregate (fmt, clippy and tests, plus the docs
+# checks) on Linux and macOS, the vendor-drift check, and a RustSec
+# advisory scan. Every job installs the pinned toolchain through mise and
+# runs its gate through `mise run`, so the mise config stays the single
+# definition of what each gate runs. The excluded avirtenvoy module is not
+# built here: it needs libclang and the Envoy SDK source.
+
+name: ci
+
+on:
+  push:
+    branches: [main]
+  pull_request:
+  workflow_dispatch:
+
+permissions:
+  contents: read
+
+# A lockfile only binds a version it has already seen. Without this, moving
+# a pin in mise.toml and leaving mise.lock alone makes mise fetch the new
+# version, compute a fresh digest, and rewrite the lockfile in place -- so a
+# Renovate PR that touched only the manifest would go green while the
+# committed digests drifted from the pins under review. MISE_LOCKED makes
+# that a hard failure instead.
+env:
+  MISE_LOCKED: "1"
+
+concurrency:
+  group: ${{ github.workflow }}-${{ github.ref }}
+  cancel-in-progress: ${{ github.event_name == 'pull_request' }}
+
+jobs:
+  lint:
+    name: lint
+    runs-on: ubuntu-24.04
+    steps:
+      - name: Harden the runner
+        uses: step-security/harden-runner@ccd8616d44fd3846e67624a50d5aad6d37bf2d25 # v2.22.1
+        with:
+          egress-policy: audit
+
+      # Full history: the leak scan below reads every commit a pull
+      # request adds, and a shallow clone is refused as incomplete.
+      - name: Checkout
+        uses: actions/checkout@3d3c42e5aac5ba805825da76410c181273ba90b1 # v7.0.1
+        with:
+          persist-credentials: false
+          fetch-depth: 0
+
+      - name: Set up the toolchain
+        uses: jdx/mise-action@2d8d4cafcbd33be2ea37d2b6f5ad595363d1f1ca # v5.1.1
+        with:
+          # renovate: datasource=github-releases depName=jdx/mise
+          version: 2026.10.3
+
+      # mise installs the vale binary but does not fetch the style packages
+      # .vale.ini declares.
+      - name: Sync Vale styles
+        run: mise run install-tools
+
+      - name: Lint
+        run: mise run lint
+
+      # The tree scan in `lint` sees only the checkout. This reads every
+      # commit, message, and author line the pull request adds, so a value
+      # committed and removed again within the branch still fails. CI has no
+      # private literals, so this runs the publishable patterns only.
+      - name: Scan the pull request for leaks
+        if: github.event_name == 'pull_request'
+        env:
+          BASE_SHA: ${{ github.event.pull_request.base.sha }}
+          HEAD_SHA: ${{ github.event.pull_request.head.sha }}
+        # Scan source commits rather than GitHub's synthetic merge signature.
+        run: mise run devtools:lint-leaks -- --range "${BASE_SHA}..${HEAD_SHA}"
+
+  test-matrix:
+    name: "test (${{ matrix.os }})"
+    runs-on: ${{ matrix.os }}
+    strategy:
+      fail-fast: false
+      matrix:
+        os:
+          - ubuntu-24.04
+          - macos-15
+    steps:
+      - name: Harden the runner
+        if: runner.os == 'Linux'
+        uses: step-security/harden-runner@ccd8616d44fd3846e67624a50d5aad6d37bf2d25 # v2.22.1
+        with:
+          egress-policy: audit
+
+      - name: Checkout
+        uses: actions/checkout@3d3c42e5aac5ba805825da76410c181273ba90b1 # v7.0.1
+        with:
+          persist-credentials: false
+
+      - name: Set up the toolchain
+        uses: jdx/mise-action@2d8d4cafcbd33be2ea37d2b6f5ad595363d1f1ca # v5.1.1
+        with:
+          # renovate: datasource=github-releases depName=jdx/mise
+          version: 2026.10.3
+
+      - name: Check
+        run: mise run check
+
+  # The matrix job reports as `test (ubuntu-24.04)` and `test (macos-15)`.
+  # This job owns the plain name `test`, so the required-check list names
+  # one check and stays stable when the matrix changes. `if: always()` keeps
+  # it running after a failed slot, and anything but `success` -- failure,
+  # cancelled, or skipped -- fails it.
+  test:
+    name: test
+    if: always()
+    needs: test-matrix
+    runs-on: ubuntu-24.04
+    steps:
+      - name: Require every matrix leg to pass
+        env:
+          RESULT: ${{ needs.test-matrix.result }}
+        run: |
+          if [[ "${RESULT}" != "success" ]]; then
+            echo "the test matrix finished as ${RESULT}" >&2
+            exit 1
+          fi
+
+  vuln:
+    name: vuln
+    runs-on: ubuntu-24.04
+    steps:
+      - name: Harden the runner
+        uses: step-security/harden-runner@ccd8616d44fd3846e67624a50d5aad6d37bf2d25 # v2.22.1
+        with:
+          egress-policy: audit
+
+      - name: Checkout
+        uses: actions/checkout@3d3c42e5aac5ba805825da76410c181273ba90b1 # v7.0.1
+        with:
+          persist-credentials: false
+
+      - name: Set up the toolchain
+        uses: jdx/mise-action@2d8d4cafcbd33be2ea37d2b6f5ad595363d1f1ca # v5.1.1
+        with:
+          # renovate: datasource=github-releases depName=jdx/mise
+          version: 2026.10.3
+          install_args: rust github:EmbarkStudios/cargo-deny
+
+      - name: Check RustSec advisories
+        env:
+          MISE_TASK_RUN_AUTO_INSTALL: "0"
+        run: mise run vuln
+
+  # Resyncs the devtools payload in place from vendir.yml and fails on any
+  # difference from the committed tree. That catches a vendored file edited
+  # in place, a sync nobody committed, and a manifest bump whose
+  # vendir.lock.yml is stale.
+  vendor-check:
+    name: vendor-check
+    runs-on: ubuntu-24.04
+    steps:
+      - name: Harden the runner
+        uses: step-security/harden-runner@ccd8616d44fd3846e67624a50d5aad6d37bf2d25 # v2.22.1
+        with:
+          egress-policy: audit
+
+      - name: Checkout
+        uses: actions/checkout@3d3c42e5aac5ba805825da76410c181273ba90b1 # v7.0.1
+        with:
+          persist-credentials: false
+
+      - name: Set up the toolchain
+        uses: jdx/mise-action@2d8d4cafcbd33be2ea37d2b6f5ad595363d1f1ca # v5.1.1
+        with:
+          # renovate: datasource=github-releases depName=jdx/mise
+          version: 2026.10.3
+          install_args: vendir
+
+      - name: Check the vendored payload
+        env:
+          MISE_TASK_RUN_AUTO_INSTALL: "0"
+        run: mise run devtools:check-vendored
