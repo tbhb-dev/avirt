@@ -14,6 +14,41 @@ checksum = "sha256:312002dca9e1410557bc0da414b7d9bc8438c905c6573e81c06370fde9910
 url = "https://github.com/microsoft/apm/releases/download/v0.33.0/apm-darwin-arm64.tar.gz"
 url_api = "https://api.github.com/repos/microsoft/apm/releases/assets/606234085"
 
+[[tools."aqua:nextest-rs/nextest/cargo-nextest"]]
+version = "0.9.148"
+backend = "aqua:nextest-rs/nextest/cargo-nextest"
+
+[tools."aqua:nextest-rs/nextest/cargo-nextest"."platforms.linux-x64"]
+checksum = "sha256:bf92cb81450872d960ffa13857a83084d557ec0cdc141663d263bb23ef756f97"
+url = "https://github.com/nextest-rs/nextest/releases/download/cargo-nextest-0.9.148/cargo-nextest-0.9.148-x86_64-unknown-linux-musl.tar.gz"
+url_api = "https://api.github.com/repos/nextest-rs/nextest/releases/assets/620598791"
+
+[tools."aqua:nextest-rs/nextest/cargo-nextest"."platforms.macos-arm64"]
+checksum = "sha256:6c23b7fb4ca82c571fc8dfedbab45bfa773d45918f933170c85d21cd7f4b852b"
+url = "https://github.com/nextest-rs/nextest/releases/download/cargo-nextest-0.9.148/cargo-nextest-0.9.148-universal-apple-darwin.tar.gz"
+url_api = "https://api.github.com/repos/nextest-rs/nextest/releases/assets/620608067"
+
+[[tools."cargo:cargo-mutants"]]
+version = "27.1.0"
+backend = "cargo:cargo-mutants"
+
+[[tools."github:Boshen/cargo-shear"]]
+version = "1.14.0"
+backend = "github:Boshen/cargo-shear"
+
+[tools."github:Boshen/cargo-shear"."platforms.linux-x64"]
+checksum = "sha256:1d7d860fdbd0d95857ff1f2643cc70d20c5d31236159ad51be7ce436eb3e5bf4"
+url = "https://github.com/Boshen/cargo-shear/releases/download/v1.14.0/cargo-shear-x86_64-unknown-linux-gnu.tar.gz"
+url_api = "https://api.github.com/repos/Boshen/cargo-shear/releases/assets/580851856"
+provenance = "github-attestations"
+
+[tools."github:Boshen/cargo-shear"."platforms.macos-arm64"]
+checksum = "sha256:e50b9375b1e93d2293c803819c118337f1e8fce519e4188a93bb0f5e08041ca3"
+url = "https://github.com/Boshen/cargo-shear/releases/download/v1.14.0/cargo-shear-aarch64-apple-darwin.tar.gz"
+url_api = "https://api.github.com/repos/Boshen/cargo-shear/releases/assets/580851820"
+provenance = "github-attestations"
+provenance_verified = true
+
 [[tools."github:EmbarkStudios/cargo-deny"]]
 version = "0.20.2"
 backend = "github:EmbarkStudios/cargo-deny"
@@ -27,6 +62,23 @@ url_api = "https://api.github.com/repos/EmbarkStudios/cargo-deny/releases/assets
 checksum = "sha256:fe67d82a10d8597a3549364cb733a3f9cc1bfff9031b7ae46384a9f2a72090c3"
 url = "https://github.com/EmbarkStudios/cargo-deny/releases/download/0.20.2/cargo-deny-0.20.2-aarch64-apple-darwin.tar.gz"
 url_api = "https://api.github.com/repos/EmbarkStudios/cargo-deny/releases/assets/471597689"
+
+[[tools."github:taiki-e/cargo-llvm-cov"]]
+version = "0.9.1"
+backend = "github:taiki-e/cargo-llvm-cov"
+
+[tools."github:taiki-e/cargo-llvm-cov"."platforms.linux-x64"]
+checksum = "sha256:b3f68e625481fed9b16444174f3fa5ebcdbde4a1878803a35eabe2dcefcdc41a"
+url = "https://github.com/taiki-e/cargo-llvm-cov/releases/download/v0.9.1/cargo-llvm-cov-x86_64-unknown-linux-gnu.tar.gz"
+url_api = "https://api.github.com/repos/taiki-e/cargo-llvm-cov/releases/assets/547403171"
+provenance = "github-attestations"
+
+[tools."github:taiki-e/cargo-llvm-cov"."platforms.macos-arm64"]
+checksum = "sha256:7e821a6c90c0884f79f759f5d9be50799ade67bb82515186d922f26032ef43b8"
+url = "https://github.com/taiki-e/cargo-llvm-cov/releases/download/v0.9.1/cargo-llvm-cov-aarch64-apple-darwin.tar.gz"
+url_api = "https://api.github.com/repos/taiki-e/cargo-llvm-cov/releases/assets/547403359"
+provenance = "github-attestations"
+provenance_verified = true
 
 [[tools."go:github.com/tbhb-dev/devtools/cmd/guard-markdown"]]
 version = "0.12.0"
@@ -53,7 +105,7 @@ version = "1.97.1"
 backend = "core:rust"
 
 [tools.rust.options]
-components = "clippy,rustfmt"
+components = "clippy,llvm-tools,rustfmt"
 profile = "minimal"
 
 [[tools.shfmt]]

@@ -7,7 +7,7 @@ publish.workspace = true
 
 [dependencies]
 agent-client-protocol = { version = "3.4.0", features = ["process", "unstable_protocol_v2"] }
-avirt-core = { path = "../avirt-core" }
+avirt-core = { path = "../avirt-core", version = "0.1.0" }
 serde_json = { version = "1.0.154", features = ["preserve_order"] }
 tokio = { version = "1.53.3", features = ["macros", "rt-multi-thread"] }
 

@@ -225,6 +225,8 @@ resolver's
 retry's
 RPCs
 rumdl
+rustdoc
+rustfmt
 rustls
 SANs
 SBOMs
