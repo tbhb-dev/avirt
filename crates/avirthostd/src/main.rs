@@ -9,11 +9,13 @@ use std::env;
 use std::path::PathBuf;
 use std::process::ExitCode;
 
+use alloc::sync::Arc;
 use anyhow::{Result, bail};
 use avirt_core::api::DEFAULT_PORT;
 use avirt_core::console;
 use avirt_core::hostd;
 use avirt_core::hostd::profile::Config;
+use avirt_core::runtime::container_cli::ContainerCli;
 use clap::Parser;
 
 /// The command-line options.
@@ -54,7 +56,8 @@ async fn serve(args: Args) -> Result<()> {
             mediator_bin.display()
         );
     }
-    hostd::serve(profiles, Config { port: args.port, logs_dir: args.logs_dir, mediator_bin }).await
+    hostd::serve(profiles, Arc::new(ContainerCli), Config { port: args.port, logs_dir: args.logs_dir, mediator_bin })
+        .await
 }
 
 /// Parses the options and runs the daemon. A failure goes to stderr.

@@ -4,6 +4,9 @@
 //! container (the runtime relays a mounted socket file to its host listener), and dials
 //! avirthostd's own socket.
 
+#[cfg(test)]
+mod tests;
+
 use core::time::Duration;
 use std::env;
 use std::fs::{self, DirBuilder, OpenOptions};
@@ -42,6 +45,11 @@ impl WorkloadDir {
         }
         DirBuilder::new().mode(0o700).create(&path)?;
         Ok(Self(path))
+    }
+
+    /// Gives up the directory without removing it, so the next startup's sweep does.
+    pub fn leave(self) {
+        Box::leak(Box::new(self));
     }
 
     /// The container's workload connection socket, mounted at `/run/avirt/mediator.sock`.

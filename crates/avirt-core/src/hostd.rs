@@ -5,16 +5,19 @@ mod container;
 mod mediator;
 pub mod profile;
 mod routes;
+#[cfg(test)]
+mod tests;
 
 use crate::console;
-use crate::egress::{Proxy, ProxySpec, WorkloadDir};
+use crate::egress::WorkloadDir;
 use crate::envelope::{Dir, Envelope, Item, LineSplitter};
-use crate::state::{self, CONTAINER_LABEL, WORKLOAD_LABEL, private_dir};
+use crate::runtime::{EnvPair, MediatorSpec, Runtime, WorkloadHandle, WorkloadSpec};
+use crate::state::{self, private_dir};
 use alloc::collections::VecDeque;
 use alloc::sync::Arc;
 use anyhow::{Result, anyhow, bail};
 use bytes::Bytes;
-use container::{container_name, first_signal, mount, run_cleanup, settle_stream, watch_container};
+use container::{first_signal, run_cleanup, settle_stream, watch_container};
 use core::error::Error;
 use core::fmt;
 use core::hash::BuildHasher;
@@ -38,10 +41,8 @@ use std::fs::{self, File, OpenOptions, Permissions};
 use std::io::{self, Write as _};
 use std::os::unix::fs::{OpenOptionsExt as _, PermissionsExt as _};
 use std::path::{self, Path, PathBuf};
-use std::process::Stdio;
 use std::sync::{Mutex, MutexGuard, PoisonError};
 use tokio::net::{TcpListener, UnixListener};
-use tokio::process::{Child, Command};
 use tokio::signal::unix::{SignalKind, signal};
 use tokio::sync::mpsc::UnboundedSender;
 use tokio::task;
@@ -93,25 +94,6 @@ struct LaunchArgs<'args> {
     prompt: &'args str,
 }
 
-/// What `command` needs to know about one launch.
-#[derive(Clone, Copy)]
-struct Launch<'launch> {
-    /// A host directory to mount at `/workspace`.
-    cwd: Option<&'launch Path>,
-    /// The workload id.
-    id: &'launch str,
-    /// The mediator's workload connection socket.
-    mediator_socket: &'launch Path,
-    /// The agent's profile.
-    profile: &'launch dyn Profile,
-    /// The prompt sent to the agent.
-    prompt: &'launch str,
-    /// The mediator's CONNECT proxy socket.
-    proxy_socket: &'launch Path,
-    /// The token avirtinitd presents on its stream POST.
-    token: &'launch str,
-}
-
 /// The mutable state of one workload.
 #[derive(Default)]
 struct State {
@@ -155,6 +137,8 @@ struct Hostd {
     config: Config,
     /// The agent profiles by name.
     profiles: ProfileMap,
+    /// How workloads run.
+    runtime: Arc<dyn Runtime>,
     /// Cancelled when avirthostd shuts down.
     shutdown: CancellationToken,
     /// The socket mediators dial (in the state root's `hostd/` directory).
@@ -177,14 +161,12 @@ struct ShuttingDown;
 struct Supervised {
     /// The cleanup to run once the container no longer exists.
     cleanup: Cleanup,
-    /// The workload directory, removed last.
-    dir: WorkloadDir,
     /// Keeps shutdown waiting until the workload finishes.
     drain: TaskTrackerToken,
+    /// The workload under its runtime, which removes the workload directory last.
+    handle: Box<dyn WorkloadHandle>,
     /// The workload id.
     id: String,
-    /// The workload's mediator.
-    proxy: Proxy,
     /// The workload's log and state.
     workload: Arc<Workload>,
 }
@@ -320,76 +302,6 @@ impl StreamTask {
 }
 
 impl Hostd {
-    /// Builds the `container run` command for one launch.
-    ///
-    /// # Errors
-    ///
-    /// Returns an error if creating the container log fails.
-    fn command(&self, launch: &Launch<'_>, env: &[EnvVar], shares: &[Share]) -> io::Result<Command> {
-        let Launch { cwd, id, mediator_socket, profile, prompt, proxy_socket, token } = *launch;
-        let container_log = Self::create_private(&self.config.logs_dir.join(format!("{id}.container.log")))?;
-        let mut cmd = Command::new("container");
-        // Start from nothing: avirthostd's environment holds credentials for every agent, and a
-        // launch gets only the variables its profile names plus what the command-line interface itself needs.
-        cmd.env_clear();
-        let inherited = env.iter().filter_map(|var| match var {
-            EnvVar::Inherit(name) => Some(name),
-            EnvVar::Set(..) => None,
-        });
-        for name in ["HOME", "PATH", "TMPDIR", "USER", "LOGNAME"].iter().chain(inherited) {
-            if let Some(value) = env::var_os(name) {
-                cmd.env(name, value);
-            }
-        }
-        // No network at all. The runtime relays a mounted socket *file* to its host listener, so
-        // the two mediator sockets, which must already exist, are the container's only way out.
-        // (Mounting their directory instead would go over virtiofs, which can't connect them.)
-        //
-        // `--init` makes the runtime's init PID 1: it reaps orphans (avirtinitd would not) and
-        // forwards `container stop` to avirtinitd as SIGTERM.
-        cmd.args([
-            "run",
-            "--rm",
-            "--init",
-            "--name",
-            &container_name(id),
-            "--label",
-            CONTAINER_LABEL,
-            "--label",
-            WORKLOAD_LABEL,
-            "--network",
-            "none",
-        ])
-        .arg("-v")
-        .arg(mount(proxy_socket, "/run/avirt/proxy.sock"))
-        .arg("-v")
-        .arg(mount(mediator_socket, "/run/avirt/mediator.sock"));
-        for share in shares {
-            cmd.arg("-v").arg(mount(&share.host, share.guest));
-        }
-        // `-e NAME` with no value makes the `container` command read it from its own environment, so
-        // argv holds names and never a profile secret or the prompt.
-        for var in env {
-            match var {
-                EnvVar::Inherit(name) => cmd.args(["-e", name]),
-                EnvVar::Set(name, value) => cmd.arg("-e").arg(format!("{name}={value}")),
-            };
-        }
-        cmd.args(["-e", "AVIRT_PROMPT", "-e", "AVIRT_CWD", "-e", "AVIRT_CONNECTION_TOKEN"])
-            .arg("-e")
-            .arg(format!("AVIRT_WORKLOAD_ID={id}"))
-            .arg(profile.image())
-            .env("AVIRT_PROMPT", prompt)
-            .env("AVIRT_CONNECTION_TOKEN", token)
-            .env("AVIRT_CWD", if cwd.is_some() { "/workspace" } else { "" })
-            .stdin(Stdio::null())
-            .stdout(container_log.try_clone()?)
-            .stderr(container_log)
-            // A separate process group prevents terminal Ctrl-C from reaching the command-line interface while avirthostd receives it.
-            .process_group(0);
-        Ok(cmd)
-    }
-
     /// Creates a new file that only this user can read or write.
     ///
     /// # Errors
@@ -534,7 +446,7 @@ impl Hostd {
         Ok((id, workload))
     }
 
-    /// Everything after `prepare`: log, network, proxy, container, mediator. On error it
+    /// Everything after `prepare`: log, runtime, mediator, container. On error it
     /// unwinds what it created and leaves `prepared` for the caller to discard.
     ///
     /// # Errors
@@ -546,47 +458,43 @@ impl Hostd {
         prepared: &mut Prepared,
         drain: TaskTrackerToken,
     ) -> Result<String> {
-        let profile = self.profiles.get(args.agent).ok_or_else(|| anyhow!("unknown agent {}", args.agent))?;
+        let image = self.profiles.get(args.agent).ok_or_else(|| anyhow!("unknown agent {}", args.agent))?.image();
         let (id, workload) = self.register()?;
-        let dir = WorkloadDir::create(&self.state.workloads(), &id).inspect_err(|_| self.forget(&id))?;
-        let mediator_log = self.config.logs_dir.join(format!("{id}.mediator.log"));
-        let proxy = Proxy::spawn(&ProxySpec {
-            bin: &self.config.mediator_bin,
-            dir: &dir,
-            hostd_sock: &self.socket,
-            id: &id,
-            log_path: &mediator_log,
-            secret: &workload.mediator_secret,
-        })
-        .await
-        .inspect_err(|_| self.forget(&id))?;
-        let (proxy_socket, mediator_socket) = (dir.proxy_socket(), dir.mediator_socket());
-        let launch = Launch {
-            cwd: args.cwd,
-            id: &id,
-            mediator_socket: &mediator_socket,
-            profile: profile.as_ref(),
-            prompt: args.prompt,
-            proxy_socket: &proxy_socket,
-            token: &workload.token,
-        };
+        let env = launch_env(&prepared.env, args, &id, &workload.token).inspect_err(|_| self.forget(&id))?;
         let mut shares = prepared.shares.clone();
         if let Some(host_dir) = args.cwd {
-            shares.push(Share { host: host_dir.to_path_buf(), guest: "/workspace" });
+            shares.push(Share { guest: "/workspace", host: host_dir.to_path_buf() });
         }
-        let mut cmd = match self.command(&launch, &prepared.env, &shares) {
-            Ok(cmd) => cmd,
-            Err(err) => {
-                proxy.stop().await;
-                self.forget(&id);
-                return Err(err.into());
-            }
+        let dir = WorkloadDir::create(&self.state.workloads(), &id).inspect_err(|_| self.forget(&id))?;
+        let spec = WorkloadSpec {
+            dir,
+            env,
+            id: id.clone(),
+            image: image.to_owned(),
+            logs_dir: self.config.logs_dir.clone(),
+            shares,
         };
+        let mut handle = self.runtime.open(spec).await.inspect_err(|_| self.forget(&id))?;
+        let mediator = MediatorSpec {
+            bin: self.config.mediator_bin.clone(),
+            hostd_sock: self.socket.clone(),
+            log: self.config.logs_dir.join(format!("{id}.mediator.log")),
+            secret: workload.mediator_secret.clone(),
+        };
+        if let Err(err) = handle.start_mediator(mediator).await {
+            handle.release(true).await;
+            self.forget(&id);
+            return Err(err);
+        }
+        if let Err(err) = handle.start_workload().await {
+            handle.stop_mediator().await;
+            handle.release(true).await;
+            self.forget(&id);
+            return Err(err);
+        }
         let cleanup = mem::replace(&mut prepared.cleanup, Cleanup::none());
-        let child = cmd.spawn();
         console::out_line(format_args!("launched {id}"));
-        let run = Supervised { cleanup, dir, drain, id: id.clone(), proxy, workload };
-        self.tracker.spawn(Arc::clone(self).supervise(child, run));
+        self.tracker.spawn(Arc::clone(self).supervise(Supervised { cleanup, drain, handle, id: id.clone(), workload }));
         Ok(id)
     }
 
@@ -594,22 +502,19 @@ impl Hostd {
     ///
     /// That drains its stream and stops the mediator. The cleanup runs next, and the exit notes
     /// come last.
-    async fn supervise(self: Arc<Self>, spawned: io::Result<Child>, mut run: Supervised) {
-        let (status, gone) = match spawned {
-            Ok(child) => watch_container(child, &mut run, &self.shutdown).await,
-            Err(err) => (Err(err), true),
-        };
+    async fn supervise(self: Arc<Self>, mut run: Supervised) {
+        let (status, gone) = watch_container(&mut run, &self.shutdown).await;
         settle_stream(&run.workload).await;
         // Then stop the mediator, which flushes its last events to avirthostd, and wait for
         // them to reach the log before the exit notes follow.
-        run.proxy.stop().await;
+        run.handle.stop_mediator().await;
         // The mediator may never close the event connection, so the wait has a limit.
         time::timeout(Duration::from_secs(5), run.workload.egress_eof.cancelled()).await.unwrap_or_default();
         let cleanup_note = run_cleanup(&run.workload, run.cleanup, gone).await;
         lock(&run.workload.state).cleanup_note = cleanup_note;
         self.finish(&run.id, &run.workload, status);
         // Removes the workload directory with both sockets in it, last.
-        drop(run.dir);
+        run.handle.release(gone).await;
         drop(run.drain);
     }
 }
@@ -633,6 +538,47 @@ async fn accept_loop(hostd: Arc<Hostd>, listener: TcpListener) -> ! {
     }
 }
 
+/// Resolves one profile variable to its name and value. A variable that says to inherit but isn't
+/// set in avirthostd's environment resolves to nothing.
+///
+/// # Errors
+///
+/// Returns an error if an inherited variable isn't valid UTF-8.
+fn resolve(var: &EnvVar) -> Result<Option<EnvPair>> {
+    match var {
+        EnvVar::Inherit(name) => match env::var_os(name) {
+            Some(value) => {
+                let text = value.into_string().map_err(|_| anyhow!("{name} is not valid UTF-8"))?;
+                Ok(Some(((*name).to_owned(), text)))
+            }
+            None => Ok(None),
+        },
+        EnvVar::Set(name, value) => Ok(Some(((*name).to_owned(), value.clone()))),
+    }
+}
+
+/// Builds the workload container's environment.
+///
+/// Profile variables that say to inherit take their value from avirthostd's own environment, and
+/// avirthostd adds its `AVIRT_*` variables last.
+///
+/// # Errors
+///
+/// Returns an error if an inherited variable isn't valid UTF-8.
+fn launch_env(profile: &[EnvVar], args: &LaunchArgs<'_>, id: &str, token: &str) -> Result<Vec<EnvPair>> {
+    let mut vars = Vec::new();
+    for var in profile {
+        vars.extend(resolve(var)?);
+    }
+    vars.extend([
+        ("AVIRT_WORKLOAD_ID".to_owned(), id.to_owned()),
+        ("AVIRT_PROMPT".to_owned(), args.prompt.to_owned()),
+        ("AVIRT_CWD".to_owned(), if args.cwd.is_some() { "/workspace" } else { "" }.to_owned()),
+        ("AVIRT_CONNECTION_TOKEN".to_owned(), token.to_owned()),
+    ]);
+    Ok(vars)
+}
+
 /// Takes the lock even when a panicking thread poisoned it. Every guarded value is a plain collection or
 /// field that one call updates. A panic never leaves one half written.
 fn lock<T>(mutex: &Mutex<T>) -> MutexGuard<'_, T> {
@@ -646,7 +592,7 @@ fn lock<T>(mutex: &Mutex<T>) -> MutexGuard<'_, T> {
 ///
 /// Returns an error if setting up the logs directory or state root fails, or if a listener or
 /// signal handler can't start.
-pub async fn serve<S>(profiles: ProfileMap<S>, requested: Config) -> Result<()>
+pub async fn serve<S>(profiles: ProfileMap<S>, runtime: Arc<dyn Runtime>, requested: Config) -> Result<()>
 where
     S: BuildHasher,
 {
@@ -657,16 +603,17 @@ where
     // One avirthostd per user. Holding the state root's lock lets this one sweep whatever a previous
     // avirthostd left behind without racing a live one.
     let state = state::Root::open()?;
+    let ended = runtime.sweep(&state).await;
     let swept = state.sweep();
-    if !swept.containers.is_empty() || swept.dirs > 0 {
-        let names: Vec<String> = swept.containers.iter().map(|name| format!("\"{name}\"")).collect();
+    if !ended.removed.is_empty() || swept.dirs > 0 {
+        let names: Vec<String> = ended.removed.iter().map(|name| format!("\"{name}\"")).collect();
         console::out_line(format_args!(
             "swept leftovers of a previous run: containers [{}], {} directories",
             names.join(", "),
             swept.dirs
         ));
     }
-    for failure in &swept.failures {
+    for failure in ended.failures.iter().chain(&swept.failures) {
         console::err_line(format_args!("sweep could not remove {failure}"));
     }
 
@@ -684,6 +631,7 @@ where
     let hostd = Arc::new(Hostd {
         config,
         profiles: profiles.into_iter().collect(),
+        runtime,
         shutdown: CancellationToken::new(),
         socket: hostd_sock,
         state,

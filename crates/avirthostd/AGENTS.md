@@ -8,13 +8,13 @@ generated: { by: codex/gpt-6, at: 2026-10-18T02:56:31Z }
 
 # Agent instructions: avirthostd
 
-The `avirthostd` binary. Most of the server is in `avirt-core` (`hostd`, `egress`, `state`), and this crate wires it to the two agent profiles.
+The `avirthostd` binary. Most of the server is in `avirt-core` (`hostd`, `runtime`, `egress`, `state`), and this crate wires it to the two agent profiles.
 
 ## Layout
 
 | Module | Holds |
 | --- | --- |
-| `main.rs` | Flag parsing (`--port`, `--logs-dir`, `--mediator-bin`) and the call into `avirt_core::hostd::serve` |
+| `main.rs` | Flag parsing (`--port`, `--logs-dir`, `--mediator-bin`) and the call into `avirt_core::hostd::serve` with the `ContainerCli` runtime |
 | `profiles.rs` | The per-agent launch profiles: image names (`CLAUDE_IMAGE`, `CODEX_IMAGE`), the variables passed to the workload, and the per-launch hook with its cleanup |
 | `codex_auth.rs` | The Codex `CODEX_HOME` seed and the `auth.json` write-back |
 

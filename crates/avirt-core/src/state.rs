@@ -16,18 +16,11 @@ mod tests;
 use std::fs::{self, DirBuilder, File, OpenOptions, Permissions, TryLockError};
 use std::os::unix::fs::{DirBuilderExt as _, MetadataExt as _, OpenOptionsExt as _, PermissionsExt as _};
 use std::path::{Path, PathBuf};
-use std::process::Command;
 use std::{env, io};
 
 use anyhow::{Context as _, Result, bail};
 use rustix::fs::OFlags;
 use rustix::process;
-use serde_json::Value;
-
-/// Label put on every container avirthostd starts. A sweep uses it to find them without guessing at names.
-pub const CONTAINER_LABEL: &str = "avirt=1";
-/// Marks the container as a workload.
-pub const WORKLOAD_LABEL: &str = "avirt.role=workload";
 
 /// The state root directory, held open by its lock.
 #[derive(Debug)]
@@ -41,8 +34,6 @@ pub struct Root {
 /// What a sweep removed.
 #[derive(Debug, Default)]
 pub struct Swept {
-    /// Ids of the containers the sweep deleted.
-    pub containers: Vec<String>,
     /// How many entries the sweep found in the state root's directories.
     pub dirs: usize,
     /// Directories the sweep couldn't remove. The sweep goes on without them.
@@ -105,7 +96,7 @@ impl Root {
     /// any directory it can't remove and continues.
     #[must_use]
     pub fn sweep(&self) -> Swept {
-        let mut swept = Swept { containers: sweep_containers(), ..Swept::default() };
+        let mut swept = Swept::default();
         for dir in [self.workloads(), self.scratch(), self.hostd()] {
             swept.dirs = swept.dirs.saturating_add(fs::read_dir(&dir).map_or(0, Iterator::count));
             if let Err(err) = remove_tree(&dir) {
@@ -177,28 +168,4 @@ pub fn remove_tree(path: &Path) -> io::Result<()> {
         Err(err) if err.kind() == io::ErrorKind::NotFound => Ok(()),
         other => other,
     }
-}
-
-/// Stops and deletes the container if it has avirthostd's label, returning its id.
-fn sweep_container(container: &Value, key: &str, value: &str) -> Option<String> {
-    let config = container.get("configuration")?;
-    if config.get("labels")?.get(key)?.as_str() != Some(value) {
-        return None;
-    }
-    let id = config.get("id")?.as_str()?;
-    for args in [["kill", id], ["delete", id]] {
-        drop(Command::new("container").args(args).output());
-    }
-    Some(id.to_owned())
-}
-
-/// Stops and deletes every container with avirthostd's label, whatever its state.
-fn sweep_containers() -> Vec<String> {
-    let Ok(out) = Command::new("container").args(["ls", "--all", "--format", "json"]).output() else {
-        return Vec::new();
-    };
-    let Ok(list) = serde_json::from_slice::<Value>(&out.stdout) else { return Vec::new() };
-    // The label constant always has the form `key=value`.
-    let Some((key, value)) = CONTAINER_LABEL.split_once('=') else { return Vec::new() };
-    list.as_array().into_iter().flatten().filter_map(|container| sweep_container(container, key, value)).collect()
 }
