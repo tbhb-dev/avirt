@@ -20,7 +20,6 @@ tokens:
   - (?i)identity lifetime bound
   - (?i)the usual workload writers
   - (?i)avirtmediationd
-  - (?i)helpers?
   - (?i)provenance labels?
   - (?i)off-host enforcement
   - (?i)policy invariants?
