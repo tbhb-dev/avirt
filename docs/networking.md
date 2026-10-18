@@ -132,7 +132,7 @@ The loopback HTTP CONNECT forward proxy remains available to explicitly configur
 | TCP ingress | Extended CONNECT on `/ingress` with `:protocol` `connect-tcp` | A published port on a destination workload |
 | UDP ingress | CONNECT-UDP | One authenticated association per stream to a published UDP port |
 
-avirtedgeproxyd accepts the extended CONNECT protocols and forwarded HTTP from mediators and authorized host services. Its peer listener supports the same extended CONNECT protocols and forwarded HTTP between hosts. Every connection across a container or host boundary uses mutual TLS. The principal comes from the caller's SVID, never from a packet's source address. `x-avirt-caller` states the originating principal only on paths whose sender may set it.
+avirtedgeproxyd accepts CONNECT, CONNECT-UDP and `icmp` streams, and forwarded HTTP from mediators and authorized host services. Its peer listener supports CONNECT, CONNECT-UDP and `icmp` streams, and forwarded HTTP between hosts. Every connection across a container or host boundary uses mutual TLS. The principal comes from the caller's SVID, never from a packet's source address. `x-avirt-caller` states the originating principal only on paths whose sender may set it.
 
 TCP half-close maps to HTTP/2 `END_STREAM`. Every tunnel explicitly shuts down its sending side and drains the peer with a deadline. It logs the result. Resetting or dropping an h2 stream discards queued data, and a dropped stream doesn't establish that the peer received its bytes.
 

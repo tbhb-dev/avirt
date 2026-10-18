@@ -91,7 +91,7 @@ Internal names resolve to canonical entities. Local workload ports use the desti
 
 ## `private-dest`
 
-The edge refuses non-global addresses and addresses assigned to the host's own interfaces for all extended CONNECT protocols and forwarded HTTP. Non-global ranges include loopback, private, CGNAT, link-local, documentation, benchmarking, multicast, and reserved ranges. A watcher tracks host addresses. The mediator translates synthetic addresses through its table before the edge checks the real upstream address, and an authorized service record allows only its recorded backend. A peer connection may use enrolled peer addresses, but never an address of the host itself.
+The edge refuses non-global addresses and addresses assigned to the host's own interfaces for CONNECT, CONNECT-UDP and `icmp` streams, and forwarded HTTP. The full [private-address block](#private-address-block-private-dest) applies, including refusal of IPv4-mapped and IPv4-compatible literals on flows to literal IP addresses outside the synthetic ranges. A watcher tracks host addresses. The mediator translates synthetic addresses through its table before the edge checks the real upstream address, and an authorized service record allows only its recorded backend. A peer connection may use enrolled peer addresses, but never an address of the host itself.
 
 | Status | Cause |
 | --- | --- |

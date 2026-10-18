@@ -511,7 +511,7 @@ The parser canonicalizes each external host once. Later checks always use the ca
 2. After converting the authority to lowercase, the parser strips one trailing dot.
 3. A valid label is 1 to 63 characters of `a`-`z`, `0`-`9`, `-`, and `_`, and the whole name is at most 253 characters. Anything outside these constraints makes the name malformed.
 4. A name whose last label is all digits must be a canonical dotted quad and becomes an IP literal. Examples of malformed authorities include `2130706433`, `0177.0.0.1`, `0x7f000001`, and `127.1`.
-5. An IPv6 literal arrives bracketed (`[2001:db8::1]:443`). Parsing converts it into an `ipaddr`. avirtmediatord canonicalizes IPv4-mapped addresses before lookup in the synthetic address table, and `private-dest` checks the real upstream destination.
+5. An IPv6 literal arrives bracketed (`[2001:db8::1]:443`). Parsing converts it into an `ipaddr`. avirtmediatord canonicalizes IPv4-mapped addresses before lookup in the synthetic address table, and `private-dest` checks the real upstream destination. Flows to literal IP addresses outside the synthetic ranges still refuse IPv4-mapped and IPv4-compatible literals and apply the full [private-address block](./egress.md#private-address-block-private-dest).
 
 A real IP literal becomes a `Destination` with `ip` and no `host`, so no hostname rule and no `like` pattern can match it: it's permitted only by a policy that compares `resource.ip`, by equality or with `isInRange`.
 
