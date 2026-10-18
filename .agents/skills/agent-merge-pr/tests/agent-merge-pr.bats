@@ -74,6 +74,8 @@ EOF
   export AGENT_SKILLS_REVIEW_MAX_ROUNDS=2
   export AGENT_SKILLS_LINT_SQUASH_CMD=true
   export AGENT_SKILLS_GH_LOGIN=agent-account
+  export AGENT_SKILLS_REQUIRED_REVIEWER=tbhb-agent-reviewer
+  review_as tbhb-agent-reviewer APPROVED @head
   export AGENT_SKILLS_MERGE_READY_CMD=$tmp/ready
   export AGENT_SKILLS_MAIL_CMD=$tmp/mail
   export AGENT_SKILLS_MAIL_TO=planner
@@ -144,6 +146,18 @@ write_pr() {
   }' >"$fx/pr-7.json"
 }
 
+# Start the reviews on the pull request: <login> <state> <commit>, where
+# the commit @head means whatever head the pull request has when read.
+review_as() {
+  jq -n --arg u "$1" --arg s "$2" --arg c "$3" '[{user: {login: $u}, state: $s, commit_id: $c}]' >"$fx/reviews.json"
+}
+
+# Add one more review after the existing ones.
+more_review() {
+  jq --arg u "$1" --arg s "$2" --arg c "$3" '. + [{user: {login: $u}, state: $s, commit_id: $c}]' "$fx/reviews.json" >"$fx/edit.tmp"
+  mv "$fx/edit.tmp" "$fx/reviews.json"
+}
+
 edit_pr() {
   jq "$1" "$fx/pr-7.json" >"$fx/edit.tmp"
   mv "$fx/edit.tmp" "$fx/pr-7.json"
@@ -168,6 +182,11 @@ api)
     exit
   fi
   case "$2" in
+  repos/*/pulls/*/reviews)
+    [ ! -f "$fx/fail-reviews" ] || exit 1
+    jq --arg h "$(jq -r .headRefOid "$fx/pr-7.json")" 'map(if .commit_id == "@head" then .commit_id = $h else . end)' "$fx/reviews.json"
+    exit
+    ;;
   repos/*/rules/branches/*)
     [ ! -f "$fx/fail-rules" ] || exit 1
     if [ -f "$fx/rules.json" ]; then jq -r '.[] | select(.type == "required_status_checks") | .parameters.required_status_checks[].context' "$fx/rules.json"; fi
@@ -878,6 +897,86 @@ hook_command() {
   for line in 'let allowed = true;' 'use std::io;' '    "tokio",' 'pub fn expect_ok() {}'; do
     ! printf '%s\n' "$line" | tr '[:upper:]' '[:lower:]' | grep -q -E -- "$markers" || { echo "read as a suppression by mistake: $line"; false; }
   done
+}
+
+@test "an approval from the required reviewer on the current head lets the merge go" {
+  stamped
+  more_review someone-else COMMENTED @head
+  merge
+  [ "$status" -eq 0 ]
+  [ "$(merged_calls)" = 1 ]
+}
+
+@test "an approval of an older head is refused" {
+  review_as tbhb-agent-reviewer APPROVED 0123456789abcdef0123456789abcdef01234567
+  stamped
+  merge
+  [ "$status" -eq 1 ]
+  [[ $output == *"is for 0123456789ab, not the current head"* ]] || false
+  [ "$(merged_calls)" = 0 ]
+}
+
+@test "changes requested after an approval is refused" {
+  more_review tbhb-agent-reviewer CHANGES_REQUESTED @head
+  stamped
+  merge
+  [ "$status" -eq 1 ]
+  [[ $output == *"requests changes"* ]] || false
+  [ "$(merged_calls)" = 0 ]
+}
+
+@test "an approval after a change request lets the merge go" {
+  review_as tbhb-agent-reviewer CHANGES_REQUESTED @head
+  more_review tbhb-agent-reviewer APPROVED @head
+  stamped
+  merge
+  [ "$status" -eq 0 ]
+}
+
+@test "a dismissed review is refused" {
+  review_as tbhb-agent-reviewer DISMISSED @head
+  stamped
+  merge
+  [ "$status" -eq 1 ]
+  [[ $output == *"was dismissed"* ]] || false
+  [ "$(merged_calls)" = 0 ]
+}
+
+@test "an approval only from someone else is refused" {
+  review_as someone-else APPROVED @head
+  stamped
+  merge
+  [ "$status" -eq 1 ]
+  [[ $output == *"no approving or blocking review from tbhb-agent-reviewer"* ]] || false
+  [ "$(merged_calls)" = 0 ]
+}
+
+@test "an empty required reviewer refuses every merge" {
+  stamped
+  export AGENT_SKILLS_REQUIRED_REVIEWER=
+  merge
+  [ "$status" -eq 1 ]
+  [[ $output == *"required_reviewer is empty"* ]] || false
+  [ "$(merged_calls)" = 0 ]
+}
+
+@test "reviews that can't be read refuse the merge" {
+  stamped
+  : >"$fx/fail-reviews"
+  merge
+  [ "$status" -eq 1 ]
+  [[ $output == *"couldn't read the reviews"* ]] || false
+}
+
+@test "preflight reports the required reviewer's verdict" {
+  run bash "$scripts/preflight.sh" 7
+  [[ $output == *"tbhb-agent-reviewer: approved the current head"* ]] || false
+  review_as tbhb-agent-reviewer DISMISSED @head
+  run bash "$scripts/preflight.sh" 7
+  [[ $output == *"tbhb-agent-reviewer: NOT APPROVED, the latest review from tbhb-agent-reviewer was dismissed"* ]] || false
+  export AGENT_SKILLS_REQUIRED_REVIEWER=
+  run bash "$scripts/preflight.sh" 7
+  [[ $output == *"required_reviewer: NOT CONFIGURED"* ]] || false
 }
 
 @test "an ordinary change has nothing a loosening check reads" {

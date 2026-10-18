@@ -32,6 +32,24 @@ am_live() {
   printf '%s' "$json" | jq -r --arg field "$2" '.[$field] | if . == null then "" else tostring end'
 }
 
+# am_reviewer_verdict <pr> <head> <login>: print "ok" when the latest
+# decisive review by the login approved the pull request on the head
+# commit, and otherwise print the reason a merge is refused. Comments and
+# pending reviews decide nothing, so the latest approval, change request,
+# or dismissal wins. Fails when gh or the reviews can't be read.
+am_reviewer_verdict() {
+  local pr=$1 head=$2 login=$3 reviews
+  reviews=$(gh api "repos/{owner}/{repo}/pulls/$pr/reviews" --paginate | jq -s 'add // []') || return 1
+  printf '%s' "$reviews" | jq -r --arg login "$login" --arg head "$head" '
+    [.[] | select(.user.login == $login and (.state == "APPROVED" or .state == "CHANGES_REQUESTED" or .state == "DISMISSED"))]
+    | last
+    | if . == null then "no approving or blocking review from \($login)"
+      elif .state == "CHANGES_REQUESTED" then "the latest review from \($login) requests changes"
+      elif .state == "DISMISSED" then "the latest review from \($login) was dismissed"
+      elif .commit_id != $head then "the approval from \($login) is for \(.commit_id[0:12]), not the current head \($head[0:12])"
+      else "ok" end'
+}
+
 # am_draft_number <file>: the pull request number the first line names
 # in its closing (#N), or nothing.
 am_draft_number() {

@@ -92,6 +92,13 @@ if printf '%s\n' "$label_names" | grep -q -x -F -- "$owner_label"; then
   as_die "#$pr has the $owner_label label; the owner reviews and merges it. Nothing was merged."
 fi
 
+# --- gate 2b: the required reviewer approved the current head ----------
+
+reviewer=$(as_conf required_reviewer)
+[ -n "$reviewer" ] || as_die "required_reviewer is empty; the account whose approval a merge needs has to be named"
+verdict=$(am_reviewer_verdict "$pr" "$expected" "$reviewer") || as_die "couldn't read the reviews of #$pr"
+[ "$verdict" = ok ] || as_die "#$pr lacks an approval from $reviewer on its head: $verdict. Nothing was merged."
+
 # --- gate 3: the merge state -------------------------------------------
 
 merge_state=$(am_live "$pr" mergeStateStatus) || as_die "couldn't read #$pr"

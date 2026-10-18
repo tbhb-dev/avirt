@@ -91,6 +91,16 @@ else
   echo "BROKEN: these settings are empty or aren't patterns grep can read, and merge.sh refuses: $(printf '%s' "$bad_patterns" | tr '\n' ' ')"
 fi
 
+section "reviewer approval"
+reviewer=$(as_conf required_reviewer)
+if [ -z "$reviewer" ]; then
+  echo "required_reviewer: NOT CONFIGURED. merge.sh refuses on every pull request."
+elif verdict=$(am_reviewer_verdict "$pr" "$head" "$reviewer"); then
+  if [ "$verdict" = ok ]; then echo "$reviewer: approved the current head"; else echo "$reviewer: NOT APPROVED, $verdict. merge.sh refuses."; fi
+else
+  echo "$reviewer: UNREADABLE, the reviews couldn't be read. merge.sh refuses."
+fi
+
 section "readiness"
 ready=$(am_ready_cmd)
 if [ -z "$ready" ]; then

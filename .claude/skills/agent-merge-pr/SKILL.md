@@ -33,7 +33,7 @@ Work through these in order. Stop at the first one that fails, and report what f
 bash .claude/skills/agent-merge-pr/scripts/preflight.sh <pr>
 ```
 
-It prints the pull request's state, base, head commit, draft flag, and merge state. Each check shows the verdict of its latest run, because a re-run leaves the superseded run in the list. The preflight also prints the readiness answer. After those comes a briefing with the title, the published description, every commit message the squash collapses, the list of changed files, and the sign-off line. It never fails, and it leaves the repository as it found it.
+It prints the pull request's state, base, head commit, draft flag, and merge state. Each check shows the verdict of its latest run, because a re-run leaves the superseded run in the list. The preflight also prints the required reviewer's verdict and the readiness answer. After those comes a briefing with the title, the published description, every commit message the squash collapses, the list of changed files, and the sign-off line. It never fails, and it leaves the repository as it found it.
 
 Stop when it reports a draft pull request, a failing or running check, an owner path among the changes, or a missing precondition. A refusal isn't yours to work around: report `needs-owner` and stop. A failing check goes to `fix-pr`, and a running one to `watch-pr`.
 
@@ -84,13 +84,14 @@ Pass the head commit the review stamped, in full, as the preflight printed it. A
 1. The stamp covers the draft's bytes and this pull request. The head it records matches the one you passed and the one the pull request has now. The base branch and its commit match the ones the review read, so a pull request moved to another base, or a base that moved since, goes back to review.
 2. `gh` signed in as the agent's own account, the one `gh_login` names. A merge can't be undone, and `gh` acts as whichever account holds the session.
 3. An open pull request that isn't a draft, without the `owner-review` label. That label sends a pull request to the owner.
-4. A merge state of `CLEAN`. `BEHIND` and `DIRTY` go to the `rebase` skill.
-5. Every check, judged by its latest run alone, succeeded or was neutral or skipped. A run that hasn't finished refuses, and so does a pull request with no checks at all. Each check the base branch requires has a latest run that succeeded, since a skipped or neutral run never did the check's work. The required checks come from the rulesets GitHub applies and from the ruleset files in `ruleset_dir` as the base commit has them, and when neither lists a check the merge refuses. The script never re-runs, cancels, or deletes a run.
-6. A readiness command, `merge_ready_cmd`, that exits 0 when run as `<cmd> <repo-root> <pr> <head>`. With no command set, as here, this step passes, and the required checks and the merge state still apply.
-7. No golden file among the changed paths, by the `golden_paths` pattern. A golden file changes only on the owner's review of its baseline diff.
-8. No loosened gate in the diff that the script detects. It looks for a suppression marker on an added line (`loosening_markers`). In a gate or lint configuration file (`gate_config_paths`), it also looks for an added exclusion and a removed hook or lint task. That check is a backstop. A loosened gate it can't see is the author's and the reviewers' to flag, and such a pull request goes to the owner.
-9. No owner path among the changed paths, by the `owner_paths` pattern. Commits supply the changed paths, and a rename counts under both names. A pull request that changes one goes to the owner.
-10. A passing commit-msg lint.
+4. An approval from the account `required_reviewer` names. Its latest approving, change-requesting, or dismissing review has to be an approval, and the review has to be on the pull request's current head. A change request, a dismissal, no review, an approval of an older head, or an empty `required_reviewer` refuses the merge. A comment or a pending review doesn't count.
+5. A merge state of `CLEAN`. `BEHIND` and `DIRTY` go to the `rebase` skill.
+6. Every check, judged by its latest run alone, succeeded or was neutral or skipped. A run that hasn't finished refuses, and so does a pull request with no checks at all. Each check the base branch requires has a latest run that succeeded, since a skipped or neutral run never did the check's work. The required checks come from the rulesets GitHub applies and from the ruleset files in `ruleset_dir` as the base commit has them, and when neither lists a check the merge refuses. The script never re-runs, cancels, or deletes a run.
+7. A readiness command, `merge_ready_cmd`, that exits 0 when run as `<cmd> <repo-root> <pr> <head>`. With no command set, as here, this step passes, and the required checks and the merge state still apply.
+8. No golden file among the changed paths, by the `golden_paths` pattern. A golden file changes only on the owner's review of its baseline diff.
+9. No loosened gate in the diff that the script detects. It looks for a suppression marker on an added line (`loosening_markers`). In a gate or lint configuration file (`gate_config_paths`), it also looks for an added exclusion and a removed hook or lint task. That check is a backstop. A loosened gate it can't see is the author's and the reviewers' to flag, and such a pull request goes to the owner.
+10. No owner path among the changed paths, by the `owner_paths` pattern. Commits supply the changed paths, and a rename counts under both names. A pull request that changes one goes to the owner.
+11. A passing commit-msg lint.
 
 After those commands, the script checks the stamp a second time. Any open pull request that sits on this one's branch then gets this one's base. Next the script merges from its own copy of the reviewed body, pinned to the reviewed head with `--match-head-commit`, and never with `--admin` or `--auto`. Last, it confirms that GitHub shows the pull request as merged and that the merge commit has the reviewed message. Then it tidies up:
 
