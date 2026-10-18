@@ -101,7 +101,7 @@ Every control-plane action includes `via` in its context, except avirtsecretsd's
 | `create_workload` | avirthostd | The caller | The new workload's `Namespace` | `via`, `depth` (the new workload's delegation chain depth), `detached`, `agent` |
 | `list_workloads` | avirthostd | The caller | `Namespace` | `via` |
 | `inspect_workload`, `stop_workload`, `delete_workload` | avirthostd | The caller | The target `Workload` | `via` |
-| `extend_sandbox` | avirthostd, per path at creation (see [sandbox](./sandbox.md#extra-sandbox-paths)) | The caller | The new workload's `Namespace` | `via`, `path`, `access` (`read` or `write`) |
+| `extend_sandbox` | avirthostd, per path at creation (see [Landlock](./landlock.md#extra-paths)) | The caller | The new workload's `Namespace` | `via`, `path`, `access` (`read` or `write`) |
 | `set_label` | avirthostd, per label at creation | The caller | The workload's or service's `Namespace` | `via`, `key`, `value` |
 | `attach_binding` | avirthostd, per binding at creation | The caller | `Binding` | `via`, `namespace` (the new workload's `Namespace`) |
 | `publish_port` | avirthostd | The caller | The publishing `Workload` | `via`, `port`, `protocol` |

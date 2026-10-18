@@ -25,7 +25,7 @@ The shared library. The avirthostd server and the avirtinitd harness both live h
 
 ## Invariants
 
-- **Workload startup order.** Don't start anything in the workload container until avirthostd has accepted `POST /workloads/<id>/stream`. Install seccomp before the adapter starts. The agent's environment must never contain `AVIRT_WORKLOAD_ID`, `AVIRT_PROMPT`, `AVIRT_CWD`, `AVIRT_CONNECTION_TOKEN` or `AVIRT_AGENT`.
+- **Workload startup order.** Don't start anything in the sandbox container until avirthostd has accepted `POST /workloads/<id>/stream`. Install seccomp before the adapter starts. The agent's environment must never contain `AVIRT_WORKLOAD_ID`, `AVIRT_PROMPT`, `AVIRT_CWD`, `AVIRT_CONNECTION_TOKEN` or `AVIRT_AGENT`.
 - **Proxy half-close.** The TCP proxy to `proxy.sock` never forwards a client's end-of-stream to the socket, because nothing on a forwarded socket may half-close.
 - **Log ordering.** `container_exit` is always the last event of a workload. Buffer errors and write them before it.
 - **Long lines.** Drop a line over `MAX_LINE` whole and replace it with `line_truncated`. Never write a fragment of it.

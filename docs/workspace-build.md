@@ -27,18 +27,18 @@ avirtbuilderd serves a gRPC `WorkspaceBuilder` service on its host service liste
 
 ### Build jobs
 
-A build job is a workload that avirthostd creates for avirtbuilderd: a workload container and its mediator, created like any workload but with the build security context. It belongs to the workspace's namespace and has the reserved labels `avirt.internal/build` (the build id) and `avirt.internal/workspace` (the repository), so policy can tell it apart from agent workloads.
+A build job is a workload that avirthostd creates for avirtbuilderd: a sandbox container and its mediator, created like any workload but with the build security context. It belongs to the workspace's namespace and has the reserved labels `avirt.internal/build` (the build id) and `avirt.internal/workspace` (the repository), so policy can tell it apart from agent workloads.
 
-- **Image.** The workload container runs the avirt builder image, which holds avirtinitd, avirtnetd, avirtexec in build mode, `git`, avirt's layer tool and BuildKit. The build's base image and the input layers are inputs to the build, never the job's own root filesystem.
+- **Image.** The sandbox container runs the avirt builder image, which holds avirtinitd, avirtnetd, avirtexec in build mode, `git`, avirt's layer tool and BuildKit. The build's base image and the input layers are inputs to the build, never the job's own root filesystem.
 - **Identity.** The job's only SVID is its workload SVID in avirtnetd. It has no connection to avirthostd of its own beyond its mediator's, and no access to avirtapid: avirthostd refuses any `guest-cli` stream for a build job.
 - **Inputs.** avirtnetd serves a registry socket to the build runner, and avirtmediatord forwards it to avirtregistryd through avirthostd's SNI routing under the job's identity. avirtregistryd grants the job read access to exactly the base image, the source bundle and the include digests of its build, read access to the cache scopes in [caching](#caching), and write access to `staging/<build-id>` only.
 - **Network.** Each other connection goes through avirtnetd's forward proxy, the build job's avirtmediatord and avirtedgeproxyd, under the job's workload policy snapshot. The build policy for the job permits the sources' hosts for the fetch and the package registries the host policy names for commands.
 - **Credentials.** A private source's credential, such as a short-lived GitHub installation token, is a mediator-injected credential binding for the source's host. The real credential remains outside the job. The mediator intercepts only the fetch step's connections for injection. Build commands use connections without interception or injected credentials. Their environment trusts only the base image's CA bundle.
-- **Security context.** avirtinitd runs the build runner as root inside the build VM with the build security context, which permits the namespaces and mounts BuildKit's OCI worker needs, without applying a Landlock ruleset to it (see [build jobs in sandbox](./sandbox.md#build-jobs)). Build commands run in BuildKit containers with the VM's loopback network, so they reach only avirtnetd's proxy.
+- **Security context.** avirtinitd runs the build runner as root inside the build VM with the build security context, which permits the namespaces and mounts BuildKit's OCI worker needs, without applying a Landlock ruleset to it (see [Landlock rules for build jobs](./landlock.md#build-jobs)). Build commands run in BuildKit containers with the VM's loopback network, so they reach only avirtnetd's proxy.
 - **Limits.** avirthostd admits the job against the host's resource budgets like any workload, with a wall-clock deadline, and tears it down when it ends. Only the job's logs and its pushes to `staging/<build-id>` persist.
 - **Logs.** avirthostd writes the job's workload log and stdio log as it does for other workloads. `avirt workspace builds logs` reads them through avirtapid.
 
-Command builds require a runtime with `isolation = VmPerWorkload`. On Docker Desktop, where each workload container shares one kernel, avirtbuilderd runs assembly and fetch builds and refuses command builds with `build requires vm isolation` (see [compute runtimes](./compute-runtimes.md#docker-desktop-runtime)).
+Command builds require a runtime with `isolation = VmPerWorkload`. On Docker Desktop, where each sandbox container shares one kernel, avirtbuilderd runs assembly and fetch builds and refuses command builds with `build requires vm isolation` (see [compute runtimes](./compute-runtimes.md#docker-desktop-runtime)).
 
 ### Build pipeline
 
@@ -175,7 +175,7 @@ when { principal.hasTag("avirt.internal/build") && resource has host && resource
 
 | Compromised | Can reach | Can't reach |
 | --- | --- | --- |
-| Build job (root in the workload container in the build VM) | Its own inputs and staging repository. Its cache scope and anything its workload policy snapshot allows through avirtedgeproxyd. Writing anything into its staging output. | Any workspace repository, tag or annotation (only avirtbuilderd promotes), another build's inputs or staging, real credentials, avirtapid, avirthostd's control API, any signing key |
+| Build job (root in the sandbox container in the build VM) | Its own inputs and staging repository. Its cache scope and anything its workload policy snapshot allows through avirtedgeproxyd. Writing anything into its staging output. | Any workspace repository, tag or annotation (only avirtbuilderd promotes), another build's inputs or staging, real credentials, avirtapid, avirthostd's control API, any signing key |
 | avirtbuilderd | Starting build jobs and promoting chosen outputs. Writing any annotation | Running commands on the host, any SVID other than its own, avirthostd's control API beyond creating build jobs |
 
 # Open questions

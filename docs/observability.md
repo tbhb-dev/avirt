@@ -17,7 +17,7 @@ avirt produces two kinds of output.
 | Signal | Kind | Producers | Store | Status |
 | --- | --- | --- | --- | --- |
 | Workload log | Durable record | avirtinitd, the mediator, avirthostd | `logs/<workload-id>.ndjson` | Implemented |
-| Workload container and mediator output | Durable record | The runtime, avirthostd | `logs/<workload-id>.container.log`, `.mediator.log` | Implemented |
+| Sandbox container and mediator output | Durable record | The runtime, avirthostd | `logs/<workload-id>.container.log`, `.mediator.log` | Implemented |
 | Workload stdio log | Durable record | avirthostd's stdio writers | `logs/<workload-id>.stdio.ndjson` | Planned |
 | Audit logs | Durable record | avirthostd and the host services | Each component's audit log, delivered as OCSF by avirtauditd | Planned |
 | Logs | Telemetry | avirtlogd, each daemon, avirthostd's event copies | avirtoteld's destinations | Planned |
@@ -33,18 +33,18 @@ avirthostd creates the logs directory 0700 and each file in it 0600, owned by th
 | File | Writer | Contents |
 | --- | --- | --- |
 | `logs/<workload-id>.ndjson` | avirthostd | The workload log: one envelope per line |
-| `logs/<workload-id>.container.log` | The `container` command-line tool process | Its stdout and stderr, which contain the workload container's |
+| `logs/<workload-id>.container.log` | The `container` command-line tool process | Its stdout and stderr, which contain the sandbox container's |
 | `logs/<workload-id>.mediator.log` | avirtmediatord | The mediator's stderr |
 
 The workload ID is 8 random hexadecimal characters. A launch never reuses an ID that already has a log file in the directory. avirthostd never deletes a log file.
 
 The envelope has fields `{ts, dir, msg}` in that order, with `ts` an RFC 3339 UTC time in milliseconds and `dir` one of `client->agent`, `agent->client`, `meta` and `egress` (see [envelope](./hostd-api.md#envelope) and [meta events](./hostd-api.md#meta-events)). Log lines come from these sources:
 
-- **Workload lines.** avirtinitd builds each envelope and stamps `ts` from the workload container's clock. It sends the envelope in the body of `POST /workloads/<id>/stream`, the one request on the workload's HTTP/2 connection to its mediator (on `mediator.sock`), which today transports only log envelopes. avirthostd splits the request body into lines and writes each line as it arrived. It replaces a line longer than 16 MiB with its own `line_truncated` event.
+- **Workload lines.** avirtinitd builds each envelope and stamps `ts` from the sandbox container's clock. It sends the envelope in the body of `POST /workloads/<id>/stream`, the one request on the workload's HTTP/2 connection to its mediator (on `mediator.sock`), which today transports only log envelopes. avirthostd splits the request body into lines and writes each line as it arrived. It replaces a line longer than 16 MiB with its own `line_truncated` event.
 - **Egress lines.** The mediator sends one NDJSON `conn` event per proxied connection on its `EGRESS` connection (see [events](./egress.md#events)). avirthostd wraps each in an envelope with `dir: "egress"` and its own `ts`.
 - **avirthostd's events.** avirthostd writes `line_truncated`, `auth_writeback`, `container_error` and `container_exit` itself, with its own `ts`, and holds the errors, the cleanup outcome and `container_exit` until the stream has drained, so `container_exit` is the last line.
 
-avirthostd doesn't check the envelopes in that request. The workload container may have written any `meta` line other than the four listed, and it can write a line that looks like one of those four. Only avirthostd's own lines are host-observed.
+avirthostd doesn't check the envelopes in that request. The sandbox container may have written any `meta` line other than the four listed, and it can write a line that looks like one of those four. Only avirthostd's own lines are host-observed.
 
 ## avirthostd's output
 
@@ -70,13 +70,13 @@ avirthostd never sends the whole workload log to avirtoteld. After writing a `me
 
 ### Workload stdout and stderr
 
-avirtlogd acquires the workload containers' output from files the host side writes, with a method per runtime. It never reads the workload container's memory, its vsock devices or the runtime's own directories.
+avirtlogd acquires the sandbox containers' output from files the host side writes, with a method per runtime. It never reads the sandbox container's memory, its vsock devices or the runtime's own directories.
 
 - **Containerization.** Containerization doesn't persist container stdio. avirthostd supplies one writer per stream (`LinuxProcessConfiguration.stdout` and `.stderr`), so stdout and stderr arrive separately in avirthostd's process through the Swift dylib. Workloads run with `terminal = false`, because terminal mode merges the streams and rejects a stderr writer. The writers frame the output into `logs/<workload-id>.stdio.ndjson`, as described below.
 - **Docker Desktop.** avirthostd creates each container with the `json-file` log driver and a `max-size` and `max-file` cap. avirtlogd reads those files, and takes each record's identity from avirthostd's record of the container, never from the file (see [components](./components.md#open-questions) for how to access the files).
 - **The Apple container CLI runtime.** That runtime writes a merged raw `stdio.log` (without stream tags, timestamps, or rotation) and a `vminitd.log` under `~/Library/Application Support/com.apple.container/containers/<id>/`. avirtlogd doesn't read them. The implemented `container.log` is the only copy of that runtime's output.
 
-On the Containerization runtime, avirthostd's writer is on the read path of the workload container's output. Blocking would stall the workload container through vsock, vminitd, and pipe backpressure. A write that throws silently drops the output. The writer must never block:
+On the Containerization runtime, avirthostd's writer is on the read path of the sandbox container's output. Blocking would stall the sandbox container through vsock, vminitd, and pipe backpressure. A write that throws silently drops the output. The writer must never block:
 
 1. It copies each chunk and enqueues it in a bounded per-workload ring with a byte cap. On overflow it drops the chunk and records a synthetic `dropped_bytes` record with the count.
 2. It stamps each chunk with its receive time and attaches the trusted identity: the workload's UUIDv7, namespace, short ID, and stream. Chunks are arbitrary page-sized reads with no timestamps of their own.

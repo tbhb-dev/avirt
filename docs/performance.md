@@ -26,18 +26,18 @@ Stages that exist only in the planned design (launch handshake, the workload's H
 | Metric | Definition | Unit | Where | How | Runtimes | Class |
 | --- | --- | --- | --- | --- | --- | --- |
 | `launch.accept` | `POST /launch` received → 200 response sent | ms | avirthostd | Span | All | diag |
-| `launch.workload_boot` | `run_workload` called → the workload container's init process running | ms | avirthostd | Span | All | diag |
+| `launch.workload_boot` | `run_workload` called → the sandbox container's init process running | ms | avirthostd | Span | All | diag |
 | `launch.mediator_ready` | `run_mediator` called → the mediator's first `GET /workload` | ms | avirthostd | Span | Containerization, Docker | diag |
 | `launch.connection_attached` | Mediator ready → `attached` received by avirtinitd | ms | avirtinitd | Span | Containerization, Docker | diag |
 | `launch.agent_started` | `POST /launch` received → `started` sent by avirtinitd (adapter spawned, on the Apple container CLI runtime) | ms | avirthostd | Span using the workload log's timestamps | All | SLO |
-| `teardown.duration` | Workload container exit observed → `container_exit` written | ms | avirthostd | Span | All | diag |
+| `teardown.duration` | Sandbox container exit observed → `container_exit` written | ms | avirthostd | Span | All | diag |
 | `teardown.release` | `runtime.release` called → returned | ms | avirthostd | Span | All | diag |
 | `sweep.duration` | Startup cleanup started → avirthostd listening | ms | avirthostd | Span | All | diag |
 | `sweep.items` | VMs, containers, networks, volumes and directories removed by the startup cleanup, by kind | count | avirthostd | Counter | All | diag |
 
 ```mermaid
 flowchart LR
-    a["POST /launch"] -->|launch.workload_boot| b["workload container running"]
+    a["POST /launch"] -->|launch.workload_boot| b["sandbox container running"]
     b -->|launch.mediator_ready| c["mediator GET /workload"]
     c -->|launch.connection_attached| d["attached"]
     d --> e["confirm"]
@@ -100,7 +100,7 @@ flowchart LR
 
 | Metric | Definition | Unit | Where | How | Runtimes | Class |
 | --- | --- | --- | --- | --- | --- | --- |
-| `mem.workload` | Workload container memory: guest `memory.current` for a VM, the container's cgroup on Docker | MiB | avirtinitd, avirthostd | Gauge for peak and steady values | All | diag |
+| `mem.workload` | Sandbox container memory: guest `memory.current` for a VM, the container's cgroup on Docker | MiB | avirtinitd, avirthostd | Gauge for peak and steady values | All | diag |
 | `mem.mediator` | Mediator memory, measured the same way | MiB | Mediator, avirthostd | Gauge | All | diag |
 | `cpu.workload`, `cpu.mediator` | CPU seconds consumed per workload, per container | s | avirthostd | Counter | All | diag |
 | `mem.hostd`, `cpu.hostd` | avirthostd RSS and CPU, including the host-side cost of in-process VMs on Containerization | MiB, s | avirthostd | Gauge, counter | All | diag |
@@ -116,7 +116,7 @@ flowchart LR
 | `build.rust_incremental` | `cargo build --workspace` after a one-file change in `avirt-core` | s | CI, bench harness | External benchmark | All | diag |
 | `build.swift_shim` | Shim build from source (including Containerization) start → finish, and the same with `AVIRT_SWIFTSHIM_DIR` set | s | CI (macOS) | External benchmark | Containerization | diag |
 | `build.images` | `mise run build-images` both cold and with cached layers | s | CI, bench harness | External benchmark | All | diag |
-| `size.images` | Workload container and mediator image sizes | MiB | CI | External benchmark | All | diag |
+| `size.images` | Sandbox container and mediator image sizes | MiB | CI | External benchmark | All | diag |
 | `size.binaries` | `avirthostd`, `avirt`, `avirtmediatord` and `avirtinitd` sizes, per target | MiB | CI | External benchmark | All | diag |
 | `size.dylib` | Swift shim dylib size | MiB | CI (macOS) | External benchmark | Containerization | diag |
 

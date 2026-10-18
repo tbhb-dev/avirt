@@ -32,20 +32,20 @@ avirtinitd starts `claude-agent-acp` as uid 1000 through the common launch path 
 
 ## Authentication
 
-avirthostd refuses a Claude launch with a 400 unless its environment sets `CLAUDE_CODE_OAUTH_TOKEN`. It passes the variable to the workload container with `-e CLAUDE_CODE_OAUTH_TOKEN` and no value, so the real token is in the agent's environment and never on argv. avirtinitd skips the `authenticate` call. The mechanics and their exposure are in [credentials](./egress-credentials.md#claude).
+avirthostd refuses a Claude launch with a 400 unless its environment sets `CLAUDE_CODE_OAUTH_TOKEN`. It passes the variable to the sandbox container with `-e CLAUDE_CODE_OAUTH_TOKEN` and no value, so the real token is in the agent's environment and never on argv. avirtinitd skips the `authenticate` call. The mechanics and their exposure are in [credentials](./egress-credentials.md#claude).
 
 ## Configuration sources
 
-The adapter starts each Claude Code session with `settingSources: ["user", "project", "local"]`. With the managed tier, which Claude Code always reads, these are the sources in a workload container, highest precedence first:
+The adapter starts each Claude Code session with `settingSources: ["user", "project", "local"]`. With the managed tier, which Claude Code always reads, these are the sources in a sandbox container, highest precedence first:
 
-| Scope | Path in the workload container | Present in the implemented image |
+| Scope | Path in the sandbox container | Present in the implemented image |
 | --- | --- | --- |
 | Managed | `/etc/claude-code/managed-settings.json` and `/etc/claude-code/managed-mcp.json` | No |
 | Project local | `/workspace/.claude/settings.local.json` | Only if the `cwd` directory holds it |
 | Shared project | `/workspace/.claude/settings.json`, and `/workspace/.mcp.json` for MCP servers | Only if the `cwd` directory holds it |
 | User | `/home/agent/.claude/settings.json` (`CLAUDE_CONFIG_DIR` overrides the directory) | No |
 
-Claude Code loads project-scoped MCP servers from `.mcp.json` without an approval prompt in Agent SDK sessions, so a `cwd` directory with a `.mcp.json` starts its stdio servers as uid 1000 inside the workload container. `CLAUDE.md` files are instructions, not configuration, and no setting stops Claude Code from reading them.
+Claude Code loads project-scoped MCP servers from `.mcp.json` without an approval prompt in Agent SDK sessions, so a `cwd` directory with a `.mcp.json` starts its stdio servers as uid 1000 inside the sandbox container. `CLAUDE.md` files are instructions, not configuration, and no setting stops Claude Code from reading them.
 
 ## Quirks
 
@@ -109,7 +109,7 @@ The overlay writes `/etc/claude-code/managed-mcp.json` with one server:
 { "mcpServers": { "avirt": { "type": "stdio", "command": "/usr/local/bin/avirtmcp" } } }
 ```
 
-`managed-mcp.json` takes exclusive control of MCP servers. Claude Code loads only the servers it defines. It ignores servers from `/workspace/.mcp.json`, user settings, and plugins. avirtmcp relays MCP to avirtmcpgwd (see [components](./components.md#workload-container)).
+`managed-mcp.json` takes exclusive control of MCP servers. Claude Code loads only the servers it defines. It ignores servers from `/workspace/.mcp.json`, user settings, and plugins. avirtmcp relays MCP to avirtmcpgwd (see [components](./components.md#sandbox-container)).
 
 ## Workspace configuration
 

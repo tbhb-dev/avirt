@@ -1,7 +1,7 @@
 ---
 type: Component Design
 title: Egress and TLS termination
-description: How the agent's network traffic leaves the workload container, the mediator's CONNECT proxy and `private-dest` check, how avirtmediatord handles egress in the planned design, avirtedgeproxyd as policy enforcement point, workload DNS, websockets, TLS termination with the workload's MITM CA and its delivery into the workload container, where policy is evaluated on the data path, the event format and the mediator's lack of a network.
+description: How the agent's network traffic leaves the sandbox container, the mediator's CONNECT proxy and `private-dest` check, how avirtmediatord handles egress in the planned design, avirtedgeproxyd as policy enforcement point, workload DNS, websockets, TLS termination with the workload's MITM CA and its delivery into the sandbox container, where policy is evaluated on the data path, the event format and the mediator's lack of a network.
 tags: [avirt, egress, proxy, pingora, tls]
 implementation: partial
 generated: { by: codex/gpt-6, at: 2026-10-18T05:21:55Z }
@@ -11,7 +11,7 @@ generated: { by: codex/gpt-6, at: 2026-10-18T05:21:55Z }
 
 ## Path
 
-The workload container runs with `--network none`, so TCP, UDP, DNS and IPv6 all fail inside it and only loopback works. The agent's only way out is avirtinitd's TCP proxy to `proxy.sock`, which forwards to the mediator's CONNECT proxy on `proxy.sock` (see [workload topology](./workload-topology.md)). Every client must honour the proxy variables. Claude Code, Codex, Node `fetch` and `https` (with `NODE_USE_ENV_PROXY=1`), npm, git, and curl all do. `git://` and `ssh://` don't work.
+The sandbox container runs with `--network none`, so TCP, UDP, DNS and IPv6 all fail inside it and only loopback works. The agent's only way out is avirtinitd's TCP proxy to `proxy.sock`, which forwards to the mediator's CONNECT proxy on `proxy.sock` (see [workload topology](./workload-topology.md)). Every client must honour the proxy variables. Claude Code, Codex, Node `fetch` and `https` (with `NODE_USE_ENV_PROXY=1`), npm, git, and curl all do. `git://` and `ssh://` don't work.
 
 ## Mediator process
 
@@ -137,7 +137,7 @@ After TLS termination, the downstream connection uses h1. Websocket upgrades arr
 
 ## MITM CA and leaf certificates
 
-`avirthostd` issues one MITM CA per workload (ECDSA P-256, CN `avirt workload <uuid>`, 7-day validity, `KeyCertSign` only), so that it persists across mediator restarts, and passes the cert and key to avirtmediatord in `GET /workload`. avirtmediatord issues leaves in-process on demand and caches up to 256 per host. Each uses P-256 with the host as SAN, 24 h validity, and a chain of leaf plus CA. The CA key never enters the workload container.
+`avirthostd` issues one MITM CA per workload (ECDSA P-256, CN `avirt workload <uuid>`, 7-day validity, `KeyCertSign` only), so that it persists across mediator restarts, and passes the cert and key to avirtmediatord in `GET /workload`. avirtmediatord issues leaves in-process on demand and caches up to 256 per host. Each uses P-256 with the host as SAN, 24 h validity, and a chain of leaf plus CA. The CA key never enters the sandbox container.
 
 Workload policy defines the CA's interception scope. When it creates the workload, avirthostd asks avirtpolicyd's prover for the set of hosts the workload policy snapshot can permit `intercept` for (see [MITM CA name constraints](./egress-policies.md#mitm-ca-name-constraints)):
 

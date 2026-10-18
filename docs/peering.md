@@ -239,7 +239,7 @@ flowchart LR
     subgraph B["host B (trust domain B)"]
         fdb["avirtedgeproxyd peer listener: caller in trust domain A, host policy snapshot connect"]
         meb["avirtmediatord: ingress for Workload A/ns/uuid"]
-        wb["destination workload container"]
+        wb["destination sandbox container"]
         pxb["avirtapid"]
         hdb["avirthostd: actions for the caller, qualified by the peer's host name"]
         fdb -->|"ingress listener"| meb --> wb

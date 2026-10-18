@@ -50,7 +50,7 @@ Every crate lives directly under `crates/`, and each directory uses its package 
 
 `avirt-connect` is part of the root workspace.
 
-`workloads/claude/` and `workloads/codex/` contain only the workload image build directories.
+`workloads/claude/` and `workloads/codex/` contain only the sandbox image build directories.
 
 ## Commands
 
@@ -58,7 +58,7 @@ Every crate lives directly under `crates/`, and each directory uses its package 
 mise run bootstrap                                               # first step in a fresh clone or worktree: vendir sync, toolchain, Vale styles, git hooks
 mise install                                                      # pins Rust
 mise run check                                                    # fmt --check, clippy, rustdoc, shear, deny, nextest, doc tests, docs checks
-mise run build-images                                             # both workload images (needs Apple container)
+mise run build-images                                             # both sandbox images (needs Apple container)
 mise run serve                                                    # avirthostd
 mise run launch claude "Reply with the word pong" -- --follow     # avirt launch, in a second terminal
 ```
@@ -84,7 +84,7 @@ Pre-commit hooks run rustfmt, cargo-shear and cargo-deny on the files they cover
 
 ## Conventions
 
-- **Terms.** Use the project's terms consistently. The project name is always lowercase **avirt**. **avirthostd** is the host daemon. The **control plane** is avirthostd plus the host services that configure and decide, and the **data plane** is **avirtmediatord** (the mediator) and **avirtedgeproxyd** (the edge proxy), which forward traffic. A **workload** is the whole unit avirthostd launches. It consists of the **workload container**, which runs the agent, plus its **mediator**. The mediator is the per-workload container that contains avirtinitd and avirtmediatord. All the workload's traffic passes through it. Today the mediator is the avirtmediatord host process. **avirtinitd** is the root process in each container. **avirtapid** is the API server. An ACP session stays an ACP session. See [docs/glossary.md](docs/glossary.md) for every other term.
+- **Terms.** Use the project's terms consistently. The project name is always lowercase **avirt**. **avirthostd** is the host daemon. The **control plane** is avirthostd plus the host services that configure and decide, and the **data plane** is **avirtmediatord** (the mediator) and **avirtedgeproxyd** (the edge proxy), which forward traffic. A **workload** is the whole unit avirthostd launches. It consists of the **sandbox container**, which runs the agent, plus its **mediator**. The mediator is the per-workload container that contains avirtinitd and avirtmediatord. All the workload's traffic passes through it. Today the mediator is the avirtmediatord host process. **avirtinitd** is the root process in each container. **avirtapid** is the API server. The **sandbox VM** runs the sandbox container from its **sandbox image**. Landlock and seccomp restrict processes. For a harness, write **Codex's sandbox** or **Claude Code's tool sandbox**. An ACP session stays an ACP session. See [docs/glossary.md](docs/glossary.md) for every other term.
 - **Docs format.** Every Markdown file in the repository has OKF v0.2 frontmatter, and `docs/` is an OKF v0.2 bundle:
   - every document has YAML frontmatter with a non-empty `type`, plus `title`, `description`, `tags` and `generated`, and `implementation` where it applies (every document in `docs/`, and crate READMEs).
   - `docs/index.md` lists every document under `docs/`, and Markdown files outside `docs/` don't need an index entry.

@@ -19,8 +19,8 @@ The root workspace includes `avirt-connect` for CONNECT authority parsing and de
 
 | Binary | Runs on | Targets |
 | --- | --- | --- |
-| `avirtinitd` | Linux guests (the workload container) | `aarch64-unknown-linux-musl`, `x86_64-unknown-linux-musl` |
-| `avirtnetd`, `avirtguestd`, `avirtacp`, `avirtagent`, `avirtexec`, `avirtmcp`, `avirtguest` | Linux guests (the workload container), from the avirt base image | `aarch64-unknown-linux-musl`, `x86_64-unknown-linux-musl` |
+| `avirtinitd` | Linux guests (the sandbox container) | `aarch64-unknown-linux-musl`, `x86_64-unknown-linux-musl` |
+| `avirtnetd`, `avirtguestd`, `avirtacp`, `avirtagent`, `avirtexec`, `avirtmcp`, `avirtguest` | Linux guests (the sandbox container), from the avirt base image | `aarch64-unknown-linux-musl`, `x86_64-unknown-linux-musl` |
 | `avirtmediatord` | Linux guests (the mediator) | `aarch64-unknown-linux-musl`, `x86_64-unknown-linux-musl` |
 | `avirthostd`, `avirtedgeproxyd`, `avirtapid` | The host | macOS arm64, Linux x86_64 and arm64, and Windows x86_64 and arm64 |
 | `avirt` | The host | macOS arm64, Linux x86_64 and arm64, and Windows x86_64 and arm64 |
@@ -37,10 +37,10 @@ The guest binaries don't depend on the host OS. Each host build produces `avirth
 | `crates/avirt` | The `avirt` operator CLI |
 | `crates/avirthostd` | The host daemon |
 | `crates/avirtmediatord` | The mediator |
-| `crates/avirtinitd` | The workload container entrypoint |
+| `crates/avirtinitd` | The sandbox container entrypoint |
 | `crates/avirt-runtime-containerization` | The Containerization runtime: a Swift package and a `build.rs` |
 
-`workloads/` contains only the image build directories (see [workload images](#workload-images)).
+`workloads/` contains only the image build directories (see [sandbox images](#sandbox-images)).
 
 Runtime backends conform to the `Runtime` trait from `avirt-core`. During a build, target `cfg` and the cargo features `runtime-containerization` and `runtime-docker` select them. During execution, `AVIRT_RUNTIME` selects among those compiled in.
 
@@ -67,9 +67,9 @@ flowchart LR
     swift --> cz
 ```
 
-## Workload images
+## Sandbox images
 
-Every workload image derives from the avirt base image (see [workload lifecycle](./workload-lifecycle.md#base-images)).
+Every sandbox image derives from the avirt base image (see [workload lifecycle](./workload-lifecycle.md#base-images)).
 
 | Image | Directory | `FROM` | Adds |
 | --- | --- | --- | --- |
@@ -78,7 +78,7 @@ Every workload image derives from the avirt base image (see [workload lifecycle]
 | Codex harness base, `avirt-workload-codex` | `workloads/codex/` | The avirt base | Node, codex-acp and `harness.toml`, under `/opt/agent` |
 | avirt builder | `workloads/builder/` | The avirt base | `git`, avirt's layer tool and BuildKit |
 
-`mise run build-images` builds the avirt base first and then every image derived from it. The image build fails a derived image whose layer chain doesn't begin with the avirt base's `diff_ids`, and a harness base with any entry or whiteout outside `/opt/agent`. avirthostd supplies harness configuration at launch as the configuration layer. Workload images exclude it.
+`mise run build-images` builds the avirt base first and then every image derived from it. The image build fails a derived image whose layer chain doesn't begin with the avirt base's `diff_ids`, and a harness base with any entry or whiteout outside `/opt/agent`. avirthostd supplies harness configuration at launch as the configuration layer. Sandbox images exclude it.
 
 The implemented images don't have this split: each Containerfile builds from `ubuntu:26.04` and compiles avirtinitd itself (see [Claude](./acp-claude.md#adapter) and [Codex](./acp-codex.md#adapter)).
 

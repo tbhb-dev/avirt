@@ -1,7 +1,7 @@
 ---
 type: Security Design
 title: Workload hardening
-description: How avirtinitd confines the agent inside the workload container, covering its user, capabilities, environment and seccomp filters, the reserved paths, the security contexts of avirtnetd, avirtacp, avirtagent, avirtexec, and avirtguestd with links to their Landlock rulesets, and what runs as root.
+description: How avirtinitd confines the agent inside the sandbox container, covering its user, capabilities, environment and seccomp filters, the reserved paths, the security contexts of avirtnetd, avirtacp, avirtagent, avirtexec, and avirtguestd with links to their Landlock rulesets, and what runs as root.
 tags: [avirt, workload, seccomp, landlock, capabilities, security]
 implementation: partial
 generated: { by: codex/gpt-6, at: 2026-10-18T04:29:26Z }
@@ -11,7 +11,7 @@ generated: { by: codex/gpt-6, at: 2026-10-18T04:29:26Z }
 
 ## Container
 
-The workload container runs with `--network none` and `--init`. With `--init` the runtime's init is PID 1 and avirtinitd is its direct child: init reaps orphaned processes and passes `container stop` to avirtinitd as SIGTERM. `avirtinitd` handles SIGTERM by recording a `terminated by SIGTERM` error, closing its HTTP/2 connection on `mediator.sock` and exiting with code 2. The image build removes `ubuntu:26.04`'s uid 1000 user and assigns uid 1000 to `agent`. The Containerfile omits `USER`, and avirtinitd starts as root.
+The sandbox container runs with `--network none` and `--init`. With `--init` the runtime's init is PID 1 and avirtinitd is its direct child: init reaps orphaned processes and passes `container stop` to avirtinitd as SIGTERM. `avirtinitd` handles SIGTERM by recording a `terminated by SIGTERM` error, closing its HTTP/2 connection on `mediator.sock` and exiting with code 2. The image build removes `ubuntu:26.04`'s uid 1000 user and assigns uid 1000 to `agent`. The Containerfile omits `USER`, and avirtinitd starts as root.
 
 ## Agent process
 
@@ -35,7 +35,7 @@ Node also lets `HTTP_PROXY` serve HTTPS requests, so a bypass test has to unset 
 
 ## Seccomp
 
-The workload container shares the VM's network namespace with the runtime's vsock-to-Unix-socket forwarders, and the runtime omits seccomp. Any process in it could otherwise dial the host-side forwarder ports directly and bypass the socket files' 0600 mode. After avirthostd accepts `POST /workloads/<id>/stream` and avirtinitd starts its TCP proxy to `proxy.sock`, but before the agent starts, avirtinitd applies two filters (`seccompiler`, default allow) to itself with all threads, and the agent inherits them:
+The sandbox container shares the VM's network namespace with the runtime's vsock-to-Unix-socket forwarders, and the runtime omits seccomp. Any process in it could otherwise dial the host-side forwarder ports directly and bypass the socket files' 0600 mode. After avirthostd accepts `POST /workloads/<id>/stream` and avirtinitd starts its TCP proxy to `proxy.sock`, but before the agent starts, avirtinitd applies two filters (`seccompiler`, default allow) to itself with all threads, and the agent inherits them:
 
 - `socket()` with domain `AF_VSOCK`, `AF_NETLINK` or `AF_PACKET` returns `EAFNOSUPPORT`. `AF_UNIX`, `AF_INET` and `AF_INET6` stay, because the agent connects to avirtinitd's TCP proxy to `proxy.sock` over loopback.
 - `io_uring_setup`, `io_uring_enter` and `io_uring_register` return `EPERM`, because `IORING_OP_SOCKET` creates sockets without calling `socket()`.
@@ -57,23 +57,23 @@ The agent can spend CPU and use the proxy. Its visible files include its own fil
 | Syscalls | Effect | Known breakage |
 | --- | --- | --- |
 | `io_uring_*` | Blocks socket creation outside `socket()` | None (Node falls back) |
-| `memfd_create` and `execveat` with `AT_EMPTY_PATH` | Blocks fileless exec, which would bypass [Landlock exec rules](./sandbox.md#guarantees-by-layer) | Rare tools such as Chromium and Playwright |
+| `memfd_create` and `execveat` with `AT_EMPTY_PATH` | Blocks fileless exec, which would bypass [Landlock exec rules](./landlock.md#guarantees-by-layer) | Rare tools such as Chromium and Playwright |
 | `ptrace`, `process_vm_readv`, `process_vm_writev`, `pidfd_getfd`, `pidfd_send_signal` | Blocks cross-process memory and fd access | `strace`, `gdb` |
 | `bpf`, `perf_event_open`, `userfaultfd` | Blocks kernel exploit primitives | None |
 | `mount`, `fsopen`, `fsconfig`, `fsmount`, `fspick`, `move_mount`, `open_tree`, `umount2`, `pivot_root`, `setns` | Blocks remounting around Landlock | None |
-| `unshare` and `clone` with `CLONE_NEWUSER` | Blocks capabilities in a new user namespace | `unshare -Urn`, and possibly Codex's own tool sandbox |
+| `unshare` and `clone` with `CLONE_NEWUSER` | Blocks capabilities in a new user namespace | `unshare -Urn`, and possibly Codex's sandbox |
 | `clone3` and `pidfd_open`, returning `ENOSYS` | The filter can't inspect `clone3` flags. glibc and libuv fall back | None |
 | `kexec_*`, `init_module`, `finit_module`, `delete_module` | Module and kernel loading | None |
 
-`seccomp(SECCOMP_SET_MODE_FILTER)` stays allowed. Stacked filters can only tighten, and Codex installs its own filters for tool commands. If Codex's tool sandbox needs user namespaces, the Codex security context allows `CLONE_NEWUSER`.
+`seccomp(SECCOMP_SET_MODE_FILTER)` stays allowed. Stacked filters can only tighten, and Codex installs its own filters for tool commands. If Codex's sandbox needs user namespaces, the Codex security context allows `CLONE_NEWUSER`.
 
 ## Landlock
 
-Landlock rulesets, the ABI each runtime's kernel provides and the per-process paths are in [sandbox](./sandbox.md).
+Landlock rulesets, the ABI each runtime's kernel provides and the per-process paths are in [Landlock](./landlock.md).
 
 ## Reserved paths
 
-The workload container's image layers are the avirt base, a harness base, the workspace layers and the configuration layer (see [workload lifecycle](./workload-lifecycle.md#layer-stack)). The table lists the paths each layer or boot owns. Workspace layers must avoid these paths (see [content rules](./workspaces.md#content-rules)), and every one is read-only to uid 1000 under [the agent's ruleset](./sandbox.md#agent).
+The sandbox container's image layers are the avirt base, a harness base, the workspace layers and the configuration layer (see [workload lifecycle](./workload-lifecycle.md#layer-stack)). The table lists the paths each layer or boot owns. Workspace layers must avoid these paths (see [content rules](./workspaces.md#content-rules)), and every one is read-only to uid 1000 under [the agent's ruleset](./landlock.md#agent).
 
 | Path | Owned by | Holds |
 | --- | --- | --- |
@@ -95,14 +95,14 @@ avirtinitd launches every workload process with that process's own security cont
 | Process | UID | Capabilities | Seccomp | Landlock |
 | --- | --- | --- | --- | --- |
 | avirtinitd | 0 | Until it has bound the DNS stub's sockets: also `CAP_NET_BIND_SERVICE`. At boot, until its `NETLINK_AUDIT` socket is open: also `CAP_AUDIT_READ`. Until `started`: `CAP_SETUID`, `CAP_SETGID`, `CAP_SETPCAP` and `CAP_KILL`. After it: `CAP_SETUID`, `CAP_SETGID` and `CAP_SETPCAP`, to restart avirtguestd. | The denylist, with `AF_VSOCK` denied | None |
-| avirtnetd | `avirt-net` | None | The socket-domain allowlist and the denylist | [Its ruleset](./sandbox.md#avirtnetd) |
-| Main workload process (avirtacp, avirtagent or avirtexec) | `avirt-run` | None | The socket-domain allowlist and the denylist | [Its ruleset](./sandbox.md#main-workload-process) |
-| avirtguestd | `avirt-guest` | None | The socket-domain allowlist and the denylist | [Its ruleset](./sandbox.md#avirtguestd) |
-| Agent, its tools, avirtmcp, and avirtguest | 1000 | None, with `no_new_privs` | The socket-domain allowlist and the denylist | [The agent's ruleset](./sandbox.md#agent) |
+| avirtnetd | `avirt-net` | None | The socket-domain allowlist and the denylist | [Its ruleset](./landlock.md#avirtnetd) |
+| Main workload process (avirtacp, avirtagent or avirtexec) | `avirt-run` | None | The socket-domain allowlist and the denylist | [Its ruleset](./landlock.md#main-workload-process) |
+| avirtguestd | `avirt-guest` | None | The socket-domain allowlist and the denylist | [Its ruleset](./landlock.md#avirtguestd) |
+| Agent, its tools, avirtmcp, and avirtguest | 1000 | None, with `no_new_privs` | The socket-domain allowlist and the denylist | [The agent's ruleset](./landlock.md#agent) |
 
 A build job runs under the build security context instead, which permits the namespaces and mounts BuildKit's OCI worker needs and runs the build runner as root inside the build VM (see [workspaces](./workspace-build.md#build-jobs)). Only build jobs use this security context, and only on a runtime with a VM per workload. These jobs lack `guest-cli` access and a MITM CA for build commands.
 
-Each process's Landlock ruleset is in [per-process rulesets](./sandbox.md#per-process-rulesets). `no_new_privs` applies to all processes. avirtnetd, avirtacp, avirtagent, avirtexec, and avirtguestd run with per-process UIDs distinct from 0 and 1000. uid 1000 can't send signals to these processes. It also can't trace these processes or read their memory. avirtnetd, avirtacp, avirtagent, avirtexec, and avirtguestd can't read each other's sockets. The agent and every tool it starts run in the agent cgroup, which avirtinitd freezes and kills as a unit (see [workload topology](./workload-topology.md#freeze-and-reconnect)). These processes run outside it.
+Each process's Landlock ruleset is in [per-process rulesets](./landlock.md#per-process-rulesets). `no_new_privs` applies to all processes. avirtnetd, avirtacp, avirtagent, avirtexec, and avirtguestd run with per-process UIDs distinct from 0 and 1000. uid 1000 can't send signals to these processes. It also can't trace these processes or read their memory. avirtnetd, avirtacp, avirtagent, avirtexec, and avirtguestd can't read each other's sockets. The agent and every tool it starts run in the agent cgroup, which avirtinitd freezes and kills as a unit (see [workload topology](./workload-topology.md#freeze-and-reconnect)). These processes run outside it.
 
 The agent (uid 1000) and avirtguestd share only the workspace group `avirt-ws`. avirtinitd makes each declared workspace root setgid to that group with default POSIX ACLs that grant the group read and write, allowing avirtguestd to write files the agent creates. As their owner, the agent can still remove the group's access to its own files, and avirtguestd reports such a file as unreadable rather than overriding it: avirtguestd lacks `CAP_DAC_OVERRIDE` and `CAP_FOWNER`.
 

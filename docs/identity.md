@@ -1,7 +1,7 @@
 ---
 type: Security Design
 title: Identity and mTLS
-description: How the workload container, the mediator, avirthostd, the host services and peers authenticate each other, the SPIFFE trust domain and IDs, the durable SPIFFE root and bundle, SVID bootstrap and workload-authenticated rotation, federation, and the separation of the SPIFFE CA from the MITM CA.
+description: How the sandbox container, the mediator, avirthostd, the host services and peers authenticate each other, the SPIFFE trust domain and IDs, the durable SPIFFE root and bundle, SVID bootstrap and workload-authenticated rotation, federation, and the separation of the SPIFFE CA from the MITM CA.
 tags: [avirt, identity, spiffe, mtls, federation, security]
 implementation: partial
 generated: { by: codex/gpt-6, at: 2026-10-18T04:29:26Z }
@@ -15,7 +15,7 @@ generated: { by: codex/gpt-6, at: 2026-10-18T04:29:26Z }
 
 ## Mediator secret
 
-Each mediator gets a random secret in its environment (`AVIRT_MEDIATOR_SECRET`, never in the workload container's) and presents it in both connection headers on avirthostd's socket (`WORKLOAD <id> <secret>` and `EGRESS <id> <secret>`). avirthostd closes a connection whose header lacks the right secret and discards its output without logging it. The mediator starts from an empty environment: only `PATH`, `HOME`, `TMPDIR` and its secret.
+Each mediator gets a random secret in its environment (`AVIRT_MEDIATOR_SECRET`, never in the sandbox container's) and presents it in both connection headers on avirthostd's socket (`WORKLOAD <id> <secret>` and `EGRESS <id> <secret>`). avirthostd closes a connection whose header lacks the right secret and discards its output without logging it. The mediator starts from an empty environment: only `PATH`, `HOME`, `TMPDIR` and its secret.
 
 # Status: planned
 
@@ -30,12 +30,12 @@ The trust domain is installation-unique: `<install-id>.avirt`, where `<install-i
 | avirthostd | `spiffe://<td>/service/avirthostd` | avirthostd process |
 | Each other host service | `spiffe://<td>/service/<name>`, for avirtapid, avirtwebd, avirtregistryd, avirtdnsd, avirtmcpgwd, avirtmodelgwd, avirtbuilderd, avirtpolicyd, avirtsecretsd, avirtlogd, avirtauditd, and avirtoteld | The component's process |
 | avirtedgeproxyd | `spiffe://<td>/service/avirtedgeproxyd` | The avirtedgeproxyd process |
-| avirtnetd (the workload container) | `spiffe://<td>/ns/<ns>/workload/<uuid>` | Workload |
+| avirtnetd (the sandbox container) | `spiffe://<td>/ns/<ns>/workload/<uuid>` | Workload |
 | avirtmediatord | `spiffe://<td>/ns/<ns>/workload/<uuid>/mediator/<gen>` | One mediator generation |
 
 The namespace, the workload's canonical ID and the mediator generation are part of the signed URI. `<uuid>` is the workload's UUIDv7, which avirt never reuses (see [components](./components.md#workload-ids)). The 8-character short ID never appears in a SPIFFE ID. A namespace is local to its host (see [components](./components.md#namespaces-and-labels)), and each host has its own trust domain, so cross-host identities and policy references always include that host's trust domain.
 
-Inside the workload container only avirtnetd holds an SVID. The identities of other processes come from their connecting sockets, checked with `SO_PEERCRED`. avirtnetd forwards avirtguest's requests under the principal `spiffe://<td>/ns/<ns>/workload/<uuid>/guest-cli`, which never has an SVID. avirtnetd opens a `/guest-cli` HTTP/2 stream on its connection to the mediator, and avirtmediatord sets that principal in `x-avirt-caller` on the request it forwards to avirtedgeproxyd, after removing any `x-avirt-caller` the request contained. avirtedgeproxyd accepts the principal only from the SVID of avirtmediatord in the same workload. It checks the principal against the host policy snapshot as it does other workload traffic. It sets `x-avirt-caller` itself on the request forwarded to avirtapid. avirtapid accepts `x-avirt-caller` only from `/service/avirtedgeproxyd`, and passes the calling workload to avirthostd, which authorizes each operation per action and per resource against the host policy snapshot, within the constraints in [workload management](./components.md#workload-management). The `guest-cli` principal is within the agent's trust boundary. avirtguest runs as uid 1000, so any process the agent runs can use the guest CLI socket. Grants to `guest-cli` also grant the agent that authority. It separates control-plane calls from egress in policy and logs. Its authority equals the policy's grant to the workload and never exceeds uid 1000's authority.
+Inside the sandbox container only avirtnetd holds an SVID. The identities of other processes come from their connecting sockets, checked with `SO_PEERCRED`. avirtnetd forwards avirtguest's requests under the principal `spiffe://<td>/ns/<ns>/workload/<uuid>/guest-cli`, which never has an SVID. avirtnetd opens a `/guest-cli` HTTP/2 stream on its connection to the mediator, and avirtmediatord sets that principal in `x-avirt-caller` on the request it forwards to avirtedgeproxyd, after removing any `x-avirt-caller` the request contained. avirtedgeproxyd accepts the principal only from the SVID of avirtmediatord in the same workload. It checks the principal against the host policy snapshot as it does other workload traffic. It sets `x-avirt-caller` itself on the request forwarded to avirtapid. avirtapid accepts `x-avirt-caller` only from `/service/avirtedgeproxyd`, and passes the calling workload to avirthostd, which authorizes each operation per action and per resource against the host policy snapshot, within the constraints in [workload management](./components.md#workload-management). The `guest-cli` principal is within the agent's trust boundary. avirtguest runs as uid 1000, so any process the agent runs can use the guest CLI socket. Grants to `guest-cli` also grant the agent that authority. It separates control-plane calls from egress in policy and logs. Its authority equals the policy's grant to the workload and never exceeds uid 1000's authority.
 
 ## Issuer
 
@@ -56,7 +56,7 @@ The root and issuing CA certificates constrain names. Their permitted URI subtre
 
 The startup cleanup still ends every workload that an earlier avirthostd process left, because workload state doesn't persist across an avirthostd restart. The SPIFFE root and bundle do persist, so host services and peers keep verifying the host's SVIDs across restarts.
 
-Verification on every side chains only to the trust bundle and authorizes the exact peer ID. A peer connection uses only the enrolled trust domain's bundle. No mediator or workload container has a Workload API endpoint (invariant 1 in [architecture](./architecture.md#design-invariants)).
+Verification on every side chains only to the trust bundle and authorizes the exact peer ID. A peer connection uses only the enrolled trust domain's bundle. No mediator or sandbox container has a Workload API endpoint (invariant 1 in [architecture](./architecture.md#design-invariants)).
 
 ## Attestation
 
@@ -72,12 +72,12 @@ In the all-in-one server image, avirtinitd in server mode passes each host servi
 
 `avirthostd` issues one bootstrap SVID and key per container (10-minute lifetime) and gives them to the runtime at container creation. It then zeroizes its copy.
 
-| Runtime | Mediator | Workload container |
+| Runtime | Mediator | Sandbox container |
 | --- | --- | --- |
 | Containerization | A root-only (0400) file written into the VM's root filesystem before boot, or the init process's environment | The same, delivered to the root avirtinitd |
 | Docker Desktop | `AVIRT_SVID`, `AVIRT_SVID_KEY`, `AVIRT_BUNDLE`, inherited by name, never on argv | The same, read by the root avirtinitd |
 
-avirtinitd reads the material and unlinks the file or scrubs the variables. It passes the material on an inherited file descriptor to its only user: avirtmediatord in the mediator or avirtnetd in the workload container. uid 1000 can't get it:
+avirtinitd reads the material and unlinks the file or scrubs the variables. It passes the material on an inherited file descriptor to its only user: avirtmediatord in the mediator or avirtnetd in the sandbox container. uid 1000 can't get it:
 
 - reading `/proc/<pid>/environ` or another process's memory requires a matching uid or `CAP_SYS_PTRACE`, every holder runs under its own UID, and the agent's seccomp filter denies `ptrace` and `process_vm_readv`.
 - avirtinitd removes the file before starting the agent.
@@ -145,7 +145,7 @@ Peered hosts federate explicitly, and never share a CA key (see [peering](./peer
 | Trusted by | The SVID verifiers in avirtnetd, avirtmediatord and avirtedgeproxyd, avirthostd and the host services, each configured with the trust bundle alone and never with system or web roots | The agent's trust store and CA variables |
 | Signs | Issuing CAs and SVIDs (URI SAN, name-constrained to `<td>`) | Upstream leaf certificates (DNS SAN, `serverAuth` only) |
 
-avirt never writes the trust bundle to `/etc/ssl` or to any file in the workload container. Verifiers reject certificates signed by the other CA.
+avirt never writes the trust bundle to `/etc/ssl` or to any file in the sandbox container. Verifiers reject certificates signed by the other CA.
 
 ```mermaid
 flowchart LR

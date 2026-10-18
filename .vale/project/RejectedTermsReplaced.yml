@@ -15,7 +15,7 @@ swap:
   workload helpers?: name the process
   local provenance: an image built from local sources
   event provenance: the event's `src` field
-  guest root: root in the workload container
+  guest root: root in the sandbox container
   off-host rules?: state the rule
   non-policy checks: the checks that apply in both policy modes
   required-allow invariants?: describe the condition

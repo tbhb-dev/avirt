@@ -1,7 +1,7 @@
 ---
 type: Architecture Overview
 title: Components
-description: The avirt components on the host and in the mediator container, workload container, and all-in-one server image. Describes where components run and their state and connections, along with startup, failure, status, and the mapping from current binaries.
+description: The avirt components on the host and in the mediator container, sandbox container, and all-in-one server image. Describes where components run and their state and connections, along with startup, failure, status, and the mapping from current binaries.
 tags: [avirt, architecture, components, inventory]
 implementation: partial
 generated: { by: codex/gpt-6, at: 2026-10-18T05:21:55Z }
@@ -9,9 +9,9 @@ generated: { by: codex/gpt-6, at: 2026-10-18T05:21:55Z }
 
 # Overview
 
-avirthostd and the host services that configure and decide make up the control plane. avirtedgeproxyd and avirtmediatord form the data plane. Each workload has a workload container and a mediator container. avirtedgeproxyd runs on the host. The all-in-one server image runs the host services together in one container.
+avirthostd and the host services that configure and decide make up the control plane. avirtedgeproxyd and avirtmediatord form the data plane. Each workload has a sandbox container and a mediator container. avirtedgeproxyd runs on the host. The all-in-one server image runs the host services together in one container.
 
-A **workload** is the lifecycle unit, like a pod with a sidecar. Its **workload container** runs avirtinitd and the agent or another main workload process. Its **mediator** is the per-workload mediator container that runs avirtinitd and avirtmediatord. Each runs in its own container, which is its own VM on the Containerization runtime and a container on a shared kernel on Docker Desktop (see [compute runtimes](./compute-runtimes.md)).
+A **workload** is the lifecycle unit, like a pod with a sidecar. Its **sandbox container** runs avirtinitd and the agent or another main workload process. Its **mediator** is the per-workload mediator container that runs avirtinitd and avirtmediatord. Each runs in its own container, which is its own VM on the Containerization runtime and a container on a shared kernel on Docker Desktop (see [compute runtimes](./compute-runtimes.md)).
 
 | Component | Description | Container | Status |
 | --- | --- | --- | --- |
@@ -28,10 +28,10 @@ A **workload** is the lifecycle unit, like a pod with a sidecar. Its **workload 
 | avirtbuilderd | Builds repository OCI artifacts from version control in disposable sandboxed jobs, so that workloads start quickly | host | Planned |
 | avirtpolicyd | Stores, validates, proves, compiles and distributes versioned Cedar policy snapshots for the host | host | Planned |
 | [avirtsecretsd](./secrets.md) | Stores secrets from providers. Credential refresh is its responsibility. Serves the workload-scoped credential broker API for mediator-injected bindings | host | Planned |
-| avirtlogd | Acquires and transforms workload container logs. Sends them to avirtoteld for delivery as OpenTelemetry Logs (see [observability](./observability.md#workload-stdout-and-stderr)) | host | Planned |
+| avirtlogd | Acquires and transforms sandbox container logs. Sends them to avirtoteld for delivery as OpenTelemetry Logs (see [observability](./observability.md#workload-stdout-and-stderr)) | host | Planned |
 | avirtauditd | Audit logging: it reads the workload logs and each component's audit log and delivers them as OCSF (see [observability](./observability.md#audit)) | host | Planned |
 | avirtoteld | The OpenTelemetry Collector for the host, with a Rust front end supervising a pinned Collector built with the OpenTelemetry Collector Builder (see [observability](./observability.md#avirtoteld)) | host | Planned |
-| avirtinitd | One minimal supervisor with three role modes. Acts as PID 1 and launcher in the workload container. Supervises the mediator container and all-in-one server image | workload, mediator, all-in-one | Partial |
+| avirtinitd | One minimal supervisor with three role modes. Acts as PID 1 and launcher in the sandbox container. Supervises the mediator container and all-in-one server image | workload, mediator, all-in-one | Partial |
 | avirtmediatord | Handles workload traffic and lifecycle in one process. Maintains its connection to avirthostd and rotates its SVID. Evaluates policy and injects credentials. | mediator | Partial |
 | avirtacp | Runs an agent workload through the Agent Client Protocol (see [ACP](./acp.md)) | workload | Partial |
 | avirtagent | Runs an agent workload through its native harness | workload | Planned |
@@ -39,7 +39,7 @@ A **workload** is the lifecycle unit, like a pod with a sidecar. Its **workload 
 | avirtnetd | Provides guest networking with the client end of the workload's HTTP/2 connection to its mediator and stores the workload SVID. Provides the forward proxy and DNS stub resolver. Also provides the reverse proxy and guest control gRPC API | workload | Partial |
 | avirtguestd | Workload services: a file server and an MCP server | workload | Planned |
 | avirtmcp | A stdio MCP server, launched by the agent, that relays to avirtmcpgwd | workload | Planned |
-| avirtguest | The guest CLI in workload images, which reaches avirtapid through avirtnetd, avirtmediatord, and avirtedgeproxyd (see [guest CLI](./guest-cli.md)) | workload | Planned |
+| avirtguest | The guest CLI in sandbox images, which reaches avirtapid through avirtnetd, avirtmediatord, and avirtedgeproxyd (see [guest CLI](./guest-cli.md)) | workload | Planned |
 
 Partial means the component's function exists in the current code but not yet as the component described here. See the next section for where each partial function runs.
 
@@ -52,9 +52,9 @@ Current code consists of four functional binaries and the shared `avirt-core` an
 | `avirt` | host | The command-line tool. It talks to avirthostd directly over HTTP on `127.0.0.1:8787` (`POST /launch`), or the URL in `AVIRT_HOSTD_URL`. |
 | `avirthostd` | host | The host daemon provides the control API and workload launch and teardown. Handles the Codex `auth.json` seed and write-back, and the workload logs in `logs/<workload-id>.ndjson`. |
 | `avirtmediatord` | host, one process per workload | The mediator as a host process: one Pingora server with the CONNECT proxy on `proxy.sock`, and on `mediator.sock` a TCP proxy that forwards avirtinitd's HTTP/2 connection to avirthostd with the bytes unchanged. |
-| `avirtinitd` | workload, as root | The workload container's root process and image entrypoint. Together with the harness in `avirt-core`, it contains the ACP client that avirtacp provides in the planned design (it spawns the adapter as uid 1000 under seccomp and taps each JSON-RPC line, see [ACP](./acp.md)), and the TCP proxy to `proxy.sock` that avirtnetd's forward proxy replaces in the planned design. |
+| `avirtinitd` | workload, as root | The sandbox container's root process and image entrypoint. Together with the harness in `avirt-core`, it contains the ACP client that avirtacp provides in the planned design (it spawns the adapter as uid 1000 under seccomp and taps each JSON-RPC line, see [ACP](./acp.md)), and the TCP proxy to `proxy.sock` that avirtnetd's forward proxy replaces in the planned design. |
 
-`avirtinitd` isn't PID 1 in the current code. With `--init` on the workload container, the runtime's init is PID 1 and avirtinitd is its direct child (see [workload hardening](./workload-hardening.md)). avirt doesn't have a mediator container. Instead, the mediator runs as the host process in the table, and current code doesn't apply Landlock. avirtedgeproxyd and the other planned host services don't exist.
+`avirtinitd` isn't PID 1 in the current code. With `--init` on the sandbox container, the runtime's init is PID 1 and avirtinitd is its direct child (see [workload hardening](./workload-hardening.md)). avirt doesn't have a mediator container. Instead, the mediator runs as the host process in the table, and current code doesn't apply Landlock. avirtedgeproxyd and the other planned host services don't exist.
 
 # Status: planned
 
@@ -77,7 +77,7 @@ The state in a host service's Owns column belongs to that service, and no other 
 | avirtbuilderd | Build scheduling. It watches version control such as git and runs each build in a disposable sandboxed job with no host control or signing authority. | Repositories through avirtedgeproxyd, avirtregistryd |
 | avirtpolicyd | Cedar policy storage, schema validation, the Cedar policy prover, compilation, and versioned snapshot distribution (see [egress policies](./egress-policies.md)). The prover statically analyses each policy set before a snapshot built from it undergoes distribution, and reasons precisely about entity-hierarchy membership such as `in Namespace::"team-a"`. It rejects any policy that applies `like` to anything other than a canonicalized external host or a canonicalized request path. Each snapshot pairs a policy version with an entity revision from avirthostd. | avirtmediatord, avirtedgeproxyd, avirthostd (entity revisions and policy writes in, host policy snapshot out) |
 | avirtsecretsd | Provider access, each real credential, the Codex refresh token, credential refresh with one owner per credential, placeholder issuance, the workload-scoped credential broker API, and leases for mediator-injected bindings (see [credentials](./egress-credentials.md) and [secrets](./secrets.md#mediator-credentials)) | Secret providers through their provider plugins (off-host ones through avirtedgeproxyd), avirtmodelgwd, avirtmcpgwd, avirtmediatord processes (broker API), avirthostd (workload and binding registrations, and the Admin API) |
-| avirtlogd | Workload stdio log delivery. It acquires the workload containers' stdout, stderr and console logs with a runtime-adapted method. It transforms them and sends them to avirtoteld for delivery as OpenTelemetry Logs (see [observability](./observability.md#workload-stdout-and-stderr)). | The host-written log files it tails, avirtoteld |
+| avirtlogd | Workload stdio log delivery. It acquires the sandbox containers' stdout, stderr and console logs with a runtime-adapted method. It transforms them and sends them to avirtoteld for delivery as OpenTelemetry Logs (see [observability](./observability.md#workload-stdout-and-stderr)). | The host-written log files it tails, avirtoteld |
 | avirtauditd | Audit delivery as OCSF. It reads avirthostd's committed workload logs and each component's audit log by offset, and keeps the raw security events beside the OCSF form (see [observability](./observability.md#audit-logs)). | The workload logs and audit logs, avirthostd (delivery status), an OCSF sink through avirtedgeproxyd |
 | avirtoteld | Telemetry delivery: a Rust front end supervising a pinned OpenTelemetry Collector built with the OpenTelemetry Collector Builder (see [observability](./observability.md#avirtoteld)) | avirtmediatord processes (through SNI routing), avirtlogd, the host services, avirtedgeproxyd, downstream telemetry backends through avirtedgeproxyd |
 
@@ -129,12 +129,12 @@ These constraints bound what a workload can do through this path, whatever the p
 
 avirtedgeproxyd runs on the host and serves its egress, local client and peer listeners in its own process. It stores its SVID and key, the trust bundle and enrolled peers' bundles. It evaluates the host Cedar policy snapshot in-process with `cedar-policy`. Its HTTP and TLS stack uses hyper 1.x, h2 0.4.20, rustls 0.23 with ring, tokio-rustls and rcgen. Its verifier uses `spiffe` types and checks the exact peer ID against the appropriate trust bundle. It resolves external names against configured upstream DNS servers and caches the results. It resolves again when dialing and checks every resolved address. It's the only host service that opens connections off the host.
 
-- **Workload to workload.** Each connection from one workload to another passes through avirtedgeproxyd, on the same host and between hosts: avirtmediatord, avirtedgeproxyd, the destination workload's avirtmediatord, the destination workload container. Between hosts it passes both hosts' avirtedgeproxyd, and each evaluates its own host policy snapshot (see [peering](./peering.md#workload-traffic)).
+- **Workload to workload.** Each connection from one workload to another passes through avirtedgeproxyd, on the same host and between hosts: avirtmediatord, avirtedgeproxyd, the destination workload's avirtmediatord, the destination sandbox container. Between hosts it passes both hosts' avirtedgeproxyd, and each evaluates its own host policy snapshot (see [peering](./peering.md#workload-traffic)).
 - **Services.** avirtedgeproxyd publishes services that workloads expose, using avirthostd's service records. A record has a name, a namespace, labels, a port, and a backend: a port that a workload publishes, or an authorized host-local service.
 - **Host-local services.** A service running on the host itself outside avirt, such as one bound to the host's `127.0.0.1`, is reachable only as the backend of a service record. The `private-dest` check refuses each other host address.
 - **External endpoints.** avirtmediatord processes connect to the egress listener through avirthostd's SNI routing (see [workload topology](./workload-topology.md#sni-routing)) for connections to external endpoints, which avirtedgeproxyd resolves and dials itself.
 - **Clients.** On `edgeproxy.sock` in the runtime directory, it fronts avirthostd, avirtapid, avirtmcpgwd, avirtmodelgwd and avirtwebd: avirt reaches avirtapid over gRPC and avirtwebd reaches it over REST. Web UI users on this machine connect to avirtwebd through avirtedgeproxyd's host loopback listener. avirtadmin isn't a client of avirtedgeproxyd: it uses `admin.sock`. On the peer listener, which peers reach through the host's peer port on the addresses in `peering.listen` (default port 8788), and which doesn't exist while that list is empty (see [peering](./peering.md#peer-listener)), it serves active peers only local published ports, services, the endpoint for trust bundles and avirtapid, never avirthostd, avirtmcpgwd, or avirtmodelgwd.
-- **avirtguest.** avirtguest reaches avirtapid over gRPC from inside the workload container: avirtnetd, avirtmediatord, avirtedgeproxyd, avirtapid. avirtedgeproxyd authorizes its `guest-cli` principal against the host policy snapshot as it does other workload traffic.
+- **avirtguest.** avirtguest reaches avirtapid over gRPC from inside the sandbox container: avirtnetd, avirtmediatord, avirtedgeproxyd, avirtapid. avirtedgeproxyd authorizes its `guest-cli` principal against the host policy snapshot as it does other workload traffic.
 - **Host services.** Each off-host connection a host service makes goes through it. This includes upstream calls from avirtmodelgwd and avirtmcpgwd, and remote secret provider calls from avirtsecretsd. It includes exports from avirtoteld and avirtauditd, source fetches from avirtbuilderd, peer imports from avirtregistryd, and peer calls from avirtapid.
 
 Traffic from avirtmediatord to avirt's own host services (avirtsecretsd, avirtoteld, avirtmcpgwd, avirtmodelgwd, avirtdnsd and avirtpolicyd, and avirtregistryd for build jobs only) doesn't pass through avirtedgeproxyd. avirthostd's SNI routing forwards this traffic directly to each component. Both sides use mutual TLS and X.509-SVIDs.
@@ -143,12 +143,12 @@ avirtedgeproxyd authorizes each caller by its SVID. Name resolution maps interna
 
 ```mermaid
 flowchart LR
-    wl["workload container (avirtnetd)"] -->|"HTTP/2 connection to its mediator"| me["avirtmediatord"]
+    wl["sandbox container (avirtnetd)"] -->|"HTTP/2 connection to its mediator"| me["avirtmediatord"]
     me -->|"SNI routing, direct"| hs["avirtsecretsd, avirtpolicyd, avirtdnsd, avirtoteld, avirtmcpgwd, avirtmodelgwd"]
     me -->|"SNI routing"| fd["avirtedgeproxyd (PEP)"]
     fd -->|"gRPC, guest-cli"| apid["avirtapid"]
     fd -->|"ingress listener"| me2["destination workload's avirtmediatord (same host)"]
-    me2 --> wl2["destination workload container"]
+    me2 --> wl2["destination sandbox container"]
     fd -->|"service backend"| hl["authorized host-local service"]
     fd -->|"external connections"| net(("external endpoints"))
     fd -->|"mTLS, federated"| pfd["peer avirtedgeproxyd (PEP)"]
@@ -176,7 +176,7 @@ Status: implemented. avirtmediatord runs on the host with the [Pingora CONNECT a
 
 ## Mediator container
 
-Each workload has one mediator container, a sidecar to its workload container. The mediator has no network interface other than loopback. Its only connections are the four Unix sockets the compute runtime provides, described in [workload topology](./workload-topology.md#runtime-provided-sockets). These provide the workload's HTTP/2 connection to its mediator on `/run/avirt/workload.sock` and the mediator's connection to avirthostd, plus the mediator's outbound socket to avirthostd and avirtmediatord's ingress listener.
+Each workload has one mediator container, a sidecar to its sandbox container. The mediator has no network interface other than loopback. Its only connections are the four Unix sockets the compute runtime provides, described in [workload topology](./workload-topology.md#runtime-provided-sockets). These provide the workload's HTTP/2 connection to its mediator on `/run/avirt/workload.sock` and the mediator's connection to avirthostd, plus the mediator's outbound socket to avirthostd and avirtmediatord's ingress listener.
 
 | Component | What it does | Talks to |
 | --- | --- | --- |
@@ -190,11 +190,11 @@ flowchart TD
     init["avirtinitd (mediator mode)"] -->|"start under uid avirt-med"| med["avirtmediatord"]
 ```
 
-## Workload container
+## Sandbox container
 
-An agent or another main workload process runs inside the workload container. `avirtinitd` is PID 1 and the launcher: it starts each other process with that process's own UID, capabilities, seccomp filter and Landlock ruleset, and none of them inherits avirtinitd's (see [workload hardening](./workload-hardening.md#security-contexts) and [sandbox](./sandbox.md#per-process-rulesets)). It runs exactly one main workload process (avirtacp, avirtagent or avirtexec) together with avirtnetd and avirtguestd.
+An agent or another main workload process runs inside the sandbox container. `avirtinitd` is PID 1 and the launcher: it starts each other process with that process's own UID, capabilities, seccomp filter and Landlock ruleset, and none of them inherits avirtinitd's (see [workload hardening](./workload-hardening.md#security-contexts) and [Landlock](./landlock.md#per-process-rulesets)). It runs exactly one main workload process (avirtacp, avirtagent or avirtexec) together with avirtnetd and avirtguestd.
 
-Each workload container's root filesystem is a harness base image derived from the avirt base image, then the workspace layers, the configuration layer and the per-workload writable layer (see [workload lifecycle](./workload-lifecycle.md)). The avirt base contains each workload binary in the table below, and the harness base adds only the harness and its adapter under `/opt/agent`.
+Each sandbox container's root filesystem is a harness base image derived from the avirt base image, then the workspace layers, the configuration layer and the per-workload writable layer (see [workload lifecycle](./workload-lifecycle.md)). The avirt base contains each workload binary in the table below, and the harness base adds only the harness and its adapter under `/opt/agent`.
 
 | Process | UID | What it does | Talks to |
 | --- | --- | --- | --- |
@@ -329,7 +329,7 @@ avirtwebd authenticates web UI users.
 
 ## Workload stdio logs
 
-avirtlogd acquires the workload containers' stdout, stderr and console logs by tailing log files that the host side writes, and sends each record to avirtoteld, which delivers it as OpenTelemetry Logs. The method on each runtime, avirthostd's writer on the Containerization runtime and the identity attributes on each record are in [observability](./observability.md#workload-stdout-and-stderr).
+avirtlogd acquires the sandbox containers' stdout, stderr and console logs by tailing log files that the host side writes, and sends each record to avirtoteld, which delivers it as OpenTelemetry Logs. The method on each runtime, avirthostd's writer on the Containerization runtime and the identity attributes on each record are in [observability](./observability.md#workload-stdout-and-stderr).
 
 ## Operational ownership
 

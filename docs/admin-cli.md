@@ -11,7 +11,7 @@ generated: { by: codex/gpt-6, at: 2026-10-18T04:29:26Z }
 
 `avirtadmin` is the host's local admin CLI, from `crates/avirtadmin`. All state belongs to other components (see [components](./components.md#host-services)). Running on the host as avirthostd's own UID or as root, it talks gRPC directly to avirthostd on `admin.sock`. This path bypasses avirtapid and avirtedgeproxyd. The operations on this page remain inaccessible to peers, workloads, and web UI users.
 
-[avirt](./operator-cli.md) is the operator CLI, and [avirtguest](./guest-cli.md) is the guest CLI inside a workload container. Where the three overlap they share command names, flags, output formats, and exit codes.
+[avirt](./operator-cli.md) is the operator CLI, and [avirtguest](./guest-cli.md) is the guest CLI inside a sandbox container. Where the three overlap they share command names, flags, output formats, and exit codes.
 
 ## Connection and authentication
 

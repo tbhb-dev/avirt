@@ -65,4 +65,4 @@ The workload's resolver, the `resolve` check on every query and the public-name 
 # Open questions
 
 1. **Reuse of generated names.** Whether a new workload can reuse a generated name after its workload ends is open. Reuse risks confusion through DNS caches and old references. Prohibiting reuse slowly exhausts a namespace's name space.
-2. **DNS answers under transparent TCP.** Whether DNS answers inside the workload container become per-name synthetic addresses that avirtnetd maps back to names remains open for the design of transparent TCP. Raw TCP without SNI or `Host` needs this mapping for routing by name.
+2. **DNS answers under transparent TCP.** Whether DNS answers inside the sandbox container become per-name synthetic addresses that avirtnetd maps back to names remains open for the design of transparent TCP. Raw TCP without SNI or `Host` needs this mapping for routing by name.

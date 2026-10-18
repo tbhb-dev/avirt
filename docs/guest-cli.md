@@ -1,7 +1,7 @@
 ---
 type: CLI Reference
 title: Guest CLI
-description: The avirtguest guest CLI runs as uid 1000 inside a workload container and connects to avirtapid through avirtnetd, avirtmediatord, and avirtedgeproxyd as the guest-cli principal. Its commands manage other workloads, sessions, logs, and ports under authorization and escalation constraints. Includes a comparison with avirt, output formats, exit codes, and the API call and Cedar action for each command.
+description: The avirtguest guest CLI runs as uid 1000 inside a sandbox container and connects to avirtapid through avirtnetd, avirtmediatord, and avirtedgeproxyd as the guest-cli principal. Its commands manage other workloads, sessions, logs, and ports under authorization and escalation constraints. Includes a comparison with avirt, output formats, exit codes, and the API call and Cedar action for each command.
 tags: [avirt, cli, avirtguest, workload-management]
 implementation: planned
 generated: { by: codex/gpt-6, at: 2026-10-18T04:29:26Z }
@@ -9,7 +9,7 @@ generated: { by: codex/gpt-6, at: 2026-10-18T04:29:26Z }
 
 # Status: planned
 
-`avirtguest`, from `crates/avirtguest`, is the guest CLI inside a workload container. The avirt base image includes it at `/usr/local/bin/avirtguest`, so every workload container has it (see [workload lifecycle](./workload-lifecycle.md#layer-stack)). The agent and the tools it runs use it to manage other workloads on the host, under policy (see [workload management](./components.md#workload-management)). It runs as uid 1000. Within the agent cgroup, it uses the agent's security context (see [workload hardening](./workload-hardening.md#security-contexts)).
+`avirtguest`, from `crates/avirtguest`, is the guest CLI inside a sandbox container. The avirt base image includes it at `/usr/local/bin/avirtguest`, so every sandbox container has it (see [workload lifecycle](./workload-lifecycle.md#layer-stack)). The agent and the tools it runs use it to manage other workloads on the host, under policy (see [workload management](./components.md#workload-management)). It runs as uid 1000. Within the agent cgroup, it uses the agent's security context (see [workload hardening](./workload-hardening.md#security-contexts)).
 
 [avirt](./operator-cli.md) is the operator CLI, and [avirtadmin](./admin-cli.md) is the admin CLI. avirtguest's commands are a subset of avirt's, with the same names, flags, output formats, and exit codes.
 
@@ -176,5 +176,5 @@ The context of `create_workload` for avirtguest also includes `detached`, for `-
 
 1. **Sessions of other workloads.** Whether to permit `prompt_session` and `answer_permission` from one workload into another's session at all, or only from a workload into its own children's sessions, is open.
 2. **Logs of the caller's own workload.** Whether to permit `logs` on the calling workload itself is open. Its workload log contains the prompts and tool output of the agent that asks.
-3. **Workspaces from inside a workload container.** Whether avirtguest gains `workspace search` or `workspace build` is open (see [workspaces](./workspaces.md#open-questions)).
+3. **Workspaces from inside a sandbox container.** Whether avirtguest gains `workspace search` or `workspace build` is open (see [workspaces](./workspaces.md#open-questions)).
 4. **Peer delegation chain.** How a child launched on a peer with `--host` records its creator, whose identity is in another trust domain, and whether it ends when its creator ends, is open.

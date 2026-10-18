@@ -50,14 +50,14 @@ Without `cwd`, the agent works in the image's empty `/workspace`. With `cwd`, av
 | `PORT` | `avirthostd`, `avirt` | 8787 | Control API port |
 | `LOGS_DIR` | `avirthostd` | `logs` | Log directory |
 | `AVIRT_MEDIATOR_BIN` | `avirthostd` | `avirtmediatord` next to avirthostd | The mediator binary |
-| `CLAUDE_IMAGE` | `avirthostd` | `avirt-workload-claude:dev` | Claude workload image |
-| `CODEX_IMAGE` | `avirthostd` | `avirt-workload-codex:dev` | Codex workload image |
+| `CLAUDE_IMAGE` | `avirthostd` | `avirt-workload-claude:dev` | Claude sandbox image |
+| `CODEX_IMAGE` | `avirthostd` | `avirt-workload-codex:dev` | Codex sandbox image |
 | `CODEX_HOST_HOME` | `avirthostd` | `~/.codex` | Directory of the host `auth.json` |
 | `INITIAL_AGENT_MODE` | `avirthostd`, passed to Codex | Codex's own (`agent`) | `read-only`, `workspace-write`, `agent` or `agent-full-access` |
 | `CLAUDE_CODE_OAUTH_TOKEN` | `avirthostd`, passed to Claude | none | Claude credential (see [credentials](./egress-credentials.md)) |
 | `AVIRT_HOSTD_URL` | `avirt` | the local avirthostd on `--port` | avirthostd URL |
 
-`avirtinitd` reads `AVIRT_WORKLOAD_ID`, `AVIRT_PROMPT`, `AVIRT_CWD` and `AVIRT_CONNECTION_TOKEN`, set by avirthostd, and `AVIRT_AGENT`, set in each workload image. The mediator reads `AVIRT_MEDIATOR_SECRET`.
+`avirtinitd` reads `AVIRT_WORKLOAD_ID`, `AVIRT_PROMPT`, `AVIRT_CWD` and `AVIRT_CONNECTION_TOKEN`, set by avirthostd, and `AVIRT_AGENT`, set in each sandbox image. The mediator reads `AVIRT_MEDIATOR_SECRET`.
 
 ## Log files
 
@@ -66,7 +66,7 @@ avirthostd creates the logs directory with mode 0700 and each file in it with mo
 | File | Contents |
 | --- | --- |
 | `logs/<workload-id>.ndjson` | One envelope per line, as below |
-| `logs/<workload-id>.container.log` | The workload container's stdout and stderr |
+| `logs/<workload-id>.container.log` | The sandbox container's stdout and stderr |
 | `logs/<workload-id>.mediator.log` | The mediator's diagnostics |
 
 ## Envelope
@@ -89,10 +89,10 @@ avirthostd creates the logs directory with mode 0700 and each file in it with mo
 | `exit` | avirtinitd | The ACP session ended |
 | `line_truncated` | avirtinitd or avirthostd | avirtinitd or avirthostd dropped a whole line longer than 16 MiB |
 | `auth_writeback` | avirthostd (Codex) | The outcome of the `auth.json` write-back |
-| `container_error` | avirthostd | A workload container or mediator failure |
-| `container_exit` | avirthostd | The workload container exited. Always the last line. |
+| `container_error` | avirthostd | A sandbox container or mediator failure |
+| `container_exit` | avirthostd | The sandbox container exited. Always the last line. |
 
-avirthostd writes `container_exit` only after the stream has drained, or at once if it never accepted a stream. It retains errors and writes them before this event, including when starting the workload container failed.
+avirthostd writes `container_exit` only after the stream has drained, or at once if it never accepted a stream. It retains errors and writes them before this event, including when starting the sandbox container failed.
 
 Both avirtinitd and avirthostd drop a whole line longer than 16 MiB through its newline, then write a `line_truncated` event in its place. They never write a fragment of that line as a record. One such line on the adapter's stdout normally yields two events: the Rust SDK responds to an unparseable line by writing it back to the adapter's stdin, and the tap drops that copy too. The SDK manages the adapter process without reporting its exit status, so the log has no adapter exit-status event.
 
@@ -102,6 +102,6 @@ Both avirtinitd and avirthostd drop a whole line longer than 16 MiB through its 
 
 | Event | Written by | Meaning |
 | --- | --- | --- |
-| `sandbox` | avirtinitd | The Landlock ruleset of one process it launches, written before the process execs (see [sandbox](./sandbox.md#recording-and-logging)) |
-| `landlock_denial` | avirtinitd | One Landlock denial reported by the kernel's audit records (see [sandbox](./sandbox.md#denials)) |
-| `landlock_denials_dropped` | avirtinitd | The count of denials past the per-workload rate in the last second (see [sandbox](./sandbox.md#denials)) |
+| `sandbox` | avirtinitd | The Landlock ruleset of one process it launches, written before the process execs (see [Landlock](./landlock.md#recording-and-logging)) |
+| `landlock_denial` | avirtinitd | One Landlock denial reported by the kernel's audit records (see [Landlock](./landlock.md#denials)) |
+| `landlock_denials_dropped` | avirtinitd | The count of denials past the per-workload rate in the last second (see [Landlock](./landlock.md#denials)) |

@@ -187,12 +187,12 @@ description = "Fail when Cargo.lock holds a dependency with a published RustSec 
 run = "cargo deny check advisories"
 
 [tasks.build-image]
-description = "Build one workload image (claude or codex); the repository root is the build context"
+description = "Build one sandbox image (claude or codex); the repository root is the build context"
 usage = 'arg "<agent>" help="claude or codex"'
 run = "container build -f workloads/${usage_agent}/Containerfile -t avirt-workload-${usage_agent}:dev ."
 
 [tasks.build-images]
-description = "Build both workload images"
+description = "Build both sandbox images"
 depends = ["build-image claude", "build-image codex"]
 
 [tasks.serve]

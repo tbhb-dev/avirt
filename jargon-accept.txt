@@ -3,3 +3,19 @@
 # where the term needs a definition; list a term here only when it needs none.
 per-process UIDs # The maintainer specifies this wording for the separate process identities.
 host connections # Ordinary description of connections opened by host daemons.
+sandbox container plus # Ordinary prose using the approved sandbox container, image or VM terminology.
+sandbox container's root # Ordinary prose using the approved sandbox container, image or VM terminology.
+sandbox container's root process # Ordinary prose using the approved sandbox container, image or VM terminology.
+sandbox container's root filesystem # Ordinary prose using the approved sandbox container, image or VM terminology.
+sandbox image derives # Ordinary prose using the approved sandbox container, image or VM terminology.
+sandbox containers stdout # Ordinary prose using the approved sandbox container, image or VM terminology.
+sandbox vm's vsock device # Ordinary prose using the approved sandbox container, image or VM terminology.
+codex sandbox container # Ordinary prose using the approved sandbox container, image or VM terminology.
+sandbox container exits # Ordinary prose using the approved sandbox container, image or VM terminology.
+sandbox container's stdout # Ordinary prose using the approved sandbox container, image or VM terminology.
+sandbox container exit # Ordinary prose using the approved sandbox container, image or VM terminology.
+sandbox container's memory # Ordinary prose using the approved sandbox container, image or VM terminology.
+sandbox containers output # Ordinary prose using the approved sandbox container, image or VM terminology.
+sandbox container memory # Ordinary prose using the approved sandbox container, image or VM terminology.
+sandbox vm's vsock # Uses the approved sandbox VM name with the standard transport name.
+extra paths # Ordinary description of paths added to Landlock rules.

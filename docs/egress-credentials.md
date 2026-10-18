@@ -9,7 +9,7 @@ generated: { by: codex/gpt-6, at: 2026-10-18T05:21:55Z }
 
 # Status: implemented
 
-`avirthostd` starts without credentials and checks them per launch. avirthostd refuses a Claude launch without `CLAUDE_CODE_OAUTH_TOKEN` in its environment or a Codex launch without `~/.codex/auth.json` (`CODEX_HOST_HOME` overrides the directory). It returns 400 with the missing credential's name. The container command-line tool inherits secrets from avirthostd's environment through `-e NAME` with no value. The values never appear on argv. `container run` starts from `HOME`, `PATH`, `TMPDIR`, `USER` and `LOGNAME` plus the variables in the agent's per-agent launch settings, so a Codex workload container doesn't contain `CLAUDE_CODE_OAUTH_TOKEN`.
+`avirthostd` starts without credentials and checks them per launch. avirthostd refuses a Claude launch without `CLAUDE_CODE_OAUTH_TOKEN` in its environment or a Codex launch without `~/.codex/auth.json` (`CODEX_HOST_HOME` overrides the directory). It returns 400 with the missing credential's name. The container command-line tool inherits secrets from avirthostd's environment through `-e NAME` with no value. The values never appear on argv. `container run` starts from `HOME`, `PATH`, `TMPDIR`, `USER` and `LOGNAME` plus the variables in the agent's per-agent launch settings, so a Codex sandbox container doesn't contain `CLAUDE_CODE_OAUTH_TOKEN`.
 
 ## Claude
 
@@ -22,12 +22,12 @@ sequenceDiagram
     participant H as host ~/.codex/auth.json
     participant C as avirthostd
     participant T as scratch/avirt-codex-XXXX (0700)
-    participant W as workload container (CODEX_HOME=/codex-home)
+    participant W as sandbox container (CODEX_HOME=/codex-home)
     C->>H: read at launch (seed)
     C->>T: write auth.json (0600)
     C->>W: container run -v dir:/codex-home -e CODEX_HOME=/codex-home
     W->>T: codex reads auth.json, may refresh it (new single-use refresh token)
-    W-->>C: workload container exits (or is killed, or avirthostd shuts down)
+    W-->>C: sandbox container exits (or is killed, or avirthostd shuts down)
     C->>C: open the workload's auth.json (no symlinks, regular file, at most 1 MiB, valid JSON)
     C->>H: take the flock on auth.json.lock, re-read the host file
     alt unchanged, invalid, auth_mode or account changed, or host last_refresh is not older
@@ -40,7 +40,7 @@ sequenceDiagram
     C->>T: remove the temp home
 ```
 
-`avirthostd` reads the host `auth.json` per launch. It's never in the image, on argv or in the environment, and avirthostd excludes the host `config.toml`. Codex rewrites `auth.json` with a new single-use refresh token when it refreshes, so after the workload container exits avirthostd writes the workload's copy back under these rules:
+`avirthostd` reads the host `auth.json` per launch. It's never in the image, on argv or in the environment, and avirthostd excludes the host `config.toml`. Codex rewrites `auth.json` with a new single-use refresh token when it refreshes, so after the sandbox container exits avirthostd writes the workload's copy back under these rules:
 
 - avirthostd opens the workload's file without following symlinks. It uses only a regular file of at most 1 MiB that parses as JSON.
 - Its top-level keys and `auth_mode` must match the seed. The account identity must also match: `tokens.account_id` plus the `id_token` `sub` and email claims. avirthostd decodes these claims without verification or logging.
@@ -58,13 +58,13 @@ avirthostd logs the outcome as an `auth_writeback` meta event containing a fixed
 - `no auth.json in workload home`
 - a `refused: ...` or `failed: ...` reason
 
-After write-back, avirthostd always removes the temp home. This covers normal exit, workload container stop or termination, spawn errors, setup failures, and avirthostd shutdown. If `stop`, `kill`, and `delete` attempts fail to confirm removal, avirthostd skips cleanup and write-back. It leaves the temp home for the next startup cleanup and records a `container_error`.
+After write-back, avirthostd always removes the temp home. This covers normal exit, sandbox container stop or termination, spawn errors, setup failures, and avirthostd shutdown. If `stop`, `kill`, and `delete` attempts fail to confirm removal, avirthostd skips cleanup and write-back. It leaves the temp home for the next startup cleanup and records a `container_error`.
 
 Constraint: two concurrent workloads that start from the same stale refresh token can't both refresh, so the second one's refresh fails. Logs contain the account label, email, and plan. With auto-approve, the agent can copy `/codex-home/auth.json` into the log.
 
 # Status: planned
 
-The workload container contains placeholders only. avirtsecretsd contains every real credential and the Codex refresh token, and it's the only component that reads a secret provider or refreshes a credential. Its secret model, providers, leases, write-back and APIs are in [secrets](./secrets.md). This document covers injection, including bindings and placeholders, the credential injectors, and the harness specifics. avirthostd's workload configuration names a workload's credential bindings by id, and avirthostd neither reads nor refreshes any credential.
+The sandbox container contains placeholders only. avirtsecretsd contains every real credential and the Codex refresh token, and it's the only component that reads a secret provider or refreshes a credential. Its secret model, providers, leases, write-back and APIs are in [secrets](./secrets.md). This document covers injection, including bindings and placeholders, the credential injectors, and the harness specifics. avirthostd's workload configuration names a workload's credential bindings by id, and avirthostd neither reads nor refreshes any credential.
 
 These hold for every credential:
 
@@ -301,7 +301,7 @@ These changes leave open connections intact. Credential injectors check each req
 | The MITM CA certificate | The MITM CA key |
 | Which requests get 403 `credential-misplaced` or `credential-rejected` | Which binding a request matched, beyond what its own requests reveal |
 
-Root in the workload container has the same visibility as uid 1000. Real credentials never enter the workload container. A full compromise of the container yields only placeholders (see [trust boundaries](./trust-boundaries.md#compromise-scope)). A compromised mediator gains the workload's placeholders and its mediator-injected short-lived credentials, and no model or MCP credential.
+Root in the sandbox container has the same visibility as uid 1000. Real credentials never enter the sandbox container. A full compromise of the container yields only placeholders (see [trust boundaries](./trust-boundaries.md#compromise-scope)). A compromised mediator gains the workload's placeholders and its mediator-injected short-lived credentials, and no model or MCP credential.
 
 ## Build jobs
 

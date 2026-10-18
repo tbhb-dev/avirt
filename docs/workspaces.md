@@ -9,7 +9,7 @@ generated: { by: codex/gpt-6, at: 2026-10-18T04:29:26Z }
 
 # Status: planned
 
-A **workspace** is the content a workload container starts with beyond its harness base image: a source tree, the dependencies installed for it, caches, and individual files. The **workspace image** is an OCI artifact that contains a workspace as a stack of layers, and avirthostd composes it onto the workload container's harness base image when it creates the workload. Workspace content can span folders, including `/workspace` and paths in the agent's home such as `~/.cache`. Images can also place individual files at system paths such as `/usr/local/bin/some-script`. Workspaces don't require a version control checkout.
+A **workspace** is the content a sandbox container starts with beyond its harness base image: a source tree, the dependencies installed for it, caches, and individual files. The **workspace image** is an OCI artifact that contains a workspace as a stack of layers, and avirthostd composes it onto the sandbox container's harness base image when it creates the workload. Workspace content can span folders, including `/workspace` and paths in the agent's home such as `~/.cache`. Images can also place individual files at system paths such as `/usr/local/bin/some-script`. Workspaces don't require a version control checkout.
 
 | Component | Role for workspaces |
 | --- | --- |
@@ -17,7 +17,7 @@ A **workspace** is the content a workload container starts with beyond its harne
 | avirtapid | Forwards `avirt workspace` commands to avirtbuilderd, avirtregistryd and avirthostd with the caller's identity |
 | avirtbuilderd | Watches repositories and schedules on-demand builds. Runs prebuild configurations. Runs each build processing untrusted content in a disposable sandboxed build job and checks every output before admission |
 | avirtregistryd | Stores workspace images in an embedded OCI registry with avirt's secondary index. Serves search and resolution and makes every off-host registry connection |
-| avirthostd | Resolves the workspace reference and authorizes the launch. Pulls the image into its content-addressed cache and composes the workload container's root filesystem. Records the resolved digest in the immutable workload configuration |
+| avirthostd | Resolves the workspace reference and authorizes the launch. Pulls the image into its content-addressed cache and composes the sandbox container's root filesystem. Records the resolved digest in the immutable workload configuration |
 | avirtpolicyd | Distributes the Cedar policy that governs build, push, pull, export and launch-from-workspace |
 
 ```mermaid
@@ -80,7 +80,7 @@ A bound image also contains the standard `org.opencontainers.image.base.name` an
 | `/usr/local` and `/opt` below, except `/opt/agent` | System additions such as scripts and toolchains | uid 0 | No |
 | Any other path a build command writes | Packages a pre-source hook installs, such as files under `/usr` and `/var/lib` | As written by the command | No |
 
-A destination may not contain `~`, and a config that uses one fails with `~ in destination`. `~` in a source `path` means the invoking user's home on the host, and letting it also mean the workload user's home would give one config two homes under one spelling. `${workload.home}` refers to the workload user's home at `/home/agent` in every avirt workload image. The variable keeps configs valid if that changes. It's the only variable a destination may use. Write access for the agent follows from its Landlock ruleset (see [sandbox](./sandbox.md#agent)), which avirthostd builds from the roots and layer destinations (see [sandbox inputs](./sandbox.md#inputs)): content outside `/workspace`, `/home/agent`, `/tmp` and `/dev/shm` is read-only to the agent whatever its mode.
+A destination may not contain `~`, and a config that uses one fails with `~ in destination`. `~` in a source `path` means the invoking user's home on the host, and letting it also mean the workload user's home would give one config two homes under one spelling. `${workload.home}` refers to the workload user's home at `/home/agent` in every avirt sandbox image. The variable keeps configs valid if that changes. It's the only variable a destination may use. Write access for the agent follows from its Landlock ruleset (see [Landlock](./landlock.md#agent)), which avirthostd builds from the roots and layer destinations (see [Landlock inputs](./landlock.md#inputs)): content outside `/workspace`, `/home/agent`, `/tmp` and `/dev/shm` is read-only to the agent whatever its mode.
 
 ### Content rules
 
@@ -371,7 +371,7 @@ At launch avirthostd pulls the resolved workspace image's manifest, config and l
 
 | Runtime | Root filesystem composition |
 | --- | --- |
-| Containerization | avirthostd keeps an unpacked ext4 root filesystem per harness base in its content-addressed cache, and a composed root filesystem per pair of harness base and workspace image in `cache/rootfs/`. It builds a composed one by cloning the harness base's with APFS `clonefile` and unpacking the workspace layers into the clone. Each workload container gets its own `clonefile` copy of the composed root filesystem as its writable root block device, with the configuration layer unpacked into it, so a launch from a cached pair copies only the configuration layer's file data. |
+| Containerization | avirthostd keeps an unpacked ext4 root filesystem per harness base in its content-addressed cache, and a composed root filesystem per pair of harness base and workspace image in `cache/rootfs/`. It builds a composed one by cloning the harness base's with APFS `clonefile` and unpacking the workspace layers into the clone. Each sandbox container gets its own `clonefile` copy of the composed root filesystem as its writable root block device, with the configuration layer unpacked into it, so a launch from a cached pair copies only the configuration layer's file data. |
 | Docker Desktop | avirthostd writes an image manifest whose layers are the harness base's layers followed by the workspace layers and the configuration layer, and whose config is the harness base's config with those layers' `diff_ids` appended. It loads it through the Docker API as an OCI archive that contains only the blobs the store lacks, tagged `avirt.internal/composed:<hex>` with the hex of the composed manifest's SHA-256, and the containerd image store reuses the harness base's layers by digest. The container's writable layer is per workload, as for any container. |
 | Apple container CLI | avirthostd refuses a workspace launch on this runtime with 400. |
 
@@ -410,7 +410,7 @@ when { context.namespace == Namespace::"prod" && resource.provenance == "local" 
 
 # Open questions
 
-1. **Snapshots to workspace images.** Whether to convert an avirtguestd workspace snapshot of a running workload container into a new workspace image remains open. The producer for such images also remains open.
+1. **Snapshots to workspace images.** Whether to convert an avirtguestd workspace snapshot of a running sandbox container into a new workspace image remains open. The producer for such images also remains open.
 2. **Zero-config in a repository with a remote.** The zero-config git source fetches the local `HEAD` commit from `origin`, so unpushed commits fail with `commit not on remote` and the source never reads the working tree. Whether zero-config should use a local git source instead remains open. That choice would produce an image built from local sources.
-3. **The guest CLI.** Whether `guest-cli` may search workspaces or start builds from inside a workload container is open (see [guest CLI](./guest-cli.md#open-questions)).
+3. **The guest CLI.** Whether `guest-cli` may search workspaces or start builds from inside a sandbox container is open (see [guest CLI](./guest-cli.md#open-questions)).
 4. **`github` and `git` sources.** With ref selection in prebuild configurations, a `github` source is a remote `git` source with GitHub authentication and annotations. Whether to represent it as `git` with a provider key is open.

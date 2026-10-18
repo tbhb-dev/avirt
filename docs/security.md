@@ -9,7 +9,7 @@ generated: { by: codex/gpt-6, at: 2026-10-18T05:20:59Z }
 
 # Overview
 
-avirt gives each agent only an identity and a sandbox. Real credentials and direct network access remain outside the agent, whose authority requires policy grants.
+avirt gives each agent only an identity and a sandbox container. Real credentials and direct network access remain outside the agent, whose authority requires policy grants.
 
 On an Apple silicon Mac, avirt runs untrusted ACP agents. avirt approves each permission request automatically (see [ACP](./acp.md#permission-requests)). The agent can run any tool without human approval. avirt treats the agent and everything it runs as hostile. The implemented system runs on a single-user Mac with one avirthostd per user. The planned design adds the Docker Desktop runtime, peers whose workloads connect to each other through their avirtedgeproxyd instances (see [peering](./peering.md)), and the all-in-one server image that runs the host services in one container (see [components](./components.md)). This document defines avirt's security principles and the status of each property. See [trust boundaries](./trust-boundaries.md) for the detailed threat model.
 
@@ -17,10 +17,10 @@ On an Apple silicon Mac, avirt runs untrusted ACP agents. avirt approves each pe
 
 avirt provides the base for agent security:
 
-- **Sandboxing.** Each workload container runs in its own VM with no network interface other than loopback, and the agent runs under a reduced user, capability, seccomp and Landlock profile (see [workload hardening](./workload-hardening.md) and [sandbox](./sandbox.md)).
-- **Identity.** avirthostd issues SPIFFE identities to workload containers and mediators, and to host services. Peers federate their trust domains (see [identity](./identity.md)).
+- **Sandboxing.** Each sandbox container runs in its own VM with no network interface other than loopback, and the agent runs under a reduced user, capability, seccomp and Landlock profile (see [workload hardening](./workload-hardening.md) and [Landlock](./landlock.md)).
+- **Identity.** avirthostd issues SPIFFE identities to sandbox containers and mediators, and to host services. Peers federate their trust domains (see [identity](./identity.md)).
 - **Egress and ingress mediation.** Each byte the agent sends out passes through its workload's mediator, and each workload-to-workload, service and off-host connection passes through avirtedgeproxyd, the edge proxy (see [egress](./egress.md) and [networking](./networking.md)).
-- **Credential brokering.** avirtsecretsd holds the real credentials, the workload container holds placeholders, and the gateways and avirtmediatord inject credentials on their bindings only (see [egress credentials](./egress-credentials.md)).
+- **Credential brokering.** avirtsecretsd holds the real credentials, the sandbox container holds placeholders, and the gateways and avirtmediatord inject credentials on their bindings only (see [egress credentials](./egress-credentials.md)).
 - **Policy.** Cedar policy governs egress, ingress, DNS, TLS interception, workload management and workspaces, and the policy prover checks each policy set before it's distributed (see [egress policies](./egress-policies.md)).
 - **Audit.** avirthostd's workload log records each JSON-RPC line, each connection and each control-plane decision, labelled with the component that observed it (see [trust boundaries](./trust-boundaries.md#src) and [observability](./observability.md#audit)).
 
@@ -30,7 +30,7 @@ avirt expects the layers outside it to provide:
 - **The hypervisor and kernels.** The isolation of Virtualization.framework VMs, and on Docker Desktop of the shared Linux kernel (see [compute runtimes](./compute-runtimes.md#docker-desktop-runtime)).
 - **Upstream authorization.** What a model provider, MCP server, git host or registry lets a credential do once avirt has injected it.
 - **Content judgement.** Judging permitted requests through prompt injection detection, data loss prevention, and review of the agent's output. These checks use the extension points below.
-- **Tool approvals.** Human approval of individual agent tool calls. avirt approves each request, and the workload container is the security boundary.
+- **Tool approvals.** Human approval of individual agent tool calls. avirt approves each request, and the sandbox container is the security boundary.
 
 # Security extensibility
 
@@ -52,13 +52,13 @@ Status legend:
 - **Future.** Specified in the planned design and not yet implemented.
 - **Out of Scope.** Not avirt's job, and left to a layer outside it.
 
-## No credentials in the workload container
+## No credentials in the sandbox container
 
-The workload container holds placeholders and the workload's MITM CA certificate, neither of which is a secret. avirtsecretsd stores each real credential. Gateways and avirtmediatord inject it outside the workload container on its own binding only.
+The sandbox container holds placeholders and the workload's MITM CA certificate, neither of which is a secret. avirtsecretsd stores each real credential. Gateways and avirtmediatord inject it outside the sandbox container on its own binding only.
 
-- **Met.** avirthostd refuses a launch whose agent credential is missing, and passes credentials into the workload container by variable name, never on argv or in the image ([egress credentials](./egress-credentials.md#status-implemented)).
-- **Met.** A workload receives only its own agent's credentials: a Codex workload container doesn't contain `CLAUDE_CODE_OAUTH_TOKEN` ([egress credentials](./egress-credentials.md#status-implemented)).
-- **Future.** The workload container holds placeholders only, and a placeholder grants nothing outside its own workload, binding, and destinations. Today the agent can read the Claude token in its environment and the Codex `auth.json` in its mounted home ([placeholders](./egress-credentials.md#placeholders)).
+- **Met.** avirthostd refuses a launch whose agent credential is missing, and passes credentials into the sandbox container by variable name, never on argv or in the image ([egress credentials](./egress-credentials.md#status-implemented)).
+- **Met.** A workload receives only its own agent's credentials: a Codex sandbox container doesn't contain `CLAUDE_CODE_OAUTH_TOKEN` ([egress credentials](./egress-credentials.md#status-implemented)).
+- **Future.** The sandbox container holds placeholders only, and a placeholder grants nothing outside its own workload, binding, and destinations. Today the agent can read the Claude token in its environment and the Codex `auth.json` in its mounted home ([placeholders](./egress-credentials.md#placeholders)).
 - **Future.** Only avirtmodelgwd and avirtmcpgwd inject model and MCP credentials. The mediator lacks long-lived real credentials ([bindings](./egress-credentials.md#bindings)).
 - **Future.** avirtmediatord's `credential-misplaced` check rejects any issued placeholder found outside its bound header, in both policy modes ([placeholders](./egress-credentials.md#placeholders)).
 - **Future.** Each credential has exactly one owner that refreshes it. The Codex refresh token never leaves avirtsecretsd ([Codex refresh](./egress-credentials.md#codex-refresh)).
@@ -68,7 +68,7 @@ The workload container holds placeholders and the workload's MITM CA certificate
 
 The agent's only way out is its workload's mediator, each connection needs an explicit permit, and avirtedgeproxyd is the policy enforcement point for each connection that leaves a workload for another workload, a service, or the internet.
 
-- **Met.** The workload container has no network interface other than loopback, and its only path out is avirtinitd's TCP proxy to `proxy.sock`, the mediator's CONNECT proxy ([egress](./egress.md#path)).
+- **Met.** The sandbox container has no network interface other than loopback, and its only path out is avirtinitd's TCP proxy to `proxy.sock`, the mediator's CONNECT proxy ([egress](./egress.md#path)).
 - **Met.** The mediator accepts only `CONNECT host:port` with an explicit port and a canonical hostname or IP literal ([CONNECT app](./egress.md#pingora-connect-app)).
 - **Met.** The mediator refuses each resolved address in a non-global range or assigned to one of the host's own interfaces, which it reads on each connection ([`private-dest` check](./egress.md#private-dest)).
 - **Future.** Enforce mode requires an explicit Cedar permit for a connection, request, or DNS query. Today the mediator allows each destination that passes the `private-dest` check under rule `allow-all` ([decision semantics](./egress-policies.md#decision-semantics)).
@@ -92,16 +92,16 @@ Each connection across a container or host boundary authenticates with a short-l
 - **Future.** uid 1000 never holds an SVID or its key, the trust bundle, a CA key or a real credential ([local exceptions](./trust-boundaries.md#local-exceptions)).
 - **Future.** The SPIFFE CA and the workload MITM CA are separate. Endpoints accept certificates only from the CA they expect ([two separate CAs](./identity.md#two-separate-cas)).
 
-## Defense in depth in the sandbox
+## Defense in depth in the sandbox container
 
 Independent layers confine the agent. Escaping one leaves the others in place.
 
-- **Met.** Each workload container runs in its own VM under the Apple container CLI runtime ([compute runtimes](./compute-runtimes.md#apple-container-cli-runtime)).
+- **Met.** Each sandbox container runs in its own VM under the Apple container CLI runtime ([compute runtimes](./compute-runtimes.md#apple-container-cli-runtime)).
 - **Met.** The agent runs as uid 1000 with each capability set empty and `no_new_privs`, and its environment excludes the workload ID, prompt, and connection token ([agent process](./workload-hardening.md#agent-process)).
 - **Met.** Seccomp denies `AF_VSOCK`, `AF_NETLINK` and `AF_PACKET` sockets and io_uring, to avirtinitd and everything it starts, before the agent starts ([seccomp](./workload-hardening.md#seccomp)).
 - **Met.** `proxy.sock` and `mediator.sock` are `root:root 0600`, and the agent can't read `/proc/1/fd`, `/proc/1/mem` or `/proc/1/environ` or signal PID 1 ([what the agent can still do](./workload-hardening.md#residual-agent-access)).
 - **Future.** `socket()` allows only `AF_UNIX`, `AF_INET` and `AF_INET6`, and the denylist blocks fileless exec, cross-process memory access, kernel exploit primitives, mounts and user namespaces ([denylist](./workload-hardening.md#denylist)).
-- **Future.** Landlock confines the agent's filesystem writes to `/workspace`, `/home/agent` and `/tmp`, and the agent doesn't start without it ([sandbox](./sandbox.md)).
+- **Future.** Landlock confines the agent's filesystem writes to `/workspace`, `/home/agent` and `/tmp`, and the agent doesn't start without it ([Landlock](./landlock.md)).
 - **Future.** Each of avirtnetd, avirtacp, avirtagent, avirtexec, and avirtguestd runs under its own UID and profile, and avirtinitd mounts `/proc` with `hidepid=invisible` ([security contexts](./workload-hardening.md#security-contexts)).
 - **Future.** The agent and each tool it starts run in one cgroup that avirtinitd freezes and kills as a unit ([freeze and reconnect](./workload-topology.md#freeze-and-reconnect)).
 - **Future.** Workspace and configuration layers exclude reserved paths. All layers exclude setuid bits, file capabilities, and device nodes ([reserved paths](./workload-hardening.md#reserved-paths), [content rules](./workspaces.md#content-rules)).
@@ -115,7 +115,7 @@ A compromised mediator controls only its own workload's traffic. It can't access
 - **Met.** The mediator starts from an empty environment that contains only its secret ([mediator secret](./identity.md#mediator-secret)).
 - **Met.** avirthostd binds each mediator connection to the workload its connection header names, and serves only that workload's `POST /workloads/<id>/stream` route on it ([sockets](./workload-topology.md#sockets)).
 - **Future.** The mediator runs in its own VM with no network interface other than loopback. Today it's a host process with the user's network access and file access ([mediator network](./egress.md#mediator-network)).
-- **Future.** avirtmediatord handles traffic and lifecycle in one process. A parser bug exposes its SVID's private key and mediator-injected credentials inside the per-workload mediator VM, which has no network device ([mediator sandbox](./sandbox.md#mediator), [compromise scope](./trust-boundaries.md#compromise-scope)).
+- **Future.** avirtmediatord handles traffic and lifecycle in one process. A parser bug exposes its SVID's private key and mediator-injected credentials inside the per-workload mediator VM, which has no network device ([mediator Landlock rules](./landlock.md#mediator), [compromise scope](./trust-boundaries.md#compromise-scope)).
 - **Future.** The mediator has only placeholders and short-lived mediator-injected credentials. Long-lived real credentials for model or MCP traffic remain outside it ([bindings](./egress-credentials.md#bindings)).
 - **Future.** avirthostd's SNI routing never connects one mediator to another, and each host listener refuses a superseded generation ([SNI routing](./workload-topology.md#sni-routing)).
 - **Future.** The workload's MITM CA is name-constrained to the hosts its policy can intercept, and a workload lacks a MITM CA unless its policy permits interception ([MITM CA name constraints](./egress-policies.md#mitm-ca-name-constraints)).
@@ -125,7 +125,7 @@ A compromised mediator controls only its own workload's traffic. It can't access
 
 Each host service limits its state, secrets, and callers to those it needs. Local callers authenticate before acting.
 
-- **Met.** avirthostd starts each workload container and each mediator from a cleared environment, adding only the variables the launch needs ([egress credentials](./egress-credentials.md#status-implemented)).
+- **Met.** avirthostd starts each sandbox container and each mediator from a cleared environment, adding only the variables the launch needs ([egress credentials](./egress-credentials.md#status-implemented)).
 - **Met.** The runtime directory, workload directories and logs directory are 0700 and owned by the user, and each log file is 0600 ([log files](./hostd-api.md#log-files)).
 - **Future.** Local clients authenticate before they act: avirtedgeproxyd's `edgeproxy.sock` is a user-owned 0600 socket, and avirthostd's admin socket checks peer credentials. Today the control API has no authentication, and any local process can launch workloads ([control API](./hostd-api.md#control-api), [listeners](./trust-boundaries.md#listeners)).
 - **Future.** Each host service manages only its own state, accepts only the callers it lists, and in the all-in-one server image runs under its own UID and reads only its own secrets ([all-in-one server image](./components.md#all-in-one-server-image)).
@@ -173,7 +173,7 @@ avirt records each agent action and each avirt decision with an authenticated id
 
 ## Supply chain integrity of images and workspaces
 
-avirt pins each image and workspace a workload runs by digest and verifies it at the point of use. Builds from untrusted content run only in a sandbox.
+avirt pins each image and workspace a workload runs by digest and verifies it at the point of use. Builds from untrusted content run only in a sandbox container.
 
 - **In Progress.** avirtinitd builds with `--locked` from `Cargo.lock`, and each adapter installs with `npm ci` from its lockfile. Base image pins use tags, and the Node tarball has no checksum ([Claude adapter](./acp-claude.md#adapter), [Codex adapter](./acp-codex.md#adapter)).
 - **Future.** The guest kernel and initfs pins include their URLs and sha256 hashes. avirt refuses a cache with a wrong hash ([guest artifacts](./build-and-platforms.md#guest-artifacts)).
@@ -188,7 +188,7 @@ avirt pins each image and workspace a workload runs by digest and verifies it at
 
 A secret exists in memory where it's used, and on disk only where an owner needs it, with the narrowest mode, for the shortest time.
 
-- **Met.** avirt excludes secrets from argv and workload images ([egress credentials](./egress-credentials.md#status-implemented)).
+- **Met.** avirt excludes secrets from argv and sandbox images ([egress credentials](./egress-credentials.md#status-implemented)).
 - **Met.** The per-launch Codex home is 0700 with a 0600 `auth.json`, and it's removed on each exit path or left for the next startup cleanup ([Codex](./egress-credentials.md#codex)).
 - **Future.** Only memory stores the SPIFFE issuing CA, each SVID key, and the workload MITM CA key. The SPIFFE root key is a 0600 file in the state directory ([issuer](./identity.md#issuer), [durable state](./lifecycle.md#durable-state)).
 - **Future.** A gateway keeps a resolved credential in memory only, and for no longer than the credential's own lifetime ([credential broker API](./egress-credentials.md#credential-broker-api)).
@@ -218,4 +218,4 @@ Peered hosts trust each other's identities explicitly and narrowly: a peer authe
 
 # Threat model
 
-What each listener accepts, and what a compromised agent, root in the workload container, mediator, avirtedgeproxyd, build job, registry, builder or peer can and can't reach, is in [trust boundaries](./trust-boundaries.md).
+What each listener accepts, and what a compromised agent, root in the sandbox container, mediator, avirtedgeproxyd, build job, registry, builder or peer can and can't reach, is in [trust boundaries](./trust-boundaries.md).

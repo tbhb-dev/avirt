@@ -1,7 +1,7 @@
 ---
 type: Protocol Specification
 title: Workload topology and connections
-description: The connections inside one workload and between workloads (workload container, mediator, avirthostd, host services, avirtedgeproxyd), the runtime-provided Unix sockets and avirthostd's SNI routing, the HTTP/2 streams on the workload's connection to its mediator, launch handshake, freeze, reconnect, resuming the `/envelopes` stream and port publication.
+description: The connections inside one workload and between workloads (sandbox container, mediator, avirthostd, host services, avirtedgeproxyd), the runtime-provided Unix sockets and avirthostd's SNI routing, the HTTP/2 streams on the workload's connection to its mediator, launch handshake, freeze, reconnect, resuming the `/envelopes` stream and port publication.
 tags: [avirt, workload, protocol, http2]
 implementation: partial
 generated: { by: codex/gpt-6, at: 2026-10-18T05:20:59Z }
@@ -11,7 +11,7 @@ generated: { by: codex/gpt-6, at: 2026-10-18T05:20:59Z }
 
 ## Sockets
 
-The workload container uses `--network none`. The runtime mounts two Unix socket files into it with `-v` from the workload's private directory `workloads/<id>/` (0700). For each mounted socket file, the runtime forwards connections to the host process listening on it. Both files are mode 0600 on the host, which maps through, so only root in the workload container can open them.
+The sandbox container uses `--network none`. The runtime mounts two Unix socket files into it with `-v` from the workload's private directory `workloads/<id>/` (0700). For each mounted socket file, the runtime forwards connections to the host process listening on it. Both files are mode 0600 on the host, which maps through, so only root in the sandbox container can open them.
 
 | Guest path | Host listener | Traffic |
 | --- | --- | --- |
@@ -39,16 +39,16 @@ Forwarded sockets must never half-close. With a `-v` socket-file mount, sending 
 
 ## Runtime-provided sockets
 
-The workload container and the mediator have no network interface other than loopback. Each connection they make is on a Unix socket that the compute runtime provides (see [compute runtimes](./compute-runtimes.md) and [networking](./networking.md)). The workload container has exactly one, for the workload's HTTP/2 connection to its mediator. The mediator has four.
+The sandbox container and the mediator have no network interface other than loopback. Each connection they make is on a Unix socket that the compute runtime provides (see [compute runtimes](./compute-runtimes.md) and [networking](./networking.md)). The sandbox container has exactly one, for the workload's HTTP/2 connection to its mediator. The mediator has four.
 
 | Socket | Container end | Host end | Initiated by | TLS client and server |
 | --- | --- | --- | --- | --- |
-| Workload connection | Workload container: `/run/avirt/mediator.sock`, dialed by avirtnetd. Mediator: `/run/avirt/workload.sock`, served by avirtmediatord. | avirthostd, which forwards the bytes unchanged | The workload side | avirtnetd, avirtmediatord |
+| Workload connection | Sandbox container: `/run/avirt/mediator.sock`, dialed by avirtnetd. Mediator: `/run/avirt/workload.sock`, served by avirtmediatord. | avirthostd, which forwards the bytes unchanged | The workload side | avirtnetd, avirtmediatord |
 | Connection to avirthostd | Mediator: `/run/avirt/hostd.sock` | avirthostd | avirtmediatord | The mediator process, avirthostd |
 | Outbound socket to avirthostd | Mediator: `/run/avirt/svc.sock` | avirthostd's SNI routing | avirtmediatord | The mediator process, the destination |
 | avirtmediatord's ingress listener | Mediator: `/run/avirt/ingress.sock`, served by avirtmediatord | avirthostd's SNI routing | avirthostd, for avirtedgeproxyd | avirtedgeproxyd, avirtmediatord |
 
-- **Containerization.** A vsock connection between avirthostd and the guest backs each socket. The runtime's vsock-to-Unix-socket forwarder presents this connection as the Unix socket in the table. The workload VM's vsock device has exactly one host listener, for the workload's connection, which avirthostd forwards unchanged to the current mediator generation's `workload.sock`. This lets avirtnetd open a new connection to its mediator whenever it needs one. Each other host listener is on the mediator VM's device. seccomp denies `AF_VSOCK` to each workload process, so only the runtime's forwarder uses the workload VM's vsock device.
+- **Containerization.** A vsock connection between avirthostd and the guest backs each socket. The runtime's vsock-to-Unix-socket forwarder presents this connection as the Unix socket in the table. The sandbox VM's vsock device has exactly one host listener, for the workload's connection, which avirthostd forwards unchanged to the current mediator generation's `workload.sock`. This lets avirtnetd open a new connection to its mediator whenever it needs one. Each other host listener is on the mediator VM's device. seccomp denies `AF_VSOCK` to each workload process, so only the runtime's forwarder uses the sandbox VM's vsock device.
 - **Docker Desktop.** The workload's connection goes through a per-workload Docker named volume. The mediator's connection to avirthostd and its outbound socket to avirthostd are single-file bind mounts of the host's `workloads/<id>/c.sock` and `workloads/<id>/s.sock`. avirtmediatord's ingress listener is open (see [components](./components.md#open-questions)).
 
 Each vsock connection, bind mount, and named volume transports ciphertext only.
@@ -87,7 +87,7 @@ One HTTP/2 connection per mediator generation transports each stream. avirtnetd 
 
 An egress stream's response includes the pipeline's status, including avirtedgeproxyd's 403 `private-dest`, 502, and 504. The flow-control and admission rules below preserve control, DNS and event progress under saturation in either direction.
 
-avirtnetd dials `/run/avirt/mediator.sock` with a 50 ms to 1 s backoff, because dials made before avirtmediatord listens fail, for up to the 30 s launch budget (see [lifecycle](./lifecycle.md#launch-order)). An ended workload container and one awaiting readiness look identical to the mediator. avirthostd must stop the mediator explicitly.
+avirtnetd dials `/run/avirt/mediator.sock` with a 50 ms to 1 s backoff, because dials made before avirtmediatord listens fail, for up to the 30 s launch budget (see [lifecycle](./lifecycle.md#launch-order)). An ended sandbox container and one awaiting readiness look identical to the mediator. avirthostd must stop the mediator explicitly.
 
 ### Admission and flow control
 
@@ -99,7 +99,7 @@ Transport buffers and request queues have a combined limit of 64 MiB per workloa
 
 A test with the real client and server stops bulk readers in each direction and exhausts the 96-stream limit. Measurements cover control round trips, DNS completions, envelope progress, and peak memory. Measurements include connection rotation and simultaneous DNS bursts. Passing this test is a prerequisite for using these settings.
 
-avirtmediatord's server enforces a 16 KiB decoded header-list limit and a 10 s header deadline. It allows at most 16 streams awaiting request headers. A workload may open or reset at most 128 streams per second, with a burst of 128. Exceeding that rate closes the connection. Root in the workload container can't bypass these server limits by replacing avirtnetd.
+avirtmediatord's server enforces a 16 KiB decoded header-list limit and a 10 s header deadline. It allows at most 16 streams awaiting request headers. A workload may open or reset at most 128 streams per second, with a burst of 128. Exceeding that rate closes the connection. Root in the sandbox container can't bypass these server limits by replacing avirtnetd.
 
 avirtedgeproxyd independently enforces 128 new streams per second per workload, burst 128, across its connections. Excess streams receive 503. Each server includes headers and TLS buffers in its memory budget. Stream buffers and request queues count toward the same budget.
 
@@ -145,7 +145,7 @@ avirtnetd distinguishes three transitions of its connection to the mediator:
 
 While any freeze reason exists, avirtinitd writes `1` to the agent cgroup's `cgroup.freeze` and waits until `cgroup.events` shows `frozen 1`. The freeze covers each process in the agent cgroup, including tools that left the agent's process group, and leaves avirtnetd, the main workload process, and avirtguestd running. If attachment and confirmation of a connection to the same or a higher generation complete within 30 s, avirtinitd removes the `connection` freeze reason. Missing the 30 s deadline makes avirtinitd write `1` to `cgroup.kill` and exit 2 with `error: mediator lost`. After removing the reason, avirtinitd checks for other freeze reasons. Only when none remain does it write `0` to `cgroup.freeze` and resume the agent. Egress connections open through the lost connection end. Clients retry them.
 
-A workload container whose guest lacks a writable cgroup v2 hierarchy with `cgroup.freeze` and `cgroup.kill` doesn't start its agent.
+A sandbox container whose guest lacks a writable cgroup v2 hierarchy with `cgroup.freeze` and `cgroup.kill` doesn't start its agent.
 
 `avirthostd` restarts a mediator that exits unexpectedly, at most twice per workload, each time with the generation incremented. Once confirmation of a newer generation completes, avirtnetd sends GOAWAY on any older connection, and avirthostd fences the older generation at each host listener (see [identity](./identity.md#authorization)).
 
@@ -155,12 +155,12 @@ A workload container whose guest lacks a writable cgroup v2 hierarchy with `cgro
 
 ## Ingress
 
-A guest port is reachable from outside the workload container only through a port publication, and only through avirtedgeproxyd. avirthostd stores port publications as versioned state, separate from the immutable workload configuration. Launch requests or later API calls add them, subject to the `publish_port` action for each publication.
+A guest port is reachable from outside the sandbox container only through a port publication, and only through avirtedgeproxyd. avirthostd stores port publications as versioned state, separate from the immutable workload configuration. Launch requests or later API calls add them, subject to the `publish_port` action for each publication.
 
 | Field | Meaning |
 | --- | --- |
 | `workload` | The publishing workload, and with it its short ID and namespace |
-| `port` | A `127.0.0.1` port in the workload container, or the built-in `guestd` target, which avirtnetd forwards to `/run/avirt/streams/guestd.sock` |
+| `port` | A `127.0.0.1` port in the sandbox container, or the built-in `guestd` target, which avirtnetd forwards to `/run/avirt/streams/guestd.sock` |
 | `protocol` | `tcp` for opaque bytes, or `http` |
 | `expires` | When the publication ends, at the latest with the workload. avirtedgeproxyd and the destination workload's avirtmediatord both enforce it locally. |
 
@@ -224,7 +224,7 @@ sequenceDiagram
     I->>A: thaw the agent cgroup
     A-->>I: ACP session ends
     N->>M: /envelopes END_STREAM, control bye, GOAWAY
-    C->>C: workload container exited
+    C->>C: sandbox container exited
     C->>M: runtime.remove (SIGTERM, drain events)
     C->>C: container_exit, runtime.release
 ```
@@ -241,7 +241,7 @@ sequenceDiagram
 | `POST /workload/envelopes` | avirtmediatord | The workload's `/envelopes` stream, forwarded body for body |
 | `POST /workload/events` | avirtmediatord | NDJSON events, written as `dir: "egress"` lines with `src: "mediator"` |
 
-Stderr from avirtmediatord goes to `logs/<workload-id>.mediator.log`. Losing the connection to avirthostd makes avirtmediatord exit, followed by the mediator container. Inside the workload container, the agent freezes. avirthostd restarts the mediator or tears the workload down.
+Stderr from avirtmediatord goes to `logs/<workload-id>.mediator.log`. Losing the connection to avirthostd makes avirtmediatord exit, followed by the mediator container. Inside the sandbox container, the agent freezes. avirthostd restarts the mediator or tears the workload down.
 
 # Open questions
 

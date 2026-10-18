@@ -18,24 +18,24 @@ Status: implemented. The current code has these components. See [topology](#stat
 | avirthostd | `avirthostd` | On the host, one per user | Serves the control API and launches workloads. Stores real credentials (see [secrets](./secrets.md#status-implemented)) and writes logs |
 | Operator CLI | `avirt` | On the host, per invocation | The operator CLI: `avirt launch` asks avirthostd to start a workload and can follow its log (see [operator CLI](./operator-cli.md#status-implemented)) |
 | Mediator | `avirtmediatord` | One per workload | Pingora CONNECT proxy, and a TCP proxy that forwards avirtinitd's HTTP/2 connection on `mediator.sock` to avirthostd with the bytes unchanged |
-| avirtinitd | `avirtinitd` | As root inside the workload container, one per workload | ACP client that spawns the agent adapter and taps each JSON-RPC line (see [ACP](./acp.md#status-implemented)). Also runs a TCP proxy from the agent's `HTTPS_PROXY` to `proxy.sock` and applies the agent's sandbox |
-| Agent | The adapter plus its tools | Inside the workload container as uid 1000 | The ACP agent itself (`AVIRT_AGENT=claude\|codex`) |
+| avirtinitd | `avirtinitd` | As root inside the sandbox container, one per workload | ACP client that spawns the agent adapter and taps each JSON-RPC line (see [ACP](./acp.md#status-implemented)). Also runs a TCP proxy from the agent's `HTTPS_PROXY` to `proxy.sock` and applies the agent's seccomp restrictions |
+| Agent | The adapter plus its tools | Inside the sandbox container as uid 1000 | The ACP agent itself (`AVIRT_AGENT=claude\|codex`) |
 
-A **workload** is the unit avirthostd launches and tears down. It consists of the **workload container**, which runs avirtinitd and the agent, plus its **mediator**. Each byte the agent sends out passes through the mediator. In the implemented system the mediator is the avirtmediatord host process. In the planned design it's a container that runs avirtinitd and avirtmediatord. One workload runs one ACP session (see [ACP](./acp.md#session-lifecycle)). `avirthostd` launches workloads on request (`avirt launch`) and writes each workload's JSON-RPC stream and egress events to `logs/<workload-id>.ndjson`.
+A **workload** is the unit avirthostd launches and tears down. It consists of the **sandbox container**, which runs avirtinitd and the agent, plus its **mediator**. Each byte the agent sends out passes through the mediator. In the implemented system the mediator is the avirtmediatord host process. In the planned design it's a container that runs avirtinitd and avirtmediatord. One workload runs one ACP session (see [ACP](./acp.md#session-lifecycle)). `avirthostd` launches workloads on request (`avirt launch`) and writes each workload's JSON-RPC stream and egress events to `logs/<workload-id>.ndjson`.
 
 The **control plane** is avirthostd plus the host services that configure and decide (such as avirtpolicyd and avirtsecretsd). avirtedgeproxyd and avirtmediatord form the **data plane** and forward traffic.
 
-The full planned component inventory, covering the host services, the mediator container, the workload container and the all-in-one server image, is in [components](./components.md).
+The full planned component inventory, covering the host services, the mediator container, the sandbox container and the all-in-one server image, is in [components](./components.md).
 
 # Topology
 
 ## Status: implemented
 
-The mediator is a host process. The workload container has no network. Its only connections are two Unix socket files that the container runtime relays to the mediator.
+The mediator is a host process. The sandbox container has no network. Its only connections are two Unix socket files that the container runtime relays to the mediator.
 
 ```mermaid
 flowchart LR
-    subgraph workload["workload container (--network none, --init)"]
+    subgraph workload["sandbox container (--network none, --init)"]
         agent["agent (uid 1000, no caps, seccomp)"]
         relay["avirtinitd TCP proxy 127.0.0.1:PORT"]
         avirtinitd["avirtinitd (root)"]
@@ -63,7 +63,7 @@ flowchart LR
 
 The mediator runs in its own container with no network interface other than loopback. Runtime-provided Unix sockets connect the workload to its mediator and the mediator to the host. Each connection uses mutual TLS with SPIFFE identities end to end. The full topology, with each traffic class hop by hop, is in [networking](./networking.md#topology).
 
-- **Workload container.** avirtnetd provides its HTTP/2 connection to its mediator. avirtnetd holds the workload SVID and serves the agent's forward proxy.
+- **Sandbox container.** avirtnetd provides its HTTP/2 connection to its mediator. avirtnetd holds the workload SVID and serves the agent's forward proxy.
 - **Mediator.** avirtmediatord is one process with one UID, Landlock ruleset, and SVID. It serves workload and ingress listeners, with TLS interception and credential injection in-process. The same process maintains the connection to avirthostd and calls `GET /workload`, `GET /workload/control`, and `POST /workload/svid`.
 - **Host.** avirthostd owns workload lifecycle and the SPIFFE issuer, avirtsecretsd stores the real credentials (see [secrets](./secrets.md)), avirtpolicyd distributes policy snapshots, avirtmodelgwd and avirtmcpgwd inject model and MCP credentials, avirtregistryd stores and indexes workspace images, and avirtedgeproxyd is the only global policy enforcement point and the only host service that opens connections off the host (see [components](./components.md#avirtedgeproxyd)).
 - **Names and namespaces.** Each workload is in one host-local namespace, and avirtdnsd resolves internal names to the edge proxy of the host that serves them (see [DNS](./dns.md#internal-names)).
@@ -87,7 +87,7 @@ flowchart LR
     subgraph medvm["mediator (no network)"]
         me["avirtmediatord: lifecycle, TLS, policy"]
     end
-    subgraph wl["workload container"]
+    subgraph wl["sandbox container"]
         net["avirtnetd: HTTP/2 client, workload SVID, forward proxy"]
         agent["agent (uid 1000): placeholders and the MITM CA cert only"]
         agent -->|"HTTPS_PROXY 127.0.0.1:PORT"| net
@@ -114,11 +114,11 @@ flowchart LR
 
 Status: planned. These hold for each runtime and each phase once the planned design is in place.
 
-1. Neither the mediator nor the workload container has access to a SPIFFE Workload API. `avirthostd` delivers each container's bootstrap SVID at launch and pushes each later SVID and trust bundle over an authenticated connection.
+1. Neither the mediator nor the sandbox container has access to a SPIFFE Workload API. `avirthostd` delivers each container's bootstrap SVID at launch and pushes each later SVID and trust bundle over an authenticated connection.
 2. Containers and host services generate their own long-lived private keys internally. `avirthostd` generates only a short-lived bootstrap key per container and doesn't keep it.
 3. TLS ends only at the endpoints listed here. For the workload's HTTP/2 connection to its mediator, these are avirtnetd and avirtmediatord. For the mediator's connection to avirthostd, these are avirtmediatord and avirthostd. For the mediator's outbound socket and its ingress listener, these are avirtmediatord and its destination. The runtime's socket forwarding, avirthostd's SNI routing, Docker named volumes and avirtedgeproxyd's tunnels transport ciphertext.
-4. Each listener reachable across a container or host boundary requires mutual TLS from the first byte. [Trust boundaries](./trust-boundaries.md#local-exceptions) lists the local listeners inside the workload container that don't.
-5. uid 1000 in the workload container never possesses an SVID or its key, the trust bundle, a CA key, or a real credential.
+4. Each listener reachable across a container or host boundary requires mutual TLS from the first byte. [Trust boundaries](./trust-boundaries.md#local-exceptions) lists the local listeners inside the sandbox container that don't.
+5. uid 1000 in the sandbox container never possesses an SVID or its key, the trust bundle, a CA key, or a real credential.
 6. The mediator has no network interface other than loopback. Workload traffic passes through its mediator, and avirtedgeproxyd is the only host service that opens connections off the host.
 7. Each proxy process evaluates policy locally from a versioned policy snapshot. Requests never wait on a policy call. A missing or expired policy snapshot denies requests.
 8. Long-lived real credentials for model or MCP traffic remain outside the mediator.
@@ -140,9 +140,9 @@ Status: planned. These hold for each runtime and each phase once the planned des
 - [Security](./security.md) - the security principles and how the design meets them
 - [Observability](./observability.md) - logs, audit logs and their integrity, metrics, traces, and the telemetry pipeline
 - [Workload hardening](./workload-hardening.md) - seccomp, capabilities, security contexts and the agent's environment
-- [Sandbox](./sandbox.md) - the Landlock rulesets for each workload and mediator process
+- [Landlock](./landlock.md) - the Landlock rulesets for each workload and mediator process
 - [Lifecycle and state](./lifecycle.md) - launch and teardown order, the runtime directory, crash cleanup, and path limits
-- [Workload lifecycle and layers](./workload-lifecycle.md) - the workload container's layers from the avirt base to the per-workload writable layer. Assembly on each runtime and progression through boot, running, and teardown
+- [Workload lifecycle and layers](./workload-lifecycle.md) - the sandbox container's layers from the avirt base to the per-workload writable layer. Assembly on each runtime and progression through boot, running, and teardown
 - [Compute runtimes](./compute-runtimes.md) - the runtime interface, the Containerization runtime for Apple, Docker Desktop, and the Apple container CLI runtime the current code uses
 - [Build and platforms](./build-and-platforms.md) - build targets, Swift gating, linking, signing, the CI matrix, the toolchain, and host privileges per runtime
 - [avirthostd API and log format](./hostd-api.md) - starting avirthostd, the control API, environment variables, and the NDJSON log

@@ -27,7 +27,7 @@ The process that speaks ACP for a harness, claude-agent-acp or codex-acp, which 
 
 ## Agent
 
-In avirt, the adapter and every tool it starts, running as uid 1000 in the workload container, in the agent cgroup in the planned design. A launch's `agent` field and `AVIRT_AGENT` select the harness, and `agent` is also the name of a Codex mode and of the uid 1000 user, which aren't the agent process. See [architecture](./architecture.md#overview).
+In avirt, the adapter and every tool it starts, running as uid 1000 in the sandbox container, in the agent cgroup in the planned design. A launch's `agent` field and `AVIRT_AGENT` select the harness, and `agent` is also the name of a Codex mode and of the uid 1000 user, which aren't the agent process. See [architecture](./architecture.md#overview).
 
 ## Agent cgroup
 
@@ -61,7 +61,7 @@ The project, always written in lowercase, and its operator CLI, the `avirt` bina
 
 ## avirt base image
 
-The image from which every planned workload image derives. It includes the OS userland and the `agent` user, along with the per-process UIDs, the `avirt-ws` group, and every avirt guest binary. Status: planned. See [layer stack](./workload-lifecycle.md#layer-stack).
+The image from which every planned sandbox image derives. It includes the OS userland and the `agent` user, along with the per-process UIDs, the `avirt-ws` group, and every avirt guest binary. Status: planned. See [layer stack](./workload-lifecycle.md#layer-stack).
 
 ## Internal name
 
@@ -69,7 +69,7 @@ A DNS name under `host.avirt.internal`, or ending in an active peer's host name,
 
 ## avirtacp
 
-The main workload process that drives an ACP adapter, taps every JSON-RPC line and serves the session control API. In the implemented system avirtinitd holds the ACP client instead. Status: planned. See [workload container](./components.md#workload-container).
+The main workload process that drives an ACP adapter, taps every JSON-RPC line and serves the session control API. In the implemented system avirtinitd holds the ACP client instead. Status: planned. See [sandbox container](./components.md#sandbox-container).
 
 ## avirtadmin
 
@@ -77,7 +77,7 @@ The local admin CLI, which talks to avirthostd only over its admin socket. It au
 
 ## avirtagent
 
-The main workload process that drives a harness through its native interface rather than ACP. Status: planned. See [workload container](./components.md#workload-container).
+The main workload process that drives a harness through its native interface rather than ACP. Status: planned. See [sandbox container](./components.md#sandbox-container).
 
 ## avirtapid
 
@@ -101,15 +101,15 @@ The edge proxy. It evaluates the host policy snapshot and resolves external name
 
 ## avirtexec
 
-The main workload process for generic execution, which also runs as the build runner in a build job. Status: planned. See [workload container](./components.md#workload-container).
+The main workload process for generic execution, which also runs as the build runner in a build job. Status: planned. See [sandbox container](./components.md#sandbox-container).
 
 ## avirtguest
 
-The guest CLI, run on demand as uid 1000 inside the workload container, which reaches avirtapid under the `guest-cli` principal. Status: planned. See [guest CLI](./guest-cli.md).
+The guest CLI, run on demand as uid 1000 inside the sandbox container, which reaches avirtapid under the `guest-cli` principal. Status: planned. See [guest CLI](./guest-cli.md).
 
 ## avirtguestd
 
-The daemon that serves the file server and the MCP tool surface for workspace roots and workspace snapshots, reachable only through the `guestd` ingress target. Status: planned. See [workload container](./components.md#workload-container).
+The daemon that serves the file server and the MCP tool surface for workspace roots and workspace snapshots, reachable only through the `guestd` ingress target. Status: planned. See [sandbox container](./components.md#sandbox-container).
 
 ## avirthostd
 
@@ -117,7 +117,7 @@ The host daemon and the core of the control plane. It provides the control API a
 
 ## avirtinitd
 
-The root process inside the workload container. In the implemented system it runs the ACP client, the TCP proxy to `proxy.sock`, and the seccomp launcher. In the planned design it's PID 1 and the launcher and the freeze authority. It also has mediator and server modes. See [ACP roles](./acp.md#roles) and [workload container](./components.md#workload-container).
+The root process inside the sandbox container. In the implemented system it runs the ACP client, the TCP proxy to `proxy.sock`, and the seccomp launcher. In the planned design it's PID 1 and the launcher and the freeze authority. It also has mediator and server modes. See [ACP roles](./acp.md#roles) and [sandbox container](./components.md#sandbox-container).
 
 ## avirtlogd
 
@@ -125,7 +125,7 @@ The host service that tails the host-written workload stdio logs and sends them 
 
 ## avirtmcp
 
-The MCP stdio proxy that the agent launches on demand, which relays MCP to avirtmcpgwd over the `/mcp` stream of the workload's HTTP/2 connection to its mediator. Status: planned. See [workload container](./components.md#workload-container).
+The MCP stdio proxy that the agent launches on demand, which relays MCP to avirtmcpgwd over the `/mcp` stream of the workload's HTTP/2 connection to its mediator. Status: planned. See [sandbox container](./components.md#sandbox-container).
 
 ## avirtmcpgwd
 
@@ -141,7 +141,7 @@ The model gateway injects model credentials. It also applies per-workload model 
 
 ## avirtnetd
 
-The daemon at the workload container's end of the workload's HTTP/2 connection to its mediator: it holds the workload SVID and runs the forward proxy for the agent, the DNS stub resolver and the reverse proxy to published ports. Status: planned. See [workload container](./components.md#workload-container).
+The daemon at the sandbox container's end of the workload's HTTP/2 connection to its mediator: it holds the workload SVID and runs the forward proxy for the agent, the DNS stub resolver and the reverse proxy to published ports. Status: planned. See [sandbox container](./components.md#sandbox-container).
 
 ## avirtoteld
 
@@ -213,7 +213,7 @@ The read-only OCI layer that avirthostd builds for each launch with the harness'
 
 ## `confirm`
 
-The control message with which avirtmediatord releases a workload container to start its agent, including the MITM CA certificate, the placeholders, the placeholder copies of files, the policy mode, and the port publications. Status: planned. See [launch handshake](./workload-topology.md#launch-handshake).
+The control message with which avirtmediatord releases a sandbox container to start its agent, including the MITM CA certificate, the placeholders, the placeholder copies of files, the policy mode, and the port publications. Status: planned. See [launch handshake](./workload-topology.md#launch-handshake).
 
 ## CONNECT
 
@@ -229,7 +229,7 @@ The random 128-bit token avirthostd gives only avirtinitd as `AVIRT_CONNECTION_T
 
 ## Containerization runtime
 
-The Apple compute runtime of the planned design, which hosts each workload container and each mediator as its own VM inside avirthostd through Apple's `containerization` package. Status: planned. See [Containerization runtime](./compute-runtimes.md#containerization-runtime).
+The Apple compute runtime of the planned design, which hosts each sandbox container and each mediator as its own VM inside avirthostd through Apple's `containerization` package. Status: planned. See [Containerization runtime](./compute-runtimes.md#containerization-runtime).
 
 ## Content-addressed cache
 
@@ -253,7 +253,7 @@ The chain of creators that created a workload. Its record uses `avirt.internal/c
 
 ## Docker Desktop runtime
 
-The compute runtime that runs each workload container and each mediator as a container on Docker Desktop's single shared Linux kernel. Status: planned. See [Docker Desktop runtime](./compute-runtimes.md#docker-desktop-runtime).
+The compute runtime that runs each sandbox container and each mediator as a container on Docker Desktop's single shared Linux kernel. Status: planned. See [Docker Desktop runtime](./compute-runtimes.md#docker-desktop-runtime).
 
 ## Egress event
 
@@ -349,7 +349,7 @@ A free-form key and value on a workload or a service, used for selection and vis
 
 ## Landlock
 
-The Linux security module that confines a process's filesystem access, TCP ports, abstract Unix sockets and signals, which avirtinitd applies per security context. Status: planned. See [sandbox and Landlock](./sandbox.md).
+The Linux security module that confines a process's filesystem access, TCP ports, abstract Unix sockets and signals, which avirtinitd applies per security context. Status: planned. See [Landlock and seccomp](./landlock.md).
 
 ## Launch handshake
 
@@ -385,7 +385,7 @@ A workload log envelope with `dir: "meta"`, such as `start`, `auto_approve`, `ex
 
 ## MITM CA
 
-The per-workload CA whose leaf certificates let avirtmediatord perform TLS interception of the agent's connections. It's name-constrained to the hosts the workload's policy can intercept, its key never enters the workload container, and it's separate from the SPIFFE CA. Status: planned. See [MITM CA and leaf certificates](./egress.md#mitm-ca-and-leaf-certificates).
+The per-workload CA whose leaf certificates let avirtmediatord perform TLS interception of the agent's connections. It's name-constrained to the hosts the workload's policy can intercept, its key never enters the sandbox container, and it's separate from the SPIFFE CA. Status: planned. See [MITM CA and leaf certificates](./egress.md#mitm-ca-and-leaf-certificates).
 
 ## Mutual TLS
 
@@ -425,7 +425,7 @@ Another avirt host, with its own trust domain, that this host has enrolled. A pe
 
 ## Placeholder
 
-A string that avirtsecretsd issues per workload and binding, a client-acceptable prefix then `avirtph` then 32 random characters, which the workload container contains in place of a real credential and which grants nothing by itself. Status: planned. See [placeholders](./egress-credentials.md#placeholders).
+A string that avirtsecretsd issues per workload and binding, a client-acceptable prefix then `avirtph` then 32 random characters, which the sandbox container contains in place of a real credential and which grants nothing by itself. Status: planned. See [placeholders](./egress-credentials.md#placeholders).
 
 ## `credential-misplaced`
 
@@ -487,6 +487,18 @@ A provider that runs as a separate executable, which avirtsecretsd starts and su
 
 `$TMPDIR/avirt-<uid>/`, avirthostd's per-run directory for workload directories, sockets, scratch homes and caches, which the startup cleanup empties, in the sense of systemd's `RuntimeDirectory=`. See [runtime directory](./lifecycle.md#runtime-directory).
 
+## Sandbox container
+
+The container, its own VM on the Containerization runtime, in which avirtinitd and the agent or another main workload process run, with no network interface other than loopback. Its only way out is the workload's HTTP/2 connection to its mediator, which in the implemented system contains only log envelopes, on `mediator.sock`. See [sandbox container](./components.md#sandbox-container) and [connection to the mediator](./workload-topology.md#connection-to-the-mediator).
+
+## Sandbox image
+
+Any image a sandbox container boots from: in the implemented system `avirt-workload-claude:dev` or `avirt-workload-codex:dev`, and in the planned design the avirt base and every image derived from it. See [sandbox images](./build-and-platforms.md#sandbox-images).
+
+## Sandbox VM
+
+The VM that runs the sandbox container on a runtime with VM isolation. The mediator has its own VM. See [compute runtimes](./compute-runtimes.md).
+
 ## Seccomp
 
 The Linux syscall filter that avirtinitd applies to itself and every process it starts. It denies the socket domains and syscalls in its denylist. See [seccomp](./workload-hardening.md#seccomp).
@@ -529,7 +541,7 @@ The workload identity standard whose IDs, `spiffe://<td>/…`, and X.509-SVIDs a
 
 ## SPIFFE Workload API
 
-The SPIFFE API through which workloads normally fetch SVIDs, which avirt never exposes to a mediator or a workload container. Status: planned. See [design invariants](./architecture.md#design-invariants).
+The SPIFFE API through which workloads normally fetch SVIDs, which avirt never exposes to a mediator or a sandbox container. Status: planned. See [design invariants](./architecture.md#design-invariants).
 
 ## State directory
 
@@ -569,23 +581,15 @@ The Cedar context attribute that specifies the path a request came by: `egress`,
 
 ## vsock
 
-The virtio socket transport between a VM and its host, which the Containerization runtime uses behind every Unix socket it provides to a workload container or mediator, and which seccomp denies to every workload process. Status: planned. See [Unix sockets](./compute-runtimes.md#unix-sockets).
+The virtio socket transport between a VM and its host, which the Containerization runtime uses behind every Unix socket it provides to a sandbox container or mediator, and which seccomp denies to every workload process. Status: planned. See [Unix sockets](./compute-runtimes.md#unix-sockets).
 
 ## Workload
 
-The unit avirthostd launches and tears down, consisting of a workload container plus its mediator, like a pod with an egress sidecar. It has one canonical ID, one namespace, and one Cedar `Workload` entity. A workload runs one ACP session, or more than one ACP session in a multi-session workload. See [architecture](./architecture.md#overview).
-
-## Workload container
-
-The container, its own VM on the Containerization runtime, in which avirtinitd and the agent or another main workload process run, with no network interface other than loopback. Its only way out is the workload's HTTP/2 connection to its mediator, which in the implemented system contains only log envelopes, on `mediator.sock`. See [workload container](./components.md#workload-container) and [connection to the mediator](./workload-topology.md#connection-to-the-mediator).
+The unit avirthostd launches and tears down, consisting of a sandbox container plus its mediator, like a pod with an egress sidecar. It has one canonical ID, one namespace, and one Cedar `Workload` entity. A workload runs one ACP session, or more than one ACP session in a multi-session workload. See [architecture](./architecture.md#overview).
 
 ## Workload ID
 
 The 8 random hexadecimal characters that name a workload in the implemented system and specify its log files, `logs/<workload-id>.*`. In the planned design a workload has a canonical ID and a short ID instead. See [workload log](./observability.md#workload-log).
-
-## Workload image
-
-Any image a workload container boots from: in the implemented system `avirt-workload-claude:dev` or `avirt-workload-codex:dev`, and in the planned design the avirt base and every image derived from it. See [workload images](./build-and-platforms.md#workload-images).
 
 ## Workload log
 
@@ -597,19 +601,19 @@ The policy snapshot scoped to one workload, which that workload's avirtmediatord
 
 ## Workload stdio log
 
-The host-written NDJSON file `logs/<workload-id>.stdio.ndjson` of a workload container's stdout, stderr and console, which avirtlogd tails. Status: planned. See [workload stdio logs](./components.md#workload-stdio-logs).
+The host-written NDJSON file `logs/<workload-id>.stdio.ndjson` of a sandbox container's stdout, stderr and console, which avirtlogd tails. Status: planned. See [workload stdio logs](./components.md#workload-stdio-logs).
 
 ## Workload SVID
 
-The SVID `spiffe://<td>/ns/<ns>/workload/<uuid>`, stored only by avirtnetd, which authenticates the workload container on its HTTP/2 connection to its mediator. Status: planned. See [trust domain and IDs](./identity.md#trust-domain-and-ids).
+The SVID `spiffe://<td>/ns/<ns>/workload/<uuid>`, stored only by avirtnetd, which authenticates the sandbox container on its HTTP/2 connection to its mediator. Status: planned. See [trust domain and IDs](./identity.md#trust-domain-and-ids).
 
 ## Workspace
 
-The content a workload container starts with beyond its harness base. It includes a source tree, dependencies, caches, and individual files. This term is unrelated to the `/workspace` directory itself and to a Cargo workspace. Status: planned. See [workspaces](./workspaces.md#status-planned).
+The content a sandbox container starts with beyond its harness base. It includes a source tree, dependencies, caches, and individual files. This term is unrelated to the `/workspace` directory itself and to a Cargo workspace. Status: planned. See [workspaces](./workspaces.md#status-planned).
 
 ## Workspace image
 
-An OCI artifact that contains a workspace as a stack of layers, which avirthostd composes onto a harness base image when it creates a workload container. Status: planned. See [workspace image format](./workspaces.md#workspace-image-format).
+An OCI artifact that contains a workspace as a stack of layers, which avirthostd composes onto a harness base image when it creates a sandbox container. Status: planned. See [workspace image format](./workspaces.md#workspace-image-format).
 
 ## Workspace reference
 
@@ -621,11 +625,11 @@ A directory that a workspace image declares in its `roots`, `/workspace` and eac
 
 ## Workspace snapshot
 
-A copy of a workspace root that avirtguestd makes while avirtinitd keeps the agent cgroup frozen for the `workspace-snapshot` freeze reason. It's unrelated to a policy snapshot. Status: planned. See [workload container](./components.md#workload-container).
+A copy of a workspace root that avirtguestd makes while avirtinitd keeps the agent cgroup frozen for the `workspace-snapshot` freeze reason. It's unrelated to a policy snapshot. Status: planned. See [sandbox container](./components.md#sandbox-container).
 
 ## Writable layer
 
-Layer 5 of the layer stack, the per-workload writable layer that receives every write made inside the workload container. Removing the container also removes this layer. Status: planned. See [layer stack](./workload-lifecycle.md#layer-stack).
+Layer 5 of the layer stack, the per-workload writable layer that receives every write made inside the sandbox container. Removing the container also removes this layer. Status: planned. See [layer stack](./workload-lifecycle.md#layer-stack).
 
 ## `x-avirt-caller`
 

@@ -26,17 +26,17 @@ The current code runs on the Apple container CLI runtime (see [compute runtimes]
 
 | Path | Hops | Enforcement | Authentication |
 | --- | --- | --- | --- |
-| Agent to external | Agent, `HTTPS_PROXY` to avirtinitd's TCP proxy to `proxy.sock` on an ephemeral `127.0.0.1` port, `/run/avirt/proxy.sock`, avirtmediatord's CONNECT app on the host, upstream | The CONNECT app: authority parsing and the `private-dest` check (see [CONNECT app](./egress.md#pingora-connect-app)). Rule `allow-all` permits each destination that passes. | None on avirtinitd's TCP proxy. Only root in the workload container can open `proxy.sock` (0600). |
+| Agent to external | Agent, `HTTPS_PROXY` to avirtinitd's TCP proxy to `proxy.sock` on an ephemeral `127.0.0.1` port, `/run/avirt/proxy.sock`, avirtmediatord's CONNECT app on the host, upstream | The CONNECT app: authority parsing and the `private-dest` check (see [CONNECT app](./egress.md#pingora-connect-app)). Rule `allow-all` permits each destination that passes. | None on avirtinitd's TCP proxy. Only root in the sandbox container can open `proxy.sock` (0600). |
 | The workload's HTTP/2 connection to its mediator, which today transports only log envelopes | avirtinitd, `/run/avirt/mediator.sock`, avirtmediatord, `hostd/hostd.sock`, avirthostd | avirthostd's `POST /workloads/<id>/stream` route (see [connection to the mediator](./workload-topology.md#connection-to-the-mediator)) | The `WORKLOAD <id> <secret>` connection header with the mediator secret, then `x-avirt-token` on `POST /workloads/<id>/stream` (see [identity](./identity.md#status-implemented)) |
 | Egress events | avirtmediatord, `hostd/hostd.sock`, avirthostd | One event connection per workload | The `EGRESS <id> <secret>` connection header |
 | Operator CLI to avirthostd | `avirt`, cleartext HTTP/2 on `127.0.0.1:8787` (or `AVIRT_HOSTD_URL`), avirthostd | None | None: any local process can call the control API (see [control API](./hostd-api.md#control-api)) |
 
-- **Workload network.** The workload container runs with `--network none`. TCP, UDP, DNS and IPv6 to anything but loopback fail inside it. avirtinitd sets `HTTPS_PROXY`, `https_proxy`, `HTTP_PROXY`, `http_proxy`, `ALL_PROXY`, `npm_config_proxy` and `npm_config_https_proxy` to avirtinitd's TCP proxy, `NO_PROXY` and `no_proxy` to `localhost,127.0.0.1`, and `NODE_USE_ENV_PROXY=1` (see [egress path](./egress.md#path)).
+- **Workload network.** The sandbox container runs with `--network none`. TCP, UDP, DNS and IPv6 to anything but loopback fail inside it. avirtinitd sets `HTTPS_PROXY`, `https_proxy`, `HTTP_PROXY`, `http_proxy`, `ALL_PROXY`, `npm_config_proxy` and `npm_config_https_proxy` to avirtinitd's TCP proxy, `NO_PROXY` and `no_proxy` to `localhost,127.0.0.1`, and `NODE_USE_ENV_PROXY=1` (see [egress path](./egress.md#path)).
 - **Off-host path.** avirtmediatord is a host process, and it resolves names with the host resolver and dials upstreams itself. If any resolved address fails the `private-dest` check, avirtmediatord refuses the whole CONNECT with 403 `private-dest`.
 - **Socket domains.** avirtinitd's seccomp filter makes `socket()` with `AF_VSOCK`, `AF_NETLINK` or `AF_PACKET` return `EAFNOSUPPORT` for itself and the agent (see [seccomp](./workload-hardening.md#seccomp)).
 - **Half-close constraint.** Nothing on a socket file that the runtime relays may half-close, so avirtinitd's TCP proxy never forwards a client's end-of-stream, and once the client has finished each read on the other direction has a 30 s idle timeout (see [TCP proxy to `proxy.sock`](./workload-topology.md#tcp-proxy-to-proxysock)).
 - **Protocols.** The CONNECT app accepts only `CONNECT host:port`, with a hostname, a canonical dotted quad, or a bracketed IPv6 literal. Any other method gets 501. Bytes inside the tunnel are opaque, so TLS, h2, gRPC, and websockets pass through unseen. UDP has no path through this proxy.
-- **Listeners.** avirthostd: `127.0.0.1:8787` (TCP) and `hostd/hostd.sock` (0600, in a 0700 directory). avirtmediatord: `workloads/<id>/proxy.sock` and `workloads/<id>/mediator.sock` (0600, in the 0700 workload directory). avirtinitd: its TCP proxy to `proxy.sock`, on an ephemeral `127.0.0.1` port inside the workload container. Each host path is under the runtime directory `$TMPDIR/avirt-<uid>/` (see [runtime directory](./lifecycle.md#runtime-directory)).
+- **Listeners.** avirthostd: `127.0.0.1:8787` (TCP) and `hostd/hostd.sock` (0600, in a 0700 directory). avirtmediatord: `workloads/<id>/proxy.sock` and `workloads/<id>/mediator.sock` (0600, in the 0700 workload directory). avirtinitd: its TCP proxy to `proxy.sock`, on an ephemeral `127.0.0.1` port inside the sandbox container. Each host path is under the runtime directory `$TMPDIR/avirt-<uid>/` (see [runtime directory](./lifecycle.md#runtime-directory)).
 - **Failure.** avirtinitd doesn't start its TCP proxy or the agent until avirthostd has accepted `POST /workloads/<id>/stream` on the workload's HTTP/2 connection to its mediator, and gives up after 15 s. The mediator's stdin EOF ties its lifetime to avirthostd's. Each proxied connection becomes one `dir: "egress"` event when it closes, and the mediator flushes connections still open at shutdown with `error: "shutdown"` (see [events](./egress.md#events)).
 
 # Status: planned
@@ -45,7 +45,7 @@ The current code runs on the Apple container CLI runtime (see [compute runtimes]
 
 ```mermaid
 flowchart LR
-    subgraph wl["workload container (loopback only)"]
+    subgraph wl["sandbox container (loopback only)"]
         agent["agent (uid 1000)"]
         net["avirtnetd: forward proxy 127.0.0.1:PORT, DNS stub 127.0.0.53:53, workload SVID"]
         agent -->|"HTTPS_PROXY, DNS"| net
@@ -211,7 +211,7 @@ Each runtime presents the same Unix sockets inside the containers under `/run/av
 | --- | --- | --- | --- |
 | Agent egress | `proxy.sock`, a host socket file relayed by the runtime, plaintext CONNECT | An h2 CONNECT stream on the workload's HTTP/2 connection to its mediator | The same as Containerization |
 | Log envelopes | `mediator.sock`, a host socket file, whose bytes avirtmediatord forwards unchanged to `hostd.sock` | The `/envelopes` HTTP/2 stream, which avirtmediatord forwards on the mediator's connection to avirthostd | The same as Containerization |
-| Workload's HTTP/2 connection to its mediator | None | A vsock connection from the workload VM to avirthostd's one listener on that VM's device, whose bytes avirthostd forwards unchanged to the current mediator generation's vsock connection | A per-workload Docker named volume `avirt-<id8>-sock`, with avirtmediatord listening on `/run/avirt/workload.sock` and avirtnetd dialing it as `/run/avirt/mediator.sock`, inside the Docker Desktop VM |
+| Workload's HTTP/2 connection to its mediator | None | A vsock connection from the sandbox VM to avirthostd's one listener on that VM's device, whose bytes avirthostd forwards unchanged to the current mediator generation's vsock connection | A per-workload Docker named volume `avirt-<id8>-sock`, with avirtmediatord listening on `/run/avirt/workload.sock` and avirtnetd dialing it as `/run/avirt/mediator.sock`, inside the Docker Desktop VM |
 | Mediator's connection to avirthostd | `hostd/hostd.sock` with the connection headers | vsock from the mediator VM | A single-file bind mount of `workloads/<id>/c.sock` |
 | Mediator's outbound socket to avirthostd | None | vsock from the mediator VM to avirthostd's SNI routing | A single-file bind mount of `workloads/<id>/s.sock` |
 | avirtmediatord's ingress listener | None | vsock from avirthostd into the mediator VM | Open (see [components](./components.md#open-questions)) |
@@ -224,7 +224,7 @@ Each runtime presents the same Unix sockets inside the containers under `/run/av
 
 avirtedgeproxyd reaches host services over local Unix sockets. Each service accepts mutual TLS connections. Peer authentication checks the exact SVID against the enrolled trust domain's bundle and never authorizes by source address.
 
-On every runtime, the `AF_VSOCK` denial applies to every workload process. Only the runtime's own relay uses the workload VM's vsock device. For the workload's HTTP/2 connection to its mediator, the protocol (TLS 1.3, then h2, with avirtnetd as client) is the same on each runtime. [Workload topology](./workload-topology.md#runtime-provided-sockets) specifies the sockets. [Compute runtimes](./compute-runtimes.md#unix-sockets) and [Docker Desktop](./compute-runtimes.md#docker-desktop-runtime) specify them per runtime. [Lifecycle](./lifecycle.md#path-length) specifies the path-length rule.
+On every runtime, the `AF_VSOCK` denial applies to every workload process. Only the runtime's own relay uses the sandbox VM's vsock device. For the workload's HTTP/2 connection to its mediator, the protocol (TLS 1.3, then h2, with avirtnetd as client) is the same on each runtime. [Workload topology](./workload-topology.md#runtime-provided-sockets) specifies the sockets. [Compute runtimes](./compute-runtimes.md#unix-sockets) and [Docker Desktop](./compute-runtimes.md#docker-desktop-runtime) specify them per runtime. [Lifecycle](./lifecycle.md#path-length) specifies the path-length rule.
 
 ## Protocols
 
@@ -237,22 +237,22 @@ On every runtime, the `AF_VSOCK` denial applies to every workload process. Only 
 | TLS passthrough | avirtmediatord reads the first bytes before forwarding any. They must be a ClientHello whose SNI equals the canonical CONNECT host. An allowed host on a shared address can't supply another name. The proxy closes a connection that doesn't start with TLS unless the `passthrough` permit has `context.plaintext` true. Credential injection remains off for these connections. Each internal name takes TLS passthrough, authorized at avirtedgeproxyd. |
 | gRPC | Under TLS passthrough, as bytes. Under TLS interception, the proxy offers agent-facing h2 only for a destination that one of the workload's gRPC bindings specifies (see [gRPC credentials](./egress-credentials.md#grpc)). |
 | Websockets | An `Upgrade` request forces h1 upstream. The upgrade request passes the request checks and the `credential-misplaced` check, and the proxy relays frames without scanning after `101` (see [websockets](./egress.md#websockets)). |
-| DNS | UDP and TCP on `127.0.0.53:53` inside the workload container, sent as one `POST /dns` HTTP/2 stream per query with `application/dns-message` bodies and their 16-stream limit (see [workload DNS](./egress.md#workload-dns)) |
-| UDP, QUIC and HTTP/3 | Unsupported. UDP may leave the workload container only for DNS to the stub. A client that tries HTTP/3 falls back to TCP through the proxy. Transparent TCP and UDP are separate planned features with their own security design (see [transport scope](./egress.md#transport-scope)). |
+| DNS | UDP and TCP on `127.0.0.53:53` inside the sandbox container, sent as one `POST /dns` HTTP/2 stream per query with `application/dns-message` bodies and their 16-stream limit (see [workload DNS](./egress.md#workload-dns)) |
+| UDP, QUIC and HTTP/3 | Unsupported. UDP may leave the sandbox container only for DNS to the stub. A client that tries HTTP/3 falls back to TCP through the proxy. Transparent TCP and UDP are separate planned features with their own security design (see [transport scope](./egress.md#transport-scope)). |
 | `git://`, `ssh://` and other clients that ignore the proxy variables | These clients need an explicit proxy adapter to use the CONNECT path. |
 | IPv6 | The workload has no IPv6 route. A CONNECT may specify a bracketed IPv6 literal, which only a policy naming that `resource.ip` can permit. The `private-dest` check covers the IPv6 non-global ranges, and the proxy refuses IPv4-mapped and IPv4-compatible literals (see [external host canonicalization](./egress-policies.md#external-host-canonicalization)). avirtedgeproxyd dials IPv6 upstreams where the host has an IPv6 route. |
 
 ## Ports and listeners
 
-Each listener's caller identity and allowed operations are in [trust boundaries](./trust-boundaries.md#listeners), and the workload container's listeners exempt from mutual TLS in [local exceptions](./trust-boundaries.md#local-exceptions). This inventory names where each one is.
+Each listener's caller identity and allowed operations are in [trust boundaries](./trust-boundaries.md#listeners), and the sandbox container's listeners exempt from mutual TLS in [local exceptions](./trust-boundaries.md#local-exceptions). This inventory names where each one is.
 
 | Placement | Listener | Transport |
 | --- | --- | --- |
-| Workload container | avirtnetd's forward proxy `127.0.0.1:PORT`, an ephemeral port | TCP, loopback |
-| Workload container | DNS stub `127.0.0.53:53` | UDP and TCP, loopback |
-| Workload container | Agent sockets `/run/avirt/agent/guest.sock` and `/run/avirt/agent/mcp.sock` | Unix, uid 1000 only |
-| Workload container | Local service sockets `/run/avirt/streams/<role>.sock`, launcher sockets `/run/avirt/init/<role>.sock` | Unix, one per-process UID each |
-| Workload container | Published ports, `127.0.0.1:<port>`, served by workload processes | TCP, loopback, reached only through avirtnetd's reverse proxy |
+| Sandbox container | avirtnetd's forward proxy `127.0.0.1:PORT`, an ephemeral port | TCP, loopback |
+| Sandbox container | DNS stub `127.0.0.53:53` | UDP and TCP, loopback |
+| Sandbox container | Agent sockets `/run/avirt/agent/guest.sock` and `/run/avirt/agent/mcp.sock` | Unix, uid 1000 only |
+| Sandbox container | Local service sockets `/run/avirt/streams/<role>.sock`, launcher sockets `/run/avirt/init/<role>.sock` | Unix, one per-process UID each |
+| Sandbox container | Published ports, `127.0.0.1:<port>`, served by workload processes | TCP, loopback, reached only through avirtnetd's reverse proxy |
 | Mediator | avirtmediatord: the workload's connection `/run/avirt/workload.sock`, the ingress listener `/run/avirt/ingress.sock` | Runtime-provided Unix socket, mTLS 1.3, h2 |
 | Host | avirtedgeproxyd's egress listener | Unix, mTLS 1.3, h2. SNI routing for mediators and direct calls from host services |
 | Host | avirthostd's end of the mediator's connection, one per workload | Runtime-provided Unix socket, mTLS 1.3, h2 |

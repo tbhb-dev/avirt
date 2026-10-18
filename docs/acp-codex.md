@@ -32,26 +32,26 @@ avirtinitd starts `codex-acp` as uid 1000 through the common launch path in [ACP
 
 ## Authentication
 
-avirthostd refuses a codex launch with a 400 unless the host `auth.json` exists (`~/.codex/auth.json`, or `CODEX_HOST_HOME/auth.json`). For each launch, it copies the file into a private scratch directory and mounts that directory at `/codex-home`. It sets `CODEX_HOME=/codex-home`. Once the workload container no longer exists, avirthostd writes a refreshed copy back to the host under the rules in [credentials](./egress-credentials.md#codex), and logs the outcome as `auth_writeback`. It skips the host `config.toml`, so `CODEX_HOME` contains only `auth.json` and whatever Codex writes there during the session.
+avirthostd refuses a codex launch with a 400 unless the host `auth.json` exists (`~/.codex/auth.json`, or `CODEX_HOST_HOME/auth.json`). For each launch, it copies the file into a private scratch directory and mounts that directory at `/codex-home`. It sets `CODEX_HOME=/codex-home`. Once the sandbox container no longer exists, avirthostd writes a refreshed copy back to the host under the rules in [credentials](./egress-credentials.md#codex), and logs the outcome as `auth_writeback`. It skips the host `config.toml`, so `CODEX_HOME` contains only `auth.json` and whatever Codex writes there during the session.
 
 ## Modes
 
 codex-acp reads `INITIAL_AGENT_MODE` at startup. avirthostd passes it through from its own environment when that environment sets it.
 
-| Mode | Codex sandbox and approvals |
+| Mode | Codex's sandbox and approvals |
 | --- | --- |
-| `read-only` | Read-only sandbox. Codex requests permission for writes, and avirtinitd approves them. |
+| `read-only` | Codex's read-only sandbox. Codex requests permission for writes, and avirtinitd approves them. |
 | `workspace-write` | Writes inside the workspace, no network for tool commands |
-| `agent` | The default: workspace-write sandbox, approvals on request |
-| `agent-full-access` | No Codex sandbox |
+| `agent` | Codex's workspace-write sandbox by default, approvals on request |
+| `agent-full-access` | Codex runs without its sandbox |
 
-Codex's own sandbox blocks the network for tool commands in `workspace-write` and `agent`, and makes `/tmp` read-only in `read-only`, so bypass and positive egress checks for Codex need `agent-full-access`. The workload container is the security boundary, not Codex's sandbox (see [workload hardening](./workload-hardening.md)).
+Codex's sandbox blocks the network for tool commands in `workspace-write` and `agent`, and makes `/tmp` read-only in `read-only`, so bypass and positive egress checks for Codex need `agent-full-access`. The sandbox container is the security boundary, not Codex's sandbox (see [workload hardening](./workload-hardening.md)).
 
 ## Configuration sources
 
 Codex reads, highest precedence first:
 
-| Layer | Path in the workload container | Present in the implemented image |
+| Layer | Path in the sandbox container | Present in the implemented image |
 | --- | --- | --- |
 | Requirements | `/etc/codex/requirements.toml` | No |
 | Managed defaults | `/etc/codex/managed_config.toml` | No |
@@ -101,7 +101,7 @@ The keys of `harness.toml` are in [ACP](./acp.md#harnesstoml).
 
 ## Authentication
 
-`CODEX_HOME` is `/home/agent/.codex`, in the workload container's own writable layer, with no host mount. avirtinitd writes `auth.json` there at boot from the placeholder copy of the file that arrives in `confirm`: the `id_token` and `access_token` keep their real header and payload with a placeholder signature, and the `refresh_token` is a placeholder. avirtmodelgwd injects the real tokens on `chatgpt.com` and `api.openai.com`, and avirtmediatord intercepts Codex's refresh on `auth.openai.com` and answers it with new placeholders, so no write-back exists. The token formats, the bindings and the refresh path are in [credentials](./egress-credentials.md#codex-1) and [Codex refresh](./egress-credentials.md#codex-refresh).
+`CODEX_HOME` is `/home/agent/.codex`, in the sandbox container's own writable layer, with no host mount. avirtinitd writes `auth.json` there at boot from the placeholder copy of the file that arrives in `confirm`: the `id_token` and `access_token` keep their real header and payload with a placeholder signature, and the `refresh_token` is a placeholder. avirtmodelgwd injects the real tokens on `chatgpt.com` and `api.openai.com`, and avirtmediatord intercepts Codex's refresh on `auth.openai.com` and answers it with new placeholders, so no write-back exists. The token formats, the bindings and the refresh path are in [credentials](./egress-credentials.md#codex-1) and [Codex refresh](./egress-credentials.md#codex-refresh).
 
 ## Managed configuration
 
@@ -147,4 +147,4 @@ The policy rules are in [egress](./egress-policies.md#external-destinations).
 # Open questions
 
 1. **Managed defaults and project config.** The managed-configuration documentation gives `managed_config.toml` precedence over the user `config.toml` and command-line overrides, but not relative to a trusted project's `.codex/config.toml`. Whether a managed default also overrides project config matters only when a project has trusted status.
-2. **Modes as requirements.** Whether the overlay also constrains the sandbox and approval values in `requirements.toml` (`allowed_permission_profiles` for Codex 0.138.0 and later), so that an operator's mode change through the session control API can't leave the launch's mode, is open.
+2. **Modes as requirements.** Whether the overlay also constrains Codex's sandbox and approval values in `requirements.toml` (`allowed_permission_profiles` for Codex 0.138.0 and later), so that an operator's mode change through the session control API can't leave the launch's mode, is open.

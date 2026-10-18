@@ -9,13 +9,13 @@ generated: { by: codex/gpt-6, at: 2026-10-18T05:21:55Z }
 
 # Overview
 
-avirtsecretsd is the host's secrets broker. Only avirtsecretsd reads secret providers and refreshes or writes back credentials. It gives callers only values allowed by their identities, the workload's registered bindings, and the host's policy snapshot. This document covers the broker and provider side. [Egress credentials](./egress-credentials.md) describes placeholders in the workload container and credential injection into requests at a gateway or avirtmediatord. The provider integrations are in [1Password](./secrets-1password.md) and [macOS Keychain](./secrets-keychain.md).
+avirtsecretsd is the host's secrets broker. Only avirtsecretsd reads secret providers and refreshes or writes back credentials. It gives callers only values allowed by their identities, the workload's registered bindings, and the host's policy snapshot. This document covers the broker and provider side. [Egress credentials](./egress-credentials.md) describes placeholders in the sandbox container and credential injection into requests at a gateway or avirtmediatord. The provider integrations are in [1Password](./secrets-1password.md) and [macOS Keychain](./secrets-keychain.md).
 
 # Status: implemented
 
 avirtsecretsd doesn't exist. avirthostd holds the two credentials the current code uses:
 
-- **Claude.** avirthostd reads `CLAUDE_CODE_OAUTH_TOKEN` from its own environment for each launch. It refuses a Claude launch with 400 when the variable is unset or empty. It passes the variable to the workload container by name with `-e`. The value never appears on argv. `mise run serve` loads it from the gitignored `mise.local.toml`.
+- **Claude.** avirthostd reads `CLAUDE_CODE_OAUTH_TOKEN` from its own environment for each launch. It refuses a Claude launch with 400 when the variable is unset or empty. It passes the variable to the sandbox container by name with `-e`. The value never appears on argv. `mise run serve` loads it from the gitignored `mise.local.toml`.
 - **Codex.** For each launch, avirthostd reads `~/.codex/auth.json` (or `$CODEX_HOST_HOME/auth.json`) and seeds a private copy for the workload. When the workload ends, it writes a refreshed copy back to the host file under the `auth.json.lock` flock.
 
 The seed, the write-back rules and the `auth_writeback` outcomes are in [egress credentials](./egress-credentials.md#codex). The per-workload connection token (`AVIRT_CONNECTION_TOKEN`) and mediator secret that avirthostd draws for each workload are identity material, described in [identity](./identity.md#status-implemented).

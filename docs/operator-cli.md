@@ -65,7 +65,7 @@ sequenceDiagram
 
 | Exit | When | Message on stderr |
 | --- | --- | --- |
-| 0 | The launch succeeded, and with `--follow` the log reached `container_exit`, whatever the workload container's own exit code | None |
+| 0 | The launch succeeded, and with `--follow` the log reached `container_exit`, whatever the sandbox container's own exit code | None |
 | 1 | avirthostd is unreachable | ``cannot reach avirthostd at URL; is `avirthostd` running?``, followed by the cause |
 | 1 | avirthostd refused the launch with a non-2xx status | `launch failed (STATUS): MESSAGE`, with avirthostd's `error` text |
 | 1 | The 2xx reply isn't a launch response | `unexpected launch response` |
@@ -80,7 +80,7 @@ Through mise, `mise run launch <agent> "<prompt>"` runs `avirt launch --agent <a
 
 `avirt` provides the operator CLI and TUI for a host. It doesn't own resources (see [components](./components.md#host-services)). Every command except the local ones (`context`, `workspace init`, `workspace config`, `completion` and `version`) is a gRPC call to avirtapid through avirtedgeproxyd's `edgeproxy.sock`. avirtapid forwards each call with the caller's identity in `x-avirt-caller`, to avirthostd, avirtbuilderd or avirtregistryd, or to an enrolled peer's avirtapid. The planned command-line tool never talks to avirthostd directly and omits `--port` and `--url`. `launch --follow` and `logs` stream through avirtapid without reading log files.
 
-[avirtadmin](./admin-cli.md) provides host administration commands, and [avirtguest](./guest-cli.md) provides commands inside a workload container. All three tools share the command names, flags, output formats, and exit codes on this page wherever their functions overlap.
+[avirtadmin](./admin-cli.md) provides host administration commands, and [avirtguest](./guest-cli.md) provides commands inside a sandbox container. All three tools share the command names, flags, output formats, and exit codes on this page wherever their functions overlap.
 
 ```mermaid
 flowchart LR
@@ -264,7 +264,7 @@ The session commands are the operations of the session control API, which avirth
 avirt logs WORKLOAD [--follow] [--source acp|egress|meta|stdio]... [--since SEQ|TIME]
 ```
 
-`logs` reads the workload log that avirthostd keeps (see [log format](./hostd-api.md#envelope)) through avirtapid. `--source` selects envelopes by kind, repeatable: `acp` for both JSON-RPC directions, `egress` for `conn`, `http` and `dns` events, `meta` for meta events, and `stdio` for the workload container's stdout, stderr, and console records. The default is every source except `stdio`. `--since` starts at a sequence number or an RFC 3339 time. `--follow` keeps the stream open and ends after `container_exit`.
+`logs` reads the workload log that avirthostd keeps (see [log format](./hostd-api.md#envelope)) through avirtapid. `--source` selects envelopes by kind, repeatable: `acp` for both JSON-RPC directions, `egress` for `conn`, `http` and `dns` events, `meta` for meta events, and `stdio` for the sandbox container's stdout, stderr, and console records. The default is every source except `stdio`. `--since` starts at a sequence number or an RFC 3339 time. `--follow` keeps the stream open and ends after `container_exit`.
 
 Workload logs can contain prompts and tool output as well as account details. `read_log` authorizes each source separately, so a policy can allow `egress` and `meta` and withhold `acp` and `stdio`. What each source can contain, and what's redacted before it's written, is in [observability](./observability.md#content-and-redaction).
 
