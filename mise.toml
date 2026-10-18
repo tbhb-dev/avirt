@@ -19,7 +19,7 @@ jq = "1.8.2"
 "go:github.com/tbhb-dev/devtools/cmd/guard-markdown" = "v0.12.0"
 # The one source of truth for the Rust version: the crates' `rust-version` and the images'
 # builder stage (`rust:1.97.1-bookworm`) follow it.
-rust = { version = "1.97.1", profile = "minimal", components = "clippy,rustfmt,llvm-tools" }
+rust = { version = "1.99.0", profile = "minimal", components = "clippy,rustfmt,llvm-tools" }
 
 [env]
 DEVTOOLS_LOCK_PLATFORMS = "linux-x64,macos-arm64"
