@@ -73,6 +73,7 @@
 [Pp]laintext
 [Pp]rebuild
 [Pp]rebuilds
+[Pp]roptest
 [Pp]roxied
 [Pp]trace
 [Qq]uiesces

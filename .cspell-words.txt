@@ -295,6 +295,7 @@ prebuilds
 prek
 prettyplease
 privs
+proptest
 proxied
 proxyd
 psock

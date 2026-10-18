@@ -182,4 +182,6 @@ pub fn absolute_uri_authority(target: &str) -> Option<(String, u16)> {
 }
 
 #[cfg(test)]
+mod properties;
+#[cfg(test)]
 mod tests;
