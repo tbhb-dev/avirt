@@ -21,6 +21,7 @@ Candidates are advisory for human review. The report exits 0 even when it finds 
 from __future__ import annotations
 
 import argparse
+import importlib.util
 import json
 import os
 import re
@@ -32,8 +33,24 @@ from pathlib import Path
 
 from markdown_it import MarkdownIt
 
-sys.path.insert(0, str(Path(__file__).resolve().parent))
-from jargon_words import COMMON_COMPOUNDS, COMMON_WORDS, COMPOUND_PREFIXES, STOPWORDS, VERB_STEMS  # noqa: E402
+
+
+def load_words():
+    """Load the word lists beside this script, whatever the working directory."""
+    path = Path(__file__).resolve().with_name("jargon_words.py")
+    spec = importlib.util.spec_from_file_location("jargon_words", path)
+    assert spec is not None and spec.loader is not None
+    module = importlib.util.module_from_spec(spec)
+    spec.loader.exec_module(module)
+    return module
+
+
+_words = load_words()
+COMMON_COMPOUNDS = _words.COMMON_COMPOUNDS
+COMMON_WORDS = _words.COMMON_WORDS
+COMPOUND_PREFIXES = _words.COMPOUND_PREFIXES
+STOPWORDS = _words.STOPWORDS
+VERB_STEMS = _words.VERB_STEMS
 
 INDEX_VERSION = 2
 ALLOW_FILE = "jargon-accept.txt"

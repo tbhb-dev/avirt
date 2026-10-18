@@ -58,7 +58,10 @@ def test_possessive_and_plural_fold():
 
 def make_repo(tmp_path, monkeypatch, base: dict[str, str]):
     monkeypatch.chdir(tmp_path)
-    run_git = lambda *a: subprocess.run(["git", *a], cwd=tmp_path, check=True, capture_output=True)  # noqa: E731
+
+    def run_git(*a):
+        return subprocess.run(["git", *a], cwd=tmp_path, check=True, capture_output=True)
+
     run_git("init", "-q", "-b", "main")
     run_git("config", "user.email", "t@example.com")
     run_git("config", "user.name", "t")
