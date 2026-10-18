@@ -92,7 +92,6 @@ exceptions:
   - ACP
   - MCP
   - SNI
-  - SDS
   - MITM
   - UID
   - OCI

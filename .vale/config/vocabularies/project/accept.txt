@@ -262,6 +262,5 @@ vsock
 webpki
 workspace's
 Xcode
-xDS
 zot
 [Pp]athname

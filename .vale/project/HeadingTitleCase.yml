@@ -178,7 +178,6 @@ exceptions:
   - SPIFFE
   - SVID
   - SVIDs
-  - xDS
   - vsock
   - rustls
   - Landlock
@@ -229,7 +228,6 @@ exceptions:
   - ACP
   - MCP
   - SNI
-  - SDS
   - UID
   - OCI
   - ABI

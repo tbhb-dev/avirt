@@ -339,7 +339,6 @@ SANs
 SBOM
 SBOMs
 schan
-SDS
 seccomp
 seccompiler
 secretsd
@@ -455,7 +454,6 @@ WSS
 xattr
 Xcode
 xcrun
-xDS
 XPC
 xwin
 zeroizes
