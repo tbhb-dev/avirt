@@ -14,7 +14,6 @@
 /mise.lock      @tbhb
 
 # Changes to accepted terminology require the maintainer's review.
-/jargon-accept.txt @tbhb
 /.vale/project/RejectedTerms.yml @tbhb
 /.vale/project/RejectedTermsReplaced.yml @tbhb
 /.vale/project/RejectedTermsScript.yml @tbhb
