@@ -17,7 +17,7 @@ use crate::runtime::{
 };
 use crate::state::{self, remove_tree};
 use alloc::sync::Arc;
-use anyhow::{Context as _, Result, bail};
+use anyhow::{Context as _, Result, anyhow, bail};
 use async_trait::async_trait;
 use core::time::Duration;
 use std::io;
@@ -27,6 +27,8 @@ use tokio::time;
 
 /// How long `release` lets a helper finish stopping before it gives up on removing its state.
 const RELEASE_GRACE: Duration = Duration::from_secs(5);
+/// How long the helper has to answer a start request. The request returns when the VM runs.
+const START_TIMEOUT: Duration = Duration::from_mins(2);
 /// How long `stop` waits for the exit event that follows a stop.
 const EXIT_EVENT_WAIT: Duration = Duration::from_millis(200);
 
@@ -63,6 +65,8 @@ struct Handle {
     request: StartWorkload,
     /// The workload to run.
     spec: WorkloadSpec,
+    /// How long the helper has to answer the start request.
+    start_timeout: Duration,
     /// Runs the helper.
     supervisor: Arc<ChildSupervisor>,
     /// The signed avirtvmd binary.
@@ -124,6 +128,7 @@ impl Runtime for Containerization {
             proxy: None,
             request,
             spec,
+            start_timeout: START_TIMEOUT,
             supervisor: Arc::clone(&self.supervisor),
             vmd_bin: self.vmd_bin.clone(),
         }))
@@ -175,7 +180,11 @@ impl WorkloadHandle for Handle {
             log: self.spec.logs_dir.join(format!("{}.avirtvmd.log", self.spec.id)),
         };
         let helper = self.supervisor.start(&self.spec.id, &self.incarnation, &helper_spec).await?;
-        match helper.request(RequestOp::StartWorkload(Box::new(self.request.clone()))).await? {
+        let start = helper.request(RequestOp::StartWorkload(Box::new(self.request.clone())));
+        let answered = time::timeout(self.start_timeout, start)
+            .await
+            .map_err(|_| anyhow!("avirtvmd didn't answer the start request within {:?}", self.start_timeout))?;
+        match answered? {
             ResponseResult::Started(_) => {}
             ResponseResult::Failure(failure) => bail!("avirtvmd couldn't start the workload: {}", failure.message),
             ResponseResult::Status(_) | ResponseResult::Stopped(_) => {

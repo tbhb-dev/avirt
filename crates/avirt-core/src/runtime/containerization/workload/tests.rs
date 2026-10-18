@@ -16,7 +16,7 @@ use rustix::process::{Pid, test_kill_process};
 use std::fs;
 use std::os::unix::fs::PermissionsExt as _;
 use std::path::{Path, PathBuf};
-use tokio::time;
+use tokio::time::{self, Instant};
 
 /// The workload id the tests use.
 const ID: &str = "1a2b3c4d";
@@ -122,6 +122,7 @@ fn fixture(base: &Path) -> Result<Fixture> {
         proxy: None,
         request: StartWorkload::default(),
         spec,
+        start_timeout: Duration::from_mins(1),
         supervisor: Arc::new(ChildSupervisor::new(state.workloads())),
         vmd_bin: sleeper(base)?,
     };
@@ -175,6 +176,33 @@ async fn a_failure_reply_to_the_start_ends_in_a_full_teardown() -> Result<()> {
     exited(pid).await?;
     ensure!(!fixture.workload_dir.exists(), "the workload directory remains");
     ensure!(!fixture.container_dir.exists(), "the VM state remains");
+    Ok(())
+}
+
+/// The start fails after the timeout when the helper doesn't answer the start request.
+///
+/// # Errors
+///
+/// Fails when the start succeeds or outlasts the timeout, or when the error names another cause.
+///
+/// # Panics
+///
+/// Panics if the async runtime fails to start.
+#[tokio::test]
+async fn a_helper_that_never_answers_the_start_request_times_out() -> Result<()> {
+    let base = short_dir()?;
+    let mut fixture = fixture(base.path())?;
+    fixture.handle.start_timeout = Duration::from_millis(300);
+    with_mediator(&mut fixture, base.path()).await?;
+    let greeting = hello(ID, &fixture.handle.incarnation, 1, 1);
+    let _silent = FakeHelper::spawn_ignoring_starts(&fixture.workload_dir.join("v.sock"), Some(greeting))?;
+
+    let began = Instant::now();
+    let Err(err) = fixture.handle.start_workload().await else { bail!("the start succeeded") };
+    ensure!(err.to_string().contains("didn't answer the start request"), "the error is {err:#}");
+    ensure!(began.elapsed() < Duration::from_secs(10), "the start waited {:?}", began.elapsed());
+    fixture.handle.stop_mediator().await;
+    Box::new(fixture.handle).release(true).await;
     Ok(())
 }
 
