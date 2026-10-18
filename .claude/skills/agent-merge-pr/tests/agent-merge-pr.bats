@@ -1033,6 +1033,28 @@ hook_command() {
   [ "$output" = from-env ]
 }
 
+@test "a suppression in a file a remote package deployed does not trip the loosening check" {
+  printf 'dependencies:\n- repo_url: tbhb-dev/devtools\n  name: devtools-agents-claude\n  deployed_files:\n  - .claude/skills/vendor/v.py\n  deployed_file_hashes:\n    .claude/skills/vendor/v.py: sha256:0\n- repo_url: _local/own\n  deployed_files:\n  - .claude/skills/own/o.py\n  source: local\ndeployments: []\n' >"$tmp/lock"
+  advance_feature apm.lock.yaml "$(cat "$tmp/lock")\n"
+  advance_feature .claude/skills/vendor/v.py 'import os  # noqa: F401\n'
+  stamped
+  merge
+  [ "$status" -eq 0 ]
+  [[ $output != *"Loosened gates"* ]] || false
+}
+
+@test "a suppression in a repository-local skill source still trips the loosening check" {
+  printf 'dependencies:\n- repo_url: tbhb-dev/devtools\n  name: devtools-agents-claude\n  deployed_files:\n  - .claude/skills/vendor/v.py\n- repo_url: _local/own\n  deployed_files:\n  - .claude/skills/own/o.py\n  source: local\ndeployments: []\n' >"$tmp/lock"
+  advance_feature apm.lock.yaml "$(cat "$tmp/lock")\n"
+  advance_feature .claude/skills/vendor/v.py 'import os  # noqa: F401\n'
+  advance_feature .claude/skills/own/o.py 'import os  # noqa: F401\n'
+  stamped
+  merge
+  [ "$status" -eq 1 ]
+  [[ $output == *".claude/skills/own/o.py: adds a suppression"* ]] || false
+  [[ $output != *".claude/skills/vendor/v.py"* ]] || false
+}
+
 @test "an ordinary change has nothing a loosening check reads" {
   advance_feature tools/check.py 'import os\nprint(os.sep)\n'
   stamped

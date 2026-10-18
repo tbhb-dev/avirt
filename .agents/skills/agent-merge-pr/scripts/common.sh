@@ -205,6 +205,27 @@ am_changed_paths() {
   [ -s "$file" ]
 }
 
+# am_vendored_paths <head> <file>: write to the file each path the head
+# commit's apm.lock.yaml records as deployed by a remote package, one a
+# line, or leave it empty when the lockfile is missing. Those files are
+# upstream code, and a suppression in one isn't a change to this
+# repository's gates. A package installed from a local path isn't remote,
+# so the repository's own skills stay out of the list.
+am_vendored_paths() {
+  git show "$1:apm.lock.yaml" 2>/dev/null | awk '
+    function flush() { if (!islocal) for (i = 0; i < n; i++) print files[i]; n = 0 }
+    /^dependencies:/ { indeps = 1; next }
+    /^[a-z_]+:/ { flush(); indeps = 0; next }
+    indeps && /^- repo_url:/ { flush(); islocal = 0; infiles = 0; next }
+    indeps && /^  deployed_files:/ { infiles = 1; next }
+    indeps && /^  [a-z_]+:/ { infiles = 0 }
+    indeps && /^  source: local/ { islocal = 1 }
+    indeps && infiles && /^  - / { files[n++] = substr($0, 5) }
+    END { flush() }
+  ' >"$2"
+  return 0
+}
+
 # am_loosening <base> <head> <file>: write to the file each line of the
 # pull request's diff that loosens a gate in a way a script can see, one
 # finding a line, or nothing. It reads three things:
@@ -216,6 +237,8 @@ am_changed_paths() {
 #     exclusion, an ignore, a disabled rule, a skip, or an allowance;
 #   - a removed line in such a file that registered a hook or a lint
 #     task.
+# Files that apm.lock.yaml records as deployed by a remote package are
+# skipped.
 # It's a backstop: a loosening it can't see is the author's and the
 # reviewers' to flag. Returns 1 when the diff can't be read.
 am_loosening() {
@@ -223,9 +246,11 @@ am_loosening() {
   markers=$(as_conf loosening_markers)
   configs=$(as_conf gate_config_paths)
   [ -n "$markers" ] && [ -n "$configs" ] || return 1
+  am_vendored_paths "$2" "$3.vendored"
   git -c core.quotePath=false diff --no-ext-diff --no-textconv --text --unified=0 --no-color \
     "refs/remotes/origin/$base...$head" >"$out.diff" || return 1
-  awk -v markers="$markers" -v configs="$configs" '
+  awk -v markers="$markers" -v configs="$configs" -v vendored="$3.vendored" '
+    BEGIN { while ((getline v < vendored) > 0) vend[v] = 1 }
     /^--- / { old = substr($0, 5); sub(/^a\//, "", old); next }
     /^\+\+\+ / {
       file = substr($0, 5); sub(/^b\//, "", file)
@@ -233,6 +258,7 @@ am_loosening() {
       next
     }
     /^@@/ { next }
+    file in vend { next }
     /^\+/ {
       line = substr($0, 2)
       if (tolower(line) ~ markers) print file ": adds a suppression: " line
@@ -245,6 +271,7 @@ am_loosening() {
     }
   ' "$out.diff" >"$out" || return 1
   unlink "$out.diff"
+  unlink "$out.vendored"
 }
 
 # am_kept_ignored <worktree>: print each ignored path in the worktree
