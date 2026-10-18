@@ -18,14 +18,14 @@ dependencies:
   - .claude/skills/agent-commit/tests/agent-commit.bats
   deployed_file_hashes:
     .claude/skills/agent-commit/SKILL.md: sha256:13a1169d6fff3a715219594d695bca62d702ca4a4a5be2ce131cfa8f7cc34e4f
-    .claude/skills/agent-commit/agent-skills.conf: sha256:77a99e782b497fe854fa493fa3b87f37522479424297d889cf24361149000f2b
+    .claude/skills/agent-commit/agent-skills.conf: sha256:38eb859fa800c09aeaea5a18d0a98de2ff6492c593b3454f4019f7866666b655
     .claude/skills/agent-commit/apm.yml: sha256:f8ea5dc5c18a377680c60a0f9b5b594627a3bc65b2f7310e60076f038d600dc4
     .claude/skills/agent-commit/scripts/commit.sh: sha256:ed86fae6ca3ec6fe3d48f555ad495cfc0c56010715997e0a8a3b3b28f3835af2
     .claude/skills/agent-commit/scripts/guard.sh: sha256:648220c9b71ff84f7a16a3af5f01c9de1aa11d59ee65eac3c738e97ec89105c3
     .claude/skills/agent-commit/scripts/lib.sh: sha256:c749095215d03aa8b7f5a754988ee55a88095a0e85871a5d0064b1d439ed6c5c
     .claude/skills/agent-commit/scripts/preflight.sh: sha256:65d2e33811c5f343556679046978fabba41064f926caec19bdd6846b4b83bdfc
     .claude/skills/agent-commit/scripts/review.sh: sha256:dc7ee3e759ead1a02ef4913531a2e1b0f41720d35e724ef7d861af3a68939692
-    .claude/skills/agent-commit/tests/agent-commit.bats: sha256:887aafb23accb1bb1f31b7956a6fc8fc5f1f79b966ed456e3751b0b28047455d
+    .claude/skills/agent-commit/tests/agent-commit.bats: sha256:2fc4c6dabbed8574da6e22d6fbf929f417a8b6158fa3f65ba6cf82c7490f2903
   source: local
   local_path: ./.agents/skills/agent-commit
 - repo_url: _local/agent-merge-pr
@@ -549,7 +549,7 @@ deployments:
   owners:
   - ./.agents/skills/agent-commit
   active_owner: ./.agents/skills/agent-commit
-  content_hash: sha256:77a99e782b497fe854fa493fa3b87f37522479424297d889cf24361149000f2b
+  content_hash: sha256:38eb859fa800c09aeaea5a18d0a98de2ff6492c593b3454f4019f7866666b655
 - kind: project-relative
   target: claude
   value: .claude/skills/agent-commit/apm.yml
@@ -612,7 +612,7 @@ deployments:
   owners:
   - ./.agents/skills/agent-commit
   active_owner: ./.agents/skills/agent-commit
-  content_hash: sha256:887aafb23accb1bb1f31b7956a6fc8fc5f1f79b966ed456e3751b0b28047455d
+  content_hash: sha256:2fc4c6dabbed8574da6e22d6fbf929f417a8b6158fa3f65ba6cf82c7490f2903
 - kind: project-relative
   target: claude
   value: .claude/skills/agent-merge-pr

@@ -929,12 +929,12 @@ EOF
 
 @test "the repository's own owner paths include the gates, the toolchain, and these skills" {
   unset AGENT_SKILLS_OWNER_PATHS
-  for path in AGENTS.md mise.toml mise.lock apm.yml apm.lock.yaml vendir.yml vendir.lock.yml .pre-commit-config.yaml .github/workflows/ci.yml .github/rulesets/main.json .config/mise/conf.d/x.toml .config/nextest.toml .devtools/x .cspell.jsonc .rumdl.toml .yamllint.yaml .vale.ini .vale/x.yml .claude/skills/agent-commit/scripts/commit.sh .claude/skills/agent-commit/agent-skills.conf .agents/skills/agent-commit/SKILL.md .codex/config.toml tools/check.sh deny.toml clippy.toml rustfmt.toml Cargo.toml; do
+  for path in AGENTS.md mise.toml mise.lock apm.yml apm.lock.yaml vendir.yml vendir.lock.yml .pre-commit-config.yaml .github/workflows/ci.yml .github/rulesets/main.json .config/mise/conf.d/x.toml .config/nextest.toml .devtools/x .cspell.jsonc .rumdl.toml .yamllint.yaml .vale.ini .vale/x.yml .claude/skills/agent-commit/scripts/commit.sh .claude/skills/agent-commit/agent-skills.conf .agents/skills/agent-commit/SKILL.md .codex/config.toml deny.toml clippy.toml rustfmt.toml Cargo.toml Cargo.lock crates/avirt-core/Cargo.toml; do
     printf '%s\n' "$path" >"$tmp/one-path"
     run bash -c ". '$scripts/lib.sh'; as_owner_path '$tmp/one-path'"
     [ "$status" -eq 0 ] || { echo "not an owner path: $path"; false; }
   done
-  for path in docs/architecture.md crates/avirt-core/src/lib.rs crates/avirt-core/Cargo.toml README.md; do
+  for path in docs/architecture.md crates/avirt-core/src/lib.rs README.md; do
     printf '%s\n' "$path" >"$tmp/one-path"
     run bash -c ". '$scripts/lib.sh'; as_owner_path '$tmp/one-path'"
     [ "$status" -eq 1 ] || { echo "an owner path by mistake: $path"; false; }
