@@ -57,6 +57,7 @@ Every crate lives directly under `crates/`, and each directory uses its package 
 ## Commands
 
 ```bash
+mise run bootstrap                                               # first step in a fresh clone or worktree: vendir sync, toolchain, Vale styles, git hooks
 mise install                                                      # pins Rust
 mise run check                                                    # fmt --check, clippy -D warnings, tests
 mise run build-images                                             # both workload images (needs Apple container)
