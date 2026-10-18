@@ -385,7 +385,7 @@ avirtmediatord's listener on `/run/avirt/ingress.sock`, on which avirtedgeproxyd
 
 ## Internal name
 
-A DNS name under `host.avirt.internal`, or ending in an active peer's host name, that specifies a workload or a service, which only avirtdnsd answers and which resolves to avirtedgeproxyd on the host that serves it. Status: planned. See [internal names](./dns.md#internal-names).
+A DNS name under `host.avirt.internal`, or ending in an active peer's host name, that specifies a workload or a service, which only avirtdnsd answers. avirtdnsd maps it to avirtedgeproxyd on the host that serves it, and the workload receives a synthetic address. Status: planned. See [internal names](./dns.md#internal-names).
 
 ## Invariant
 
@@ -541,7 +541,7 @@ The Rust QUIC library used with avirt's bounded Initial parser for passthrough i
 
 ## Routing socket
 
-The host interface used by the watcher that maintains the address set for the edge's `private-dest` check. Status: planned. See [networking](./networking.md#address-checks).
+A kernel socket that reports address and interface changes, which avirtedgeproxyd's watcher reads to keep the host address set for `private-dest`. Status: planned. See [networking](./networking.md#address-checks).
 
 ## RST
 
@@ -561,7 +561,7 @@ The Rust SSH library used for mediator interception, including the per-workload 
 
 ## Sandbox container
 
-The container, its own VM on the Containerization runtime, in which avirtinitd and the agent or another main workload process run, with no network device on its VM. The guest TUN and nftables REDIRECT send each flow through avirtnetd and the workload's HTTP/2 connection to its mediator. See [sandbox container](./components.md#sandbox-container) and [connection to the mediator](./workload-topology.md#http2-streams).
+The container in which avirtinitd and the agent or another main workload process run. Today it runs with `--network none` and leaves only through `proxy.sock`. Status: planned. On the Containerization runtime it has its own VM with no network device, and its TUN and nftables REDIRECT send each flow through avirtnetd and the workload's HTTP/2 connection to its mediator. See [sandbox container](./components.md#sandbox-container) and [connection to the mediator](./workload-topology.md#http2-streams).
 
 ## Sandbox image
 
