@@ -4,8 +4,8 @@
 #[cfg(test)]
 mod tests;
 
-use super::{Exit, MediatorSpec, Runtime, Stopped, Swept, WorkloadExit, WorkloadHandle, WorkloadSpec};
-use crate::egress::{Proxy, ProxySpec};
+use super::{Exit, MediatorSpec, Runtime, Stopped, Swept, WorkloadExit, WorkloadHandle, WorkloadSpec, spawn_mediator};
+use crate::egress::Proxy;
 use crate::state;
 use anyhow::{Result, bail};
 use async_trait::async_trait;
@@ -74,16 +74,7 @@ impl WorkloadHandle for Handle {
         }
         // The mediator starts before the container because `container run -v` mounts only a
         // socket file that already exists.
-        let proxy = Proxy::spawn(&ProxySpec {
-            bin: &spec.bin,
-            dir: &self.spec.dir,
-            hostd_sock: &spec.hostd_sock,
-            id: &self.spec.id,
-            log_path: &spec.log,
-            secret: &spec.secret,
-        })
-        .await?;
-        self.proxy = Some(proxy);
+        self.proxy = Some(spawn_mediator(&self.spec.dir, &self.spec.id, &spec).await?);
         Ok(())
     }
 

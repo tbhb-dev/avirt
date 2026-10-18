@@ -5,7 +5,7 @@
 pub mod container_cli;
 pub mod containerization;
 
-use crate::egress::WorkloadDir;
+use crate::egress::{Proxy, ProxySpec, WorkloadDir};
 use crate::hostd::profile::Share;
 use crate::state;
 use anyhow::Result;
@@ -135,4 +135,21 @@ pub trait WorkloadHandle: Send {
     /// Resolves when the workload container exits, the mediator exits, or the runtime loses the
     /// workload. Cancel-safe.
     async fn wait(&mut self) -> Exit;
+}
+
+/// Starts a workload's mediator, the same way for every runtime.
+///
+/// # Errors
+///
+/// Returns an error if the mediator can't start or never accepts connections.
+pub(crate) async fn spawn_mediator(dir: &WorkloadDir, id: &str, spec: &MediatorSpec) -> Result<Proxy> {
+    Proxy::spawn(&ProxySpec {
+        bin: &spec.bin,
+        dir,
+        hostd_sock: &spec.hostd_sock,
+        id,
+        log_path: &spec.log,
+        secret: &spec.secret,
+    })
+    .await
 }

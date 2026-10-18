@@ -592,8 +592,9 @@ fn lock<T>(mutex: &Mutex<T>) -> MutexGuard<'_, T> {
 ///
 /// Returns an error if setting up the logs directory or state root fails, or if a listener or
 /// signal handler can't start.
-pub async fn serve<S>(profiles: ProfileMap<S>, runtime: Arc<dyn Runtime>, requested: Config) -> Result<()>
+pub async fn serve<S, R>(profiles: ProfileMap<S>, make_runtime: R, requested: Config) -> Result<()>
 where
+    R: FnOnce(&state::Root) -> Result<Arc<dyn Runtime>>,
     S: BuildHasher,
 {
     let logs_dir = path::absolute(&requested.logs_dir)?;
@@ -603,6 +604,7 @@ where
     // One avirthostd per user. Holding the state root's lock lets this one sweep whatever a previous
     // avirthostd left behind without racing a live one.
     let state = state::Root::open()?;
+    let runtime = make_runtime(&state)?;
     let ended = runtime.sweep(&state).await;
     let swept = state.sweep(&ended.kept);
     if !ended.removed.is_empty() || swept.dirs > 0 {

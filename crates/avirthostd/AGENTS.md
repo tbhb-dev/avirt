@@ -14,7 +14,7 @@ The `avirthostd` binary. Most of the server is in `avirt-core` (`hostd`, `runtim
 
 | Module | Holds |
 | --- | --- |
-| `main.rs` | Flag parsing (`--port`, `--logs-dir`, `--mediator-bin`) and the call into `avirt_core::hostd::serve` with the `ContainerCli` runtime |
+| `main.rs` | Flag parsing (`--port`, `--logs-dir`, `--mediator-bin`, `--runtime`, `--vmd-bin`, `--image-archives`) and the call into `avirt_core::hostd::serve` with the chosen runtime |
 | `profiles.rs` | The per-agent launch profiles: image names (`CLAUDE_IMAGE`, `CODEX_IMAGE`), the variables passed to the workload, and the per-launch hook with its cleanup |
 | `codex_auth.rs` | The Codex `CODEX_HOME` seed and the `auth.json` write-back |
 

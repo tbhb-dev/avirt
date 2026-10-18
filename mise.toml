@@ -198,7 +198,7 @@ depends = ["build-image claude", "build-image codex"]
 
 [tasks.serve]
 description = "Run avirthostd (picks CLAUDE_CODE_OAUTH_TOKEN up from mise.local.toml)"
-depends = ["build-hostd"]
+depends = ["build-hostd", "build-vmd"]
 run = "./target/debug/avirthostd"
 
 [tasks.build-vmd]

@@ -5,6 +5,7 @@
 //! lock            held (flock) for avirthostd's lifetime; a second avirthostd refuses to start
 //! hostd/         the socket mediators dial
 //! workloads/<id>/  per-workload sockets
+//! containers/<id>/  per-workload VM state, which the Containerization runtime's helper creates
 //! scratch/        per-launch temp files, such as a Codex home holding an `auth.json` copy
 //! ```
 //!
@@ -85,6 +86,9 @@ impl Root {
     pub(crate) fn open_in(base: &Path) -> Result<Self> {
         let path = base.join(format!("avirt-{}", process::getuid().as_raw()));
         private_dir(&path)?;
+        for name in ["containers", "hostd", "scratch", "workloads"] {
+            private_dir(&path.join(name))?;
+        }
         let lock = OpenOptions::new()
             .create(true)
             .truncate(false)

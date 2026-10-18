@@ -8,5 +8,7 @@ pub mod intent;
 pub mod lifecycle;
 pub mod proto;
 pub mod reconcile;
+pub mod request;
 #[cfg(test)]
 mod testing;
+pub mod workload;
