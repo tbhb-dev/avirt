@@ -3,6 +3,7 @@ name: avirt
 version: 0.1.0
 description: Shared agent tools for avirt
 target: [claude, codex]
+includes: auto
 dependencies:
   apm:
     - tbhb-dev/devtools/packages/agents/claude#v0.12.0

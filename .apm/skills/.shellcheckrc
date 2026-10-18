@@ -1,0 +1,8 @@
+# The root .shellcheckrc turns on SC2312, and lint-shell passes the same
+# option on its command line. The ported agent-commit, agent-pr and
+# agent-merge-pr scripts trip it 154 times. Each masked status is
+# deliberate: as_conf prints a default and always exits 0, and the
+# signing and merge paths test their statuses by hand. The bats
+# suites pin that behavior, and rewriting every site would change it without
+# a test per change, so the rule stays off for this directory only.
+disable=SC2312
