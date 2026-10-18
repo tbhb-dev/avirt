@@ -61,7 +61,7 @@ flowchart LR
 
 ## Status: planned
 
-The mediator runs in its own container with no network interface other than loopback. Runtime-provided Unix sockets connect the workload to its mediator and the mediator to the host. Each connection uses mutual TLS with SPIFFE identities end to end. The full topology, with each traffic class hop by hop, is in [networking](./networking.md#topology).
+The mediator runs in its own container with no network interface other than loopback. Runtime-provided Unix sockets connect the workload to its mediator and the mediator to the host. Each connection uses mutual TLS with SPIFFE identities end to end. The full topology, with each traffic class hop by hop, is in [networking](./networking.md#connection-types).
 
 - **Sandbox container.** avirtnetd provides its HTTP/2 connection to its mediator. avirtnetd holds the workload SVID, receives redirected TCP and reads UDP and ICMP from its TUN. It provides DNS and an optional loopback forward proxy. The sandbox VM has no network device.
 - **Mediator.** avirtmediatord is one process with one UID, Landlock ruleset, and SVID. It serves workload and ingress listeners, with TLS interception and credential injection in-process. The same process maintains the connection to avirthostd and calls `GET /workload`, `GET /workload/control`, and `POST /workload/svid`.
@@ -128,7 +128,7 @@ Status: planned. These hold for each runtime and each phase once the planned des
 
 - [Components](./components.md) - the component inventory, where each component runs, what it owns, its startup and failure semantics, its status, and how the current binaries map onto it
 - [Trust boundaries and reachability](./trust-boundaries.md) - each listener's caller identity and allowed operations, and what each kind of compromise can reach
-- [Networking](./networking.md) - the whole network design: topology, addressing, each traffic class and its hops, runtime transports, listeners, and restrictions on host connections
+- [Networking](./networking.md) - the whole network design: topology, addressing, each traffic class and its hops, runtime transports, listeners, restrictions on host connections, failure behavior, and observability
 - [Workload topology and connections](./workload-topology.md) - the runtime-provided sockets, SNI routing, the HTTP/2 streams, launch handshake, freeze, reconnect, and ingress
 - [DNS](./dns.md) - the avirt DNS zone, the name forms, and how workloads resolve names
 - [Identity and mTLS](./identity.md) - authentication on each hop, the SPIFFE trust domain and IDs, SVID issuance, rotation, and federation

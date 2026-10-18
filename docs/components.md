@@ -314,7 +314,7 @@ flowchart TD
 
 ## Host request paths
 
-avirtedgeproxyd fronts avirthostd, avirtapid, avirtmcpgwd, avirtmodelgwd and avirtwebd for clients and peers, and relays each workload-to-workload, service, host-local service and external connection. avirt, avirtwebd and avirtguest reach avirtapid through avirtedgeproxyd, and avirtadmin reaches avirthostd directly over its `admin.sock`. avirtmediatord reaches avirt's own host services directly through avirthostd's SNI routing. Each connection off the host leaves from an avirtedgeproxyd. Each path, hop by hop, is in [networking](./networking.md#topology).
+avirtedgeproxyd fronts avirthostd, avirtapid, avirtmcpgwd, avirtmodelgwd and avirtwebd for clients and peers, and relays each workload-to-workload, service, host-local service and external connection. avirt, avirtwebd and avirtguest reach avirtapid through avirtedgeproxyd, and avirtadmin reaches avirthostd directly over its `admin.sock`. avirtmediatord reaches avirt's own host services directly through avirthostd's SNI routing. Each connection off the host leaves from an avirtedgeproxyd. Each path, hop by hop, is in [networking](./networking.md#connection-types).
 
 ## Web UI
 
@@ -355,4 +355,4 @@ Status: planned. These items have no phase yet (see [roadmap](./roadmap.md#unsch
 12. **Web UI listener.** The host loopback port for avirtedgeproxyd's web UI listener remains unspecified.
 13. **Frontend repository layout.** Where the web UI's frontend app belongs in the repository is open.
 14. **Local user principal.** The design has yet to specify the Cedar principal for a local caller on avirtedgeproxyd's `edgeproxy.sock` or how `x-avirt-caller` conveys it.
-15. **Content filter prototype.** On macOS a Network Extension content filter drops each non-loopback flow from avirt-signed host processes. The filter covers TCP and UDP only. Each avirt daemon on the host other than avirtedgeproxyd also runs under a macOS Seatbelt profile that denies non-loopback inet sockets, including ICMP. Both restrictions require runtime verification (see [networking](./networking.md#limits-events-and-verification)).
+15. **Content filter prototype.** On macOS a Network Extension content filter drops each non-loopback flow from avirt-signed host processes. The filter covers TCP and UDP only. Each avirt daemon on the host other than avirtedgeproxyd also runs under a macOS Seatbelt profile that denies non-loopback inet sockets, including ICMP. Both restrictions require runtime verification (see [networking](./networking.md#restrictions-on-host-connections)).

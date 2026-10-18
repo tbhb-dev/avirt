@@ -9,7 +9,7 @@ okf_version: "0.2"
 # Architecture Overview
 
 * [Components](components.md) - The avirt components on the host and in the mediator container, sandbox container, and all-in-one server image. Describes where components run and their state and connections, along with startup, failure, status, and the mapping from current binaries.
-* [Networking](networking.md) - avirt's whole network model, including topology, names and IDs, connection types and their hops, enforcement points and identities, runtime transports, supported protocols, and listeners. Host enforcement of the restriction that only avirtedgeproxyd connects off the host, failure behavior, and observability, with links to each detailed specification.
+* [Networking](networking.md) - avirt's whole network model, including topology, names and IDs, connection types and their hops, enforcement points and identities, runtime transports, TCP, UDP, ICMP and DNS protocols, and listeners. Host enforcement of the restriction that only avirtedgeproxyd connects off the host, failure behavior, and observability, with links to each detailed specification.
 * [avirt architecture](architecture.md) - What avirt is and its components. The implemented and planned workload topology, with a specification for each part.
 
 # Build Reference
