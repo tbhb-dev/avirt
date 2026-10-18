@@ -31,7 +31,7 @@ tokens:
   - (?i)off-host enforcement
   - (?i)policy invariants?
   - (?i)non-policy checks?
-  - (?i)required-allow invariants?
+  - (?i)required-\w+ invariants?
   - (?i)guardrails?
   - (?i)permissions boundar(?:y|ies)
   - (?i)mediator-bound credentials?
