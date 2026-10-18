@@ -11,7 +11,7 @@ generated: { by: codex/gpt-6, at: 2026-10-18T05:10:25Z }
 
 ## Workspace layout
 
-The root workspace includes `avirt-connect` for CONNECT authority parsing and destination checks. `mise run check` checks the root workspace. Build instructions for the optional host mediator engine are in [egress](./egress.md#experimental-host-envoy-mode).
+The root workspace includes `avirt-connect` for CONNECT authority parsing and destination checks. `mise run check` checks the root workspace. The implemented mediator uses the [Pingora CONNECT app](./egress.md#pingora-connect-app).
 
 # Status: planned
 

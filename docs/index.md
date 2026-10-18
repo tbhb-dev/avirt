@@ -54,7 +54,7 @@ okf_version: "0.2"
 
 # Roadmap
 
-* [Roadmap](roadmap.md) - Planned phases from the implemented system to the planned design, with changes, removals, and verification checklists. Regression checks, the Envoy transition and parity gates, edge VM, workload process and image splits, and the configuration layer. Unscheduled runtimes, components and operations, and open questions to resolve first.
+* [Roadmap](roadmap.md) - Planned phases from the implemented system to the planned design, with changes, removals, and verification checklists. Regression checks, the Rust data plane and parity gates, workload process and image splits, and the configuration layer. Unscheduled runtimes, components and operations, and open questions to resolve first.
 
 # Security Design
 

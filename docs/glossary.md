@@ -133,7 +133,7 @@ The MCP gateway: the credential injector for MCP upstream credentials, which sco
 
 ## avirtmediatord
 
-The mediator daemon. Its implemented host process runs Pingora by default and an optional supervised Envoy. The planned mediator container runs one avirtmediatord process under one UID, with one SVID. Workload lifecycle and rotation share that process with traffic inspection and credential injection. See [mediator process](./egress.md#mediator-process) and [mediator container](./components.md#mediator-container).
+The mediator daemon. Its implemented host process runs the Pingora CONNECT app. The planned mediator container runs one avirtmediatord process under one UID, with one SVID. Workload lifecycle and rotation share that process with traffic inspection and credential injection. See [mediator process](./egress.md#mediator-process) and [mediator container](./components.md#mediator-container).
 
 ## avirtmodelgwd
 

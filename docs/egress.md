@@ -2,7 +2,7 @@
 type: Component Design
 title: Egress and TLS termination
 description: How the agent's network traffic leaves the workload container, the mediator's CONNECT proxy and private-address block, how avirtmediatord handles egress in the planned design, avirtedgeproxyd as policy enforcement point, workload DNS, websockets, TLS termination with the workload's MITM CA and its delivery into the workload container, where policy is evaluated on the data path, the event format and the mediator's lack of a network.
-tags: [avirt, egress, proxy, pingora, envoy, tls]
+tags: [avirt, egress, proxy, pingora, tls]
 implementation: partial
 generated: { by: codex/gpt-6, at: 2026-10-18T05:21:55Z }
 ---
@@ -20,20 +20,6 @@ avirtmediatord --dir DIR --hostd-sock PATH --workload ID
 ```
 
 It runs one Pingora 0.9.0 `Server` with two Unix-socket services at 0600: the CONNECT app on `proxy.sock`, and on `mediator.sock` a TCP proxy that forwards the bytes of avirtinitd's HTTP/2 connection unchanged to avirthostd. Stdin EOF or SIGINT means fast shutdown and SIGTERM graceful shutdown with no grace-period delay and at most one second for service runtimes to drain. Either way it first flushes every open connection as an event with `error: "shutdown"`. Stdin EOF ties its lifetime to avirthostd's. Stopping avirthostd with SIGKILL also stops every mediator.
-
-## Experimental host Envoy mode
-
-Pingora is the default engine. `avirtmediatord --proxy-engine envoy --envoy-bin /absolute/path/to/envoy --envoy-module /absolute/path/to/libavirtenvoy.so` selects the experimental Envoy v1.40.0 engine. The matching environment variables are `AVIRT_PROXY_ENGINE=envoy`, `AVIRT_ENVOY_BIN` and `AVIRT_ENVOY_MODULE`. avirthostd forwards only these extra configuration variables to its mediator child. The remaining mediator arguments and the secret source are unchanged.
-
-The mediator writes a static `envoy.json` at 0600 in the workload's directory and starts Envoy through a guardian child. Envoy listens on `envoy.sock` at 0600. The existing `proxy.sock` accept loop relays bytes to that listener. Envoy accepts HTTP/1.1 CONNECT only, the avirtenvoy HTTP filter checks destinations, and a <!-- Envoy extension name. --><!-- vale ai-tells.OverusedVocabulary = NO -->dynamic forward proxy<!-- vale ai-tells.OverusedVocabulary = YES --> cluster opens raw TCP tunnels. The module and filter are mandatory local bootstrap resources. A load failure prevents listener readiness. The `mediator.sock` TCP proxy, the `WORKLOAD` and `EGRESS` connection headers, secrets and workload relay are unchanged.
-
-The guardian never receives the mediator secret. It watches a pipe that avirtmediatord keeps open. EOF kills and reaps Envoy, including after a signal kills avirtmediatord. Envoy and its guardian run in their own process group, separate from avirtmediatord. Envoy exit shuts down avirtmediatord with exit status 1. On shutdown, avirtmediatord closes the guardian pipe, kills the entire Envoy process group and drains the module event reader before the relay connections close and before closing EGRESS. The stdin watch runs on a dedicated thread, so shutdown doesn't wait for avirthostd to close stdin. avirtmediatord reports open streams with `error: "shutdown"` using their latest module snapshot.
-
-The module checks all resolved addresses with the shared Pingora destination policy and reads current host interfaces on every resolution. It replaces the upstream authority with the first checked numeric address, so the forward proxy can't resolve the original name again. The module never falls back to later addresses. Each stream starts with `deny`/`undecided`. It becomes `allow`/`allow-all` only after destination checks and the authority rewrite succeed. DNS failures keep `allow`/`allow-all` with error `"dns"`. A stream that completes before a decision has error `"aborted"`. An open undecided stream flushed at shutdown remains `deny`/`undecided` with error `"shutdown"`. Body callbacks accumulate byte counts and emit progress snapshots at most once per second per stream. Completion always emits final totals. Module snapshots keep the original host. avirtmediatord converts them to the existing `conn` event format and stamps the workload.
-
-Runtime parity is unverified. Envoy may reject a malformed HTTP head before the module runs, in which case there is no module connection event. Envoy's upstream failure statuses and plain-method classification differ from Pingora's status table below. Exact event counts, byte counts, early tunnel data, long streams, and shutdown behavior require live validation. This mode remains opt-in. The phase 4 parity gates are pending.
-
-To prepare an end-to-end run, build the mediator and host daemon with `cargo build --locked -p avirtmediatord -p avirthostd`, build the module with `cargo build --locked --manifest-path crates/avirtenvoy/Cargo.toml --target-dir target/envoy-module`, and supply an Envoy v1.40.0 binary with the HTTP filter module and <!-- Envoy extension name. --><!-- vale ai-tells.OverusedVocabulary = NO -->dynamic forward proxy<!-- vale ai-tells.OverusedVocabulary = YES --> extensions. Constraint: avirt neither distributes nor runs a darwin Envoy, so this mode runs only where avirtmediatord runs on a Linux host. The bootstrap validation test runs only when the environment sets both `AVIRT_ENVOY_BIN` and `AVIRT_ENVOY_MODULE`. Otherwise it prints `skipped: set AVIRT_ENVOY_BIN and AVIRT_ENVOY_MODULE` and returns, without searching PATH. Set both variables, then run `cargo test -p avirtmediatord envoy_validates_bootstrap_when_available -- --nocapture` to check that the supplied binary loads the generated bootstrap and module. Start avirthostd with those variables and `AVIRT_PROXY_ENGINE=envoy`, then use the normal launch command. Run the regression suite and both agents' positive checks before claiming parity.
 
 ## Pingora CONNECT app
 

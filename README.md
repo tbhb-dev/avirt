@@ -16,9 +16,9 @@ Agents working in this repository should read [AGENTS.md](AGENTS.md). See [docs/
 
 - `crates/avirthostd/` contains the `avirthostd` binary (running it starts the server) and the per-agent launch profiles. It also handles Codex's credentials.
 - `crates/avirt/` contains the `avirt` operator CLI (`avirt launch`).
-- `crates/avirtmediatord/` contains the `avirtmediatord` binary, the per-workload egress proxy. Pingora is the default, with an opt-in Envoy engine.
+- `crates/avirtmediatord/` contains the `avirtmediatord` binary, the per-workload egress proxy. It uses the Pingora CONNECT app.
 - `crates/avirtinitd/` contains the `avirtinitd` binary, which runs in the workload (`AVIRT_AGENT=claude|codex`).
-- `crates/avirt-connect/` contains the `avirt-connect` library, the CONNECT authority parsing and destination checks that both of avirtmediatord's engines share.
+- `crates/avirt-connect/` contains the `avirt-connect` library, CONNECT authority parsing and destination checks for the Pingora CONNECT app.
 - `crates/avirt-core/` contains the shared library. It contains the control API types (`api`) and log envelope, along with the h2c client and the client for the workload's HTTP/2 connection to its mediator. It includes the `avirthostd` server and workload registry, plus the `avirtinitd` harness and runtime directory.
 - `crates/avirtadmin/` contains the `avirtadmin` binary, the local admin CLI (not implemented).
 - `crates/avirtwebd/` contains the `avirtwebd` binary, the backend for the avirt web UI (not implemented).
@@ -33,7 +33,6 @@ Agents working in this repository should read [AGENTS.md](AGENTS.md). See [docs/
 - `crates/avirtlogd/` contains the `avirtlogd` binary. The log collector gathers workload stdout and stderr, transforms it and sends it to avirtoteld as OpenTelemetry Logs (not implemented).
 - `crates/avirtauditd/` contains the `avirtauditd` binary. The audit logger delivers audit events as OCSF (not implemented).
 - `crates/avirtoteld/` contains the `avirtoteld` binary, the OpenTelemetry Collector for the host (not implemented).
-- `crates/avirtenvoy/` contains the `avirtenvoy` library. This Envoy module builds outside the root workspace and checks CONNECT destinations and reports connection events. Cedar policy and credential injection remain planned.
 - `crates/avirtacp/` contains the `avirtacp` binary, the workload process that runs an agent through the Agent Client Protocol (not implemented).
 - `crates/avirtagent/` contains the `avirtagent` binary, the workload process that runs an agent through its native harness (not implemented).
 - `crates/avirtexec/` contains the `avirtexec` binary, the workload process for generic execution (not implemented).

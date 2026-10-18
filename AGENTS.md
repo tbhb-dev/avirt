@@ -24,7 +24,7 @@ Every crate lives directly under `crates/`, and each directory uses its package 
 | `avirt` | Binary `avirt` | Host | The operator CLI: `avirt launch` |
 | `avirtmediatord` | Binary | Host (one per workload) | The implemented host mediator. Planned: one process for workload traffic and lifecycle. Holds its SVID and handles rotation. |
 | `avirtinitd` | Binary | Linux guest only (the workload) | The ACP client spawns the adapter and taps JSON-RPC. It drops to uid 1000 under seccomp |
-| `avirt-connect` | Library | Both | CONNECT authority parsing and destination checks, shared by both CONNECT engines |
+| `avirt-connect` | Library | Both | CONNECT authority parsing and destination checks for the Pingora CONNECT app |
 | `avirt-core` | Library | Both | Shared code for the `api` module and the `avirthostd` server. Includes the `avirtinitd` harness and the client for the workload's HTTP/2 connection to its mediator. Also includes the log envelope and runtime directory |
 | `avirtadmin` | Binary | Host | The local admin CLI (not implemented) |
 | `avirtwebd` | Binary | Host | The backend for the avirt web UI (not implemented) |
@@ -48,7 +48,7 @@ Every crate lives directly under `crates/`, and each directory uses its package 
 | `avirtmcp` | Binary | Workload guest | The MCP stdio proxy to avirtmcpgwd, launched on demand by the agent (not implemented) |
 | `avirtguest` | Binary | Workload guest | The guest CLI that's in the image and connects to avirtapid through the mediator (not implemented) |
 
-`avirt-connect` is part of the root workspace. `avirtenvoy` is an excluded standalone workspace with its own lockfile. Use `cargo build --locked --manifest-path crates/avirtenvoy/Cargo.toml --target-dir target/envoy-module` to build it. The root builds don't include the Envoy SDK or libclang build dependencies.
+`avirt-connect` is part of the root workspace.
 
 `workloads/claude/` and `workloads/codex/` contain only the workload image build directories.
 
@@ -63,11 +63,11 @@ mise run serve                                                    # avirthostd
 mise run launch claude "Reply with the word pong" -- --follow     # avirt launch, in a second terminal
 ```
 
-`mise run check` is the gate for every change. Changes to the excluded `avirtenvoy` module also require `mise run check-envoy`, which needs the cached SDK git source and libclang. The images rebuild `avirtinitd` from the workspace, so an `avirtinitd` or `avirt-core` change needs `mise run build-images` before an end-to-end run sees it.
+`mise run check` is the gate for every change. The images rebuild `avirtinitd` from the workspace, so an `avirtinitd` or `avirt-core` change needs `mise run build-images` before an end-to-end run sees it.
 
 ## Conventions
 
-- **Terms.** Use the project's terms consistently. The project name is always lowercase **avirt**. **avirthostd** is the host daemon. The **control plane** is avirthostd plus the host services that configure and decide, and the **data plane** is **avirtedgeproxyd** (the edge proxy) and **avirtmediatord** (the mediator), which handle traffic. A **workload** is the whole unit avirthostd launches. It consists of the **workload container**, which runs the agent, plus its **mediator**. The mediator is the per-workload container that contains avirtinitd and avirtmediatord. All the workload's traffic passes through it. Today the mediator is the avirtmediatord host process. **avirtinitd** is the root process in each container. **avirtapid** is the API server. An ACP session stays an ACP session. See [docs/glossary.md](docs/glossary.md) for every other term.
+- **Terms.** Use the project's terms consistently. The project name is always lowercase **avirt**. **avirthostd** is the host daemon. The **control plane** is avirthostd plus the host services that configure and decide, and the **data plane** is **avirtmediatord** (the mediator) and **avirtedgeproxyd** (the edge proxy), which forward traffic. A **workload** is the whole unit avirthostd launches. It consists of the **workload container**, which runs the agent, plus its **mediator**. The mediator is the per-workload container that contains avirtinitd and avirtmediatord. All the workload's traffic passes through it. Today the mediator is the avirtmediatord host process. **avirtinitd** is the root process in each container. **avirtapid** is the API server. An ACP session stays an ACP session. See [docs/glossary.md](docs/glossary.md) for every other term.
 - **Docs format.** Every Markdown file in the repository has OKF v0.2 frontmatter, and `docs/` is an OKF v0.2 bundle:
   - every document has YAML frontmatter with a non-empty `type`, plus `title`, `description`, `tags` and `generated`, and `implementation` where it applies (every document in `docs/`, and crate READMEs).
   - `docs/index.md` lists every document under `docs/`, and Markdown files outside `docs/` don't need an index entry.

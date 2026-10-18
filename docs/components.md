@@ -45,7 +45,7 @@ Partial means the component's function exists in the current code but not yet as
 
 # Status: implemented
 
-Current code consists of four functional binaries, the shared `avirt-core` and `avirt-connect` libraries, and the optional `avirtenvoy` HTTP filter module, which provide the working functions in this table.
+Current code consists of four functional binaries and the shared `avirt-core` and `avirt-connect` libraries, which provide the working functions in this table.
 
 | Binary | Container | Responsibilities |
 | --- | --- | --- |
@@ -54,7 +54,7 @@ Current code consists of four functional binaries, the shared `avirt-core` and `
 | `avirtmediatord` | host, one process per workload | The mediator as a host process: one Pingora server with the CONNECT proxy on `proxy.sock`, and on `mediator.sock` a TCP proxy that forwards avirtinitd's HTTP/2 connection to avirthostd with the bytes unchanged. |
 | `avirtinitd` | workload, as root | The workload container's root process and image entrypoint. Together with the harness in `avirt-core`, it contains the ACP client that avirtacp provides in the planned design (it spawns the adapter as uid 1000 under seccomp and taps each JSON-RPC line, see [ACP](./acp.md)), and the TCP proxy to `proxy.sock` that avirtnetd's forward proxy replaces in the planned design. |
 
-`avirtinitd` isn't PID 1 in the current code. With `--init` on the workload container, the runtime's init is PID 1 and avirtinitd is its direct child (see [workload hardening](./workload-hardening.md)). avirt doesn't have a mediator container. Instead, the mediator runs as the host process in the table, and current code doesn't apply Landlock. When avirtmediatord supervises its optional Envoy, that Envoy loads libavirtenvoy for CONNECT destination checks. avirtedgeproxyd and the other planned host services don't exist.
+`avirtinitd` isn't PID 1 in the current code. With `--init` on the workload container, the runtime's init is PID 1 and avirtinitd is its direct child (see [workload hardening](./workload-hardening.md)). avirt doesn't have a mediator container. Instead, the mediator runs as the host process in the table, and current code doesn't apply Landlock. avirtedgeproxyd and the other planned host services don't exist.
 
 # Status: planned
 
@@ -172,7 +172,7 @@ avirtedgeproxyd runs as a host process on macOS and as a host service in the all
 
 ## Host mediator
 
-Status: implemented. avirtmediatord runs on the host with Pingora as its default CONNECT engine. Its experimental Envoy mode starts a supervised Envoy child with a static bootstrap and avirtenvoy's destination filter. Both modes keep the existing sockets and event envelope. Their `proxy.sock` and `mediator.sock` behavior follows [egress](./egress.md#experimental-host-envoy-mode). `avirt-connect` provides the authority and destination checks shared by Pingora and the excluded `avirtenvoy` module. Plans include Cedar, TLS, and credential functions.
+Status: implemented. avirtmediatord runs on the host with the [Pingora CONNECT app](./egress.md#pingora-connect-app). Its `proxy.sock` and `mediator.sock` behavior follows [mediator process](./egress.md#mediator-process). `avirt-connect` provides CONNECT authority parsing and destination checks. Plans include Cedar, TLS, and credential functions.
 
 ## Mediator container
 

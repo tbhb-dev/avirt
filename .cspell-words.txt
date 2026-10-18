@@ -31,7 +31,6 @@ avirtauditd
 avirtbuilderd
 avirtdnsd
 avirtedgeproxyd
-avirtenvoy
 avirtexec
 avirtguest
 avirtguestd
@@ -42,7 +41,6 @@ avirtlogd
 avirtmcp
 avirtmcpgwd
 avirtmediatord
-avirtmedproxyd
 avirtmodelgwd
 avirtnetd
 avirtoteld
@@ -127,8 +125,6 @@ ENOSPC
 ENOSYS
 enum
 env
-Envoy
-envoyproxy
 ENXIO
 EOF
 EOPNOTSUPP
@@ -141,7 +137,6 @@ execveat
 exfiltration
 extraheader
 fd
-fdenvoy
 FFI
 FIFO
 FIFOs
@@ -201,7 +196,6 @@ KVM
 LAN
 Landlock
 launchd
-libavirtenvoy
 libc
 libclang
 libuv
