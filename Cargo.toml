@@ -1,7 +1,6 @@
 [workspace]
 resolver = "3"
-members = ["crates/avirt", "crates/avirt-connect", "crates/avirt-core", "crates/avirtacp", "crates/avirtadmin", "crates/avirtagent", "crates/avirtapid", "crates/avirtauditd", "crates/avirtbuilderd", "crates/avirtdnsd", "crates/avirtedgeproxyd", "crates/avirtexec", "crates/avirtguest", "crates/avirtguestd", "crates/avirthostd", "crates/avirtinitd", "crates/avirtlogd", "crates/avirtmcp", "crates/avirtmcpgwd", "crates/avirtmediatord", "crates/avirtmedproxyd", "crates/avirtmodelgwd", "crates/avirtnetd", "crates/avirtoteld", "crates/avirtpolicyd", "crates/avirtregistryd", "crates/avirtsecretsd", "crates/avirtwebd"]
-exclude = ["crates/avirtenvoy"]
+members = ["crates/avirt", "crates/avirt-connect", "crates/avirt-core", "crates/avirtacp", "crates/avirtadmin", "crates/avirtagent", "crates/avirtapid", "crates/avirtauditd", "crates/avirtbuilderd", "crates/avirtdnsd", "crates/avirtedgeproxyd", "crates/avirtexec", "crates/avirtguest", "crates/avirtguestd", "crates/avirthostd", "crates/avirtinitd", "crates/avirtlogd", "crates/avirtmcp", "crates/avirtmcpgwd", "crates/avirtmediatord", "crates/avirtmodelgwd", "crates/avirtnetd", "crates/avirtoteld", "crates/avirtpolicyd", "crates/avirtregistryd", "crates/avirtsecretsd", "crates/avirtwebd"]
 
 [workspace.package]
 edition = "2024"

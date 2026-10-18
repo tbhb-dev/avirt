@@ -130,14 +130,6 @@ arg "[flags]" var=#true help="extra flags such as --cwd DIR --follow"
 '''
 run = 'cargo run --quiet -p avirt -- launch --agent "${usage_agent}" "${usage_prompt}" ${usage_flags}'
 
-[tasks.check-envoy]
-description = "fmt, clippy and tests for the excluded avirtenvoy module (needs the SDK git source and libclang)"
-run = [
-  "cargo fmt --check --manifest-path crates/avirtenvoy/Cargo.toml",
-  "cargo clippy --locked --manifest-path crates/avirtenvoy/Cargo.toml --target-dir target/envoy-module --all-targets -- -D warnings",
-  "cargo test --locked --manifest-path crates/avirtenvoy/Cargo.toml --target-dir target/envoy-module",
-]
-
 [tasks.lint-draft]
 extends = "devtools:lint-draft"
 

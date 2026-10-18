@@ -9,4 +9,4 @@ generated: { by: codex/gpt-6, at: 2026-10-18T04:29:26Z }
 
 # avirt-connect
 
-CONNECT authority parsing and destination checks shared by Pingora and the Envoy module. Run `cargo test -p avirt-connect` for the policy unit tests.
+CONNECT authority parsing and destination checks used by avirtmediatord. Run `cargo test -p avirt-connect` for the policy unit tests.
