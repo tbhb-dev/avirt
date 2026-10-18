@@ -369,7 +369,6 @@ scrutinee
 seccomp
 seccompiler
 secretsd
-segs
 serde
 setgid
 setgroups
@@ -494,6 +493,5 @@ xwin
 zerocopy
 zeroizes
 zmij
-zorblax
 zot
 zstd

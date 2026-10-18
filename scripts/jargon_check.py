@@ -184,14 +184,14 @@ def prose_words(text: str, added: set[int] | None = None) -> list[Word | None]:
 
 
 def segments(words: list[Word | None]) -> list[list[Word]]:
-    segs: list[list[Word]] = [[]]
+    groups: list[list[Word]] = [[]]
     for w in words:
         if w is None:
-            if segs[-1]:
-                segs.append([])
+            if groups[-1]:
+                groups.append([])
         else:
-            segs[-1].append(w)
-    return [s for s in segs if s]
+            groups[-1].append(w)
+    return [s for s in groups if s]
 
 
 def code_text(text: str) -> str:

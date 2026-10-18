@@ -39,8 +39,8 @@ def test_link_text_kept_and_unit_residue_dropped():
 
 
 def test_skipped_region_breaks_phrases():
-    segs = [[w.raw for w in s] for s in jc.segments(jc.prose_words("alpha `code` beta"))]
-    assert segs == [["alpha"], ["beta"]]
+    groups = [[w.raw for w in s] for s in jc.segments(jc.prose_words("alpha `code` beta"))]
+    assert groups == [["alpha"], ["beta"]]
 
 
 def test_added_filter_keeps_only_added_lines():
@@ -89,7 +89,7 @@ def terms(tmp_path, monkeypatch, head: dict[str, str], base=BASE, mode="tree"):
         findings, summary = jc.run("main~1", "HEAD", False)
     elif mode == "staged":
         git("add", "-A")
-        write(tmp_path, {"docs/unstaged.md": "# U\n\nA zorblax-wombat appears.\n"})
+        write(tmp_path, {"docs/unstaged.md": "# U\n\nA walrus-ledger appears.\n"})
         findings, summary = jc.run("main", None, True)
     else:
         findings, summary = jc.run("main", None, False)
