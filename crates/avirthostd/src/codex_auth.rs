@@ -273,7 +273,7 @@ fn remove_quietly(path: &Path) {
 }
 
 /// Reads the workload's copy and applies the checks that don't need the host file. The `Err`
-/// side carries the fixed reason the copy isn't written back.
+/// side holds the fixed reason the copy isn't written back.
 ///
 /// # Errors
 ///
