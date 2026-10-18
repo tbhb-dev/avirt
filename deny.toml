@@ -5,17 +5,115 @@ all-features = true
 [advisories]
 version = 2
 yanked = "deny"
-# Checks the workspace's direct dependencies. pingora-core 0.9.0, which avirtmediatord pins, pulls in
-# two unmaintained crates that no workspace crate can replace.
-unmaintained = "workspace"
+unmaintained = "all"
 unsound = "all"
+# Both advisories reach the workspace only through pingora-core 0.9.0, which
+# avirtmediatord pins. They stay until pingora-core drops the crates.
+ignore = [
+  { id = "RUSTSEC-2024-0388", reason = "derivative is unmaintained; pingora-core 0.9.0 depends on it and has no release without it" },
+  { id = "RUSTSEC-2024-0449", reason = "unsafe-libyaml is unmaintained; it comes through serde_yaml in pingora-core 0.9.0" },
+]
+
+[licenses]
+version = 2
+confidence-threshold = 0.93
+allow = [
+  "Apache-2.0",
+  "Apache-2.0 WITH LLVM-exception",
+  "BSD-2-Clause",
+  "BSD-3-Clause",
+  "BSL-1.0",
+  "CC0-1.0",
+  "MIT",
+  "Unicode-3.0",
+  "Unlicense",
+  "Zlib",
+]
+
+[licenses.private]
+# The workspace crates are publish = false and carry no license field.
+ignore = true
 
 [bans]
-# pingora-core 0.9.0 holds older versions of several crates, so a second version warns and does not fail.
-multiple-versions = "warn"
+multiple-versions = "deny"
 wildcards = "deny"
+allow-wildcard-paths = true
 highlight = "all"
+# Each skip names the older version that stays and the crate that holds it there.
+skip = [
+  { crate = "base64@0.22.1", reason = "sfv, through pingora-core, pins 0.22 while avirthostd uses 0.23" },
+  { crate = "hashbrown@0.14.5", reason = "dashmap 5, through pingora-core, pins 0.14" },
+  { crate = "r-efi@5.3.0", reason = "follows getrandom 0.3 on UEFI targets only" },
+  { crate = "rand@0.8.8", reason = "pingora-core and pingora-runtime pin rand 0.8" },
+  { crate = "rand_core@0.6.4", reason = "follows rand 0.8 in pingora-core" },
+  { crate = "getrandom@0.2.17", reason = "rand_core 0.6 and const-random, both in pingora-core, pin 0.2" },
+  { crate = "getrandom@0.3.4", reason = "ahash, through pingora-core, pins 0.3" },
+  { crate = "strum@0.26.3", reason = "pingora-core pins strum 0.26 while agent-client-protocol-schema uses 0.28" },
+  { crate = "strum_macros@0.26.4", reason = "follows strum 0.26 in pingora-core" },
+  { crate = "syn@1.0.109", reason = "derivative, through pingora-core, builds on syn 1" },
+  { crate = "syn@2.0.119", reason = "derive_more, pin-project, tracing and strum macros build on syn 2 while async-trait, clap and the ACP derive use syn 3" },
+  { crate = "windows-sys@0.59.0", reason = "pingora-core pins 0.59 on Windows targets only" },
+]
+deny = []
+
+[bans.build]
+# Build scripts run arbitrary code at compile time, so each crate allowed to
+# have one is listed. The groups say what the script does.
+allow-build-scripts = [
+  # Compile and link C sources.
+  { name = "libz-ng-sys" },
+  { name = "zstd-sys" },
+  # Import libraries for non-host targets (Windows, wasm, Haiku); inert on macOS and Linux.
+  { name = "iana-time-zone-haiku" },
+  { name = "wasm-bindgen" },
+  { name = "wasm-bindgen-shared" },
+  { name = "windows_aarch64_gnullvm" },
+  { name = "windows_aarch64_msvc" },
+  { name = "windows_i686_gnu" },
+  { name = "windows_i686_gnullvm" },
+  { name = "windows_i686_msvc" },
+  { name = "windows_x86_64_gnu" },
+  { name = "windows_x86_64_gnullvm" },
+  { name = "windows_x86_64_msvc" },
+  { name = "wit-bindgen" },
+  # Probe the compiler or target and print cfg flags.
+  { name = "ahash" },
+  { name = "anyhow" },
+  { name = "async-io" },
+  { name = "crc32fast" },
+  { name = "crossbeam-utils" },
+  { name = "crunchy" },
+  { name = "getrandom" },
+  { name = "httparse" },
+  { name = "libc" },
+  { name = "memoffset" },
+  { name = "nix" },
+  { name = "num-traits" },
+  { name = "parking_lot_core" },
+  { name = "proc-macro2" },
+  { name = "quote" },
+  { name = "rust_decimal" },
+  { name = "rustix" },
+  { name = "rustversion" },
+  { name = "serde" },
+  { name = "serde_core" },
+  { name = "serde_json" },
+  { name = "syn" },
+  { name = "tiny-keccak" },
+  { name = "zerocopy" },
+  { name = "zmij" },
+  { name = "zstd-safe" },
+]
+executables = "deny"
+interpreted = "deny"
+
+# zerocopy ships its repository CI scripts in the crate archive; none runs at build time.
+[[bans.build.bypass]]
+crate = "zerocopy"
+allow-globs = ["cargo.sh", "ci/*.sh"]
 
 [sources]
 unknown-registry = "deny"
 unknown-git = "deny"
+allow-registry = ["https://github.com/rust-lang/crates.io-index"]
+allow-git = []

@@ -87,8 +87,8 @@ description = "cargo-shear: fail on an unused or misplaced dependency"
 run = "cargo shear"
 
 [tasks.deny]
-description = "cargo-deny: advisories, bans and sources"
-run = "cargo deny check advisories bans sources"
+description = "cargo-deny: advisories, licenses, bans and sources"
+run = "cargo deny check"
 
 [tasks.fmt]
 description = "Format the code"
