@@ -1,7 +1,7 @@
 //! Unit tests for the teardown paths of a workload handle, against a fake helper behind a stand-in
 //! process.
 
-use super::{Containerization, Handle};
+use super::{Containerization, Handle, failure_line};
 use crate::egress::WorkloadDir;
 use crate::runtime::containerization::intent::{Intent, State};
 use crate::runtime::containerization::lifecycle::{ChildSupervisor, Incarnation};
@@ -263,5 +263,21 @@ async fn the_startup_sweep_removes_stale_temporary_entries() -> Result<()> {
     ensure!(swept.failures.is_empty(), "the sweep reported {:?}", swept.failures);
     ensure!(leftovers.iter().all(|path| !path.exists()), "a temporary entry remains");
     ensure!(finished.is_dir(), "the sweep removed a finished entry");
+    Ok(())
+}
+
+/// The line for a failed teardown step names the workload, the step, and the cause.
+///
+/// # Errors
+///
+/// Fails when the line omits one of the three.
+#[test]
+fn a_failed_teardown_step_names_the_workload_the_step_and_the_cause() -> Result<()> {
+    let cause = anyhow::anyhow!("still running").context("avirtvmd for workload 1a2b3c4d");
+    let line = failure_line(ID, "stop avirtvmd", &cause);
+    ensure!(
+        line == "workload 1a2b3c4d: couldn't stop avirtvmd: avirtvmd for workload 1a2b3c4d: still running",
+        "{line}"
+    );
     Ok(())
 }

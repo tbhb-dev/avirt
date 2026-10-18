@@ -11,6 +11,7 @@ use super::proto::{Event, EventKind, RequestOp, ResponseResult, StartWorkload};
 use super::reconcile::reap;
 use super::request::{Inputs, build};
 use super::temp::sweep_stale;
+use crate::console;
 use crate::egress::Proxy;
 use crate::runtime::{
     Exit, MediatorSpec, Runtime, Stopped, Swept, WorkloadExit, WorkloadHandle, WorkloadSpec, spawn_mediator,
@@ -19,6 +20,7 @@ use crate::state::{self, remove_tree};
 use alloc::sync::Arc;
 use anyhow::{Context as _, Result, anyhow, bail};
 use async_trait::async_trait;
+use core::fmt;
 use core::time::Duration;
 use std::io;
 use std::path::{Path, PathBuf};
@@ -152,10 +154,17 @@ impl Runtime for Containerization {
 impl WorkloadHandle for Handle {
     async fn release(self: Box<Self>, gone: bool) {
         let Self { containers, spec, supervisor, .. } = *self;
-        let confirmed = supervisor.stop(&spec.id, RELEASE_GRACE).await.is_ok();
-        if gone && confirmed {
+        let stopped = supervisor.stop(&spec.id, RELEASE_GRACE).await;
+        report(&spec.id, "stop avirtvmd", stopped.as_ref().err());
+        if gone && stopped.is_ok() {
             let vm_state = containers.join(&spec.id);
-            drop(task::spawn_blocking(move || remove_tree(&vm_state)).await);
+            let removed = task::spawn_blocking(move || remove_tree(&vm_state)).await;
+            let failure = match removed {
+                Ok(Ok(())) => None,
+                Ok(Err(err)) => Some(err.to_string()),
+                Err(err) => Some(err.to_string()),
+            };
+            report(&spec.id, "remove the VM state", failure.as_ref());
             drop(spec.dir);
         } else {
             spec.dir.leave();
@@ -196,7 +205,9 @@ impl WorkloadHandle for Handle {
     }
 
     async fn stop(&mut self, grace: Duration) -> Stopped {
-        let gone = self.supervisor.stop(&self.spec.id, grace).await.is_ok();
+        let stopped = self.supervisor.stop(&self.spec.id, grace).await;
+        report(&self.spec.id, "stop avirtvmd", stopped.as_ref().err());
+        let gone = stopped.is_ok();
         let exit = match &self.client {
             Some(client) => match time::timeout(EXIT_EVENT_WAIT, client.event()).await {
                 Ok(Some(event)) => workload_exit(event),
@@ -243,6 +254,11 @@ fn workload_exit(event: Event) -> io::Result<WorkloadExit> {
     Ok(WorkloadExit { code: status.code, signal: status.signal })
 }
 
+/// The line that reports a teardown step that failed.
+fn failure_line(id: &str, step: &str, why: &impl fmt::Display) -> String {
+    format!("workload {id}: couldn't {step}: {why:#}")
+}
+
 /// Records in the launch intent that the helper started the workload.
 ///
 /// # Errors
@@ -257,4 +273,12 @@ async fn mark_running(dir: &Path) -> Result<()> {
     })
     .await?
     .context("record that the workload runs")
+}
+
+/// Writes the failure of a teardown step to standard error, so an operator can see why a workload
+/// directory or its VM state stayed. Only a failed step writes a line.
+fn report(id: &str, step: &str, failure: Option<&impl fmt::Display>) {
+    if let Some(why) = failure {
+        console::err_line(format_args!("{}", failure_line(id, step, why)));
+    }
 }
