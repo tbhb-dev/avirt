@@ -1,10 +1,10 @@
 ---
 type: API Reference
 title: avirthostd API and log format
-description: How avirthostd is started, its control API and the `POST /workloads/<id>/stream` route, its environment variables, the working-directory mount, and the NDJSON workload log format with its meta events.
+description: Starting avirthostd and using its control API, `POST /workloads/<id>/stream` route, environment variables, and working-directory mount. The NDJSON workload log format and its meta events.
 tags: [avirt, avirthostd, api, logging]
 implementation: partial
-generated: { by: claude-code/claude-opus-5-5, at: 2026-10-17T14:23:31Z }
+generated: { by: codex/gpt-6, at: 2026-10-18T03:05:39Z }
 ---
 
 # Status: implemented
@@ -15,7 +15,7 @@ generated: { by: claude-code/claude-opus-5-5, at: 2026-10-17T14:23:31Z }
 avirthostd [--port PORT] [--logs-dir DIR] [--mediator-bin PATH]
 ```
 
-`avirthostd` has no subcommands: running it starts the server. Workloads are launched with the [`avirt` CLI](./operator-cli.md#status-implemented). The request and response types, the routes and the default port are shared with the CLI through the `api` module of `avirt-core`.
+`avirthostd` has no subcommands: running it starts the server. Launch workloads with the [`avirt` command-line tool](./operator-cli.md#status-implemented). The `api` module of `avirt-core` defines the request and response types, routes, and default port for both the server and the command-line tool.
 
 ## Control API
 
@@ -28,7 +28,7 @@ avirthostd [--port PORT] [--logs-dir DIR] [--mediator-bin PATH]
 
 The control API has no authentication. Any local process can start workloads that use the user's Claude token or ChatGPT login and mount host directories with `cwd`.
 
-The route `POST /workloads/<id>/stream`, the one request on the workload's HTTP/2 connection to its mediator, is served only on a mediator's `WORKLOAD <id> <secret>` connection over avirthostd's socket (see [workload topology](./workload-topology.md)), never on the TCP port. Its responses:
+avirthostd serves `POST /workloads/<id>/stream`, the one request on the workload's HTTP/2 connection to its mediator, only on a mediator's `WORKLOAD <id> <secret>` connection over its socket (see [workload topology](./workload-topology.md)). The TCP port excludes this route. Its responses:
 
 | Status | When |
 | --- | --- |
@@ -61,7 +61,7 @@ Without `cwd`, the agent works in the image's empty `/workspace`. With `cwd`, av
 
 ## Log files
 
-The logs directory is created 0700 and every file in it 0600, since logs hold prompts, tool output and possibly credentials. The planned workload log is in [observability](./observability.md#workload-log-1).
+avirthostd creates the logs directory with mode 0700 and each file in it with mode 0600. Logs contain prompts, tool output, and possibly credentials. The planned workload log is in [observability](./observability.md#workload-log-1).
 
 | File | Contents |
 | --- | --- |
@@ -75,7 +75,7 @@ The logs directory is created 0700 and every file in it 0600, since logs hold pr
 {"ts": "2026-10-17T06:50:14.181Z", "dir": "client->agent", "msg": {"jsonrpc": "2.0", "id": 0, "method": "initialize", "params": {}}}
 ```
 
-`dir` is `client->agent`, `agent->client`, `meta` or `egress`. For the two agent directions, `msg` is the raw JSON-RPC message, or `{"raw": "..."}` if a line did not parse. The tap is byte-transparent: bytes pass to the adapter unchanged, and each complete line is also reported. `egress` lines are described in [egress](./egress.md). The planned envelope fields are in [observability](./observability.md#workload-log-1).
+`dir` is `client->agent`, `agent->client`, `meta` or `egress`. For the two agent directions, `msg` is the raw JSON-RPC message, or `{"raw": "..."}` if a line didn't parse. The tap is byte-transparent: bytes pass to the adapter unchanged, and the tap also reports each complete line. See [egress](./egress.md) for `egress` lines. The planned envelope fields are in [observability](./observability.md#workload-log-1).
 
 ## Meta events
 
@@ -83,18 +83,18 @@ The logs directory is created 0700 and every file in it 0600, since logs hold pr
 | --- | --- | --- |
 | `start` | avirtinitd | The workload started, with `agent`, `workloadId`, `cwd` and `prompt` |
 | `agent_stderr` | avirtinitd | One line of the adapter's stderr |
-| `auto_approve` | avirtinitd | A permission request was approved, with `optionId` and `name` |
+| `auto_approve` | avirtinitd | avirtinitd approved a permission request, with `optionId` and `name` |
 | `auth_methods` | avirtinitd (Codex) | The adapter's advertised authentication method ids |
 | `error` | avirtinitd | A failure, including adapter crashes, with a `message` |
 | `exit` | avirtinitd | The ACP session ended |
-| `line_truncated` | avirtinitd or avirthostd | A line longer than 16 MiB was dropped whole |
+| `line_truncated` | avirtinitd or avirthostd | avirtinitd or avirthostd dropped a whole line longer than 16 MiB |
 | `auth_writeback` | avirthostd (Codex) | The outcome of the `auth.json` write-back |
 | `container_error` | avirthostd | A workload container or mediator failure |
 | `container_exit` | avirthostd | The workload container exited. Always the last line. |
 
-`container_exit` is written only after the stream has drained, or at once if no stream was ever accepted. Errors are held and written before it, including when the workload container could not be started.
+avirthostd writes `container_exit` only after the stream has drained, or at once if it never accepted a stream. It retains errors and writes them before this event, including when starting the workload container failed.
 
-A line longer than 16 MiB is dropped whole, through its newline, on both the avirtinitd side and the avirthostd side, and replaced by a `line_truncated` event. A fragment of an oversized line is never written as a record. One oversized line on the adapter's stdout normally yields two events: the Rust SDK answers an unparseable line by writing it back to the adapter's stdin, and the tap drops that copy too. Constraint: there is no adapter exit-status event. The SDK owns the adapter process and does not report its exit status.
+Both avirtinitd and avirthostd drop a whole line longer than 16 MiB through its newline, then write a `line_truncated` event in its place. They never write a fragment of that line as a record. One such line on the adapter's stdout normally yields two events: the Rust SDK responds to an unparseable line by writing it back to the adapter's stdin, and the tap drops that copy too. The SDK manages the adapter process without reporting its exit status, so the log has no adapter exit-status event.
 
 # Status: planned
 

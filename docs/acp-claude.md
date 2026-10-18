@@ -4,7 +4,7 @@ title: Claude harness
 description: How avirt runs Claude Code through claude-agent-acp, with the pinned adapter and its bundled versions, how avirtinitd launches it over ACP v2, authentication with the OAuth token and its placeholder, the configuration sources Claude Code reads, the managed settings and managed MCP configuration in the configuration layer, quirks and the egress destinations the harness needs.
 tags: [avirt, acp, claude, harness, claude-agent-acp]
 implementation: partial
-generated: { by: claude-code/claude-opus-5-5, at: 2026-10-17T22:30:00Z }
+generated: { by: codex/gpt-6, at: 2026-10-18T02:37:39Z }
 ---
 
 # Status: implemented
@@ -18,7 +18,7 @@ generated: { by: claude-code/claude-opus-5-5, at: 2026-10-17T22:30:00Z }
 | Claude Code | 2.1.300 | Bundled by the agent SDK |
 | Node | 24.21.0 | `NODE_VERSION` in `workloads/claude/Containerfile` |
 
-`workloads/claude/Containerfile` installs the adapter with `npm ci --omit=dev` into `/opt/agent` and puts `/opt/agent/node_modules/.bin` first on `PATH`. The image is `avirt-workload-claude:dev`, or `CLAUDE_IMAGE` in avirthostd's environment, and sets `AVIRT_AGENT=claude`. The adapter and its versions are pinned exactly, because both the ACP v2 support in the Rust SDK and the adapter's v2 flag are experimental.
+`workloads/claude/Containerfile` installs the adapter with `npm ci --omit=dev` into `/opt/agent` and puts `/opt/agent/node_modules/.bin` first on `PATH`. The image is `avirt-workload-claude:dev`, or `CLAUDE_IMAGE` in avirthostd's environment, and sets `AVIRT_AGENT=claude`. The image pins the adapter and its versions exactly, because both the ACP v2 support in the Rust SDK and the adapter's v2 flag are experimental.
 
 ## Launch
 
@@ -32,7 +32,7 @@ avirtinitd starts `claude-agent-acp` as uid 1000 through the common launch path 
 
 ## Authentication
 
-avirthostd refuses a claude launch with a 400 unless `CLAUDE_CODE_OAUTH_TOKEN` is set in its environment. It passes the variable to the workload container with `-e CLAUDE_CODE_OAUTH_TOKEN` and no value, so the real token is in the agent's environment and never on argv. avirtinitd makes no `authenticate` call. The mechanics and their exposure are in [credentials](./egress-credentials.md#claude).
+avirthostd refuses a Claude launch with a 400 unless its environment sets `CLAUDE_CODE_OAUTH_TOKEN`. It passes the variable to the workload container with `-e CLAUDE_CODE_OAUTH_TOKEN` and no value, so the real token is in the agent's environment and never on argv. avirtinitd skips the `authenticate` call. The mechanics and their exposure are in [credentials](./egress-credentials.md#claude).
 
 ## Configuration sources
 
@@ -49,9 +49,9 @@ Claude Code loads project-scoped MCP servers from `.mcp.json` without an approva
 
 ## Quirks
 
-- **Draft protocol.** ACP v2 is a draft. The `session/prompt` response carries only a message id, and the turn's outcome arrives as a `state_update`.
+- **Draft protocol.** ACP v2 is a draft. The `session/prompt` response contains only a message id, and the turn's outcome arrives as a `state_update`.
 - **Immediate refusal.** A turn that ends before any work starts sends `idle` with a stop reason and no preceding `running`.
-- **Diagnostics.** The adapter redirects `console.log` and its other console methods to stderr, so stdout carries only ACP. Its stderr reaches the log as `agent_stderr` events. `CLAUDE_AGENT_LOGS` names a directory for its own log file, and is not set.
+- **Diagnostics.** The adapter redirects `console.log` and its other console methods to stderr, so stdout carries only ACP. The log records its stderr as `agent_stderr` events. `CLAUDE_AGENT_LOGS` names a directory for its own log file, and the environment leaves it unset.
 
 ## Egress destinations
 
@@ -85,7 +85,7 @@ The keys of `harness.toml` are in [ACP](./acp.md#harnesstoml).
 
 ## Authentication
 
-The agent's environment holds the placeholder `sk-ant-oat01-avirtph<32>` in `CLAUDE_CODE_OAUTH_TOKEN`, never the real token. `/etc/avirt/launch.toml` names the variable, avirtinitd sets it from the placeholder that arrives in `confirm`, and avirtmodelgwd replaces it with the real token in the `authorization` header of requests to `api.anthropic.com`. Claude Code never refreshes this token, so no refresh path exists. The binding, the placeholder format and the placeholder misuse check are in [credentials](./egress-credentials.md#claude-code).
+The agent's environment contains the placeholder `sk-ant-oat01-avirtph<32>` in `CLAUDE_CODE_OAUTH_TOKEN`, never the real token. `/etc/avirt/launch.toml` names the variable, avirtinitd sets it from the placeholder that arrives in `confirm`, and avirtmodelgwd replaces it with the real token in the `authorization` header of requests to `api.anthropic.com`. Claude Code never refreshes this token, so no refresh path exists. The binding, the placeholder format and the placeholder misuse check are in [credentials](./egress-credentials.md#claude-code).
 
 ## Managed settings
 
@@ -94,12 +94,12 @@ The configuration layer writes `/etc/claude-code/managed-settings.json` for each
 | Key | Value | Effect |
 | --- | --- | --- |
 | `permissions.defaultMode` | The launch's mode, `default` unless the launch sets another | The session's initial permission mode |
-| `allowManagedPermissionRulesOnly` | `true` | Permission rules from project, local and user settings are ignored. Without it, `permissions.allow` lists merge across every scope. |
-| `allowManagedHooksOnly` | `true` | Only managed hooks run, so a workspace's `.claude/settings.json` cannot add hooks |
+| `allowManagedPermissionRulesOnly` | `true` | Claude Code ignores permission rules from project, local, and user settings. Without it, `permissions.allow` lists merge across every scope. |
+| `allowManagedHooksOnly` | `true` | Only managed hooks run, so a workspace's `.claude/settings.json` can't add hooks |
 | `allowManagedMcpServersOnly` | `true` | Only the managed MCP allowlist applies |
 | `env` | `CLAUDE_CODE_DISABLE_NONESSENTIAL_TRAFFIC=1` and `DISABLE_AUTOUPDATER=1` | No telemetry, error reporting or update checks, so model traffic is the harness's only egress |
 
-A managed key overrides the same key in every other scope. A list key merges across scopes unless a managed-only key such as `allowManagedPermissionRulesOnly` locks it, and the security keys Claude Code lists as exceptions keep the strictest value from any scope.
+A managed key overrides the same key in every other scope. List keys merge across scopes unless a managed-only key such as `allowManagedPermissionRulesOnly` locks it, and the security keys Claude Code lists as exceptions keep the strictest value from any scope.
 
 ## Managed MCP configuration
 
@@ -109,17 +109,17 @@ The overlay writes `/etc/claude-code/managed-mcp.json` with one server:
 { "mcpServers": { "avirt": { "type": "stdio", "command": "/usr/local/bin/avirtmcp" } } }
 ```
 
-`managed-mcp.json` takes exclusive control of MCP servers: Claude Code loads only the servers it defines, and ignores servers from `/workspace/.mcp.json`, from user settings and from plugins. avirtmcp relays MCP to avirtmcpgwd (see [components](./components.md#workload-container)).
+`managed-mcp.json` takes exclusive control of MCP servers. Claude Code loads only the servers it defines. It ignores servers from `/workspace/.mcp.json`, user settings, and plugins. avirtmcp relays MCP to avirtmcpgwd (see [components](./components.md#workload-container)).
 
 ## Workspace configuration
 
-With the overlay in place, a workspace's Claude Code configuration is limited as follows:
+The overlay limits a workspace's Claude Code configuration:
 
-- `/workspace/.claude/settings.json` and `settings.local.json` still set keys that no managed key sets, such as output style or `CLAUDE.md` imports. They cannot add permission rules, hooks or MCP servers.
-- `/workspace/.mcp.json` is ignored.
-- `/home/agent/.claude` is a user path in `harness.toml`, so a workspace layer that writes it is refused at launch.
+- `/workspace/.claude/settings.json` and `settings.local.json` still set keys that no managed key sets, such as output style or `CLAUDE.md` imports. They can't add permission rules, hooks, or MCP servers.
+- Claude Code ignores `/workspace/.mcp.json`.
+- `/home/agent/.claude` is a user path in `harness.toml`, so avirthostd refuses a workspace layer that writes this path at launch.
 
 # Open questions
 
-1. **`managed-mcp.json` and the adapter.** The agent SDK passes the adapter's MCP server map to Claude Code as dynamic MCP configuration, and Claude Code refuses dynamic MCP configuration on a workstation when `managed-mcp.json` is present. Whether claude-agent-acp 0.93.0 starts with an empty map under `managed-mcp.json`, or avirtmcp has to arrive in `session/new` instead, is open.
-2. **Plugin and skill sources.** Whether the overlay also sets `strictPluginOnlyCustomization`, which blocks skills, agents and MCP servers from user and project sources, is open.
+1. **`managed-mcp.json` and the adapter.** The agent SDK passes the adapter's MCP server map to Claude Code as <!-- Preserve the named SDK feature. --><!-- vale ai-tells.OverusedVocabulary = NO -->dynamic MCP configuration<!-- vale ai-tells.OverusedVocabulary = YES -->, and Claude Code refuses <!-- Preserve the named SDK feature. --><!-- vale ai-tells.OverusedVocabulary = NO -->dynamic MCP configuration<!-- vale ai-tells.OverusedVocabulary = YES --> on a workstation when `managed-mcp.json` is present. Whether claude-agent-acp 0.93.0 starts with an empty map under `managed-mcp.json`, or avirtmcp has to arrive in `session/new` instead, is open.
+2. **Plugin and skill sources.** Whether the overlay also sets `strictPluginOnlyCustomization` is open. This setting blocks skills, agents, and MCP servers from user and project sources.

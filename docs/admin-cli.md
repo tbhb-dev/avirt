@@ -1,23 +1,23 @@
 ---
 type: CLI Reference
-title: Admin CLI
-description: The avirtadmin local admin CLI, which talks directly to avirthostd over admin.sock with peer-credential authentication, and its commands for host status, daemon health and draining, namespaces, workloads, policy through avirtpolicyd, peers and enrollment, the trust domain and its CA, secrets providers and bindings, audit, and break-glass, with flags, output formats, exit codes, and the API call and Cedar action behind every command.
+title: Admin commands
+description: The avirtadmin tool connects directly to avirthostd over a local Unix socket with peer-credential authentication. Its commands cover host status, daemon health and draining, namespaces, workloads, policy through avirtpolicyd, peers and enrollment, the trust domain and CA, secrets providers and bindings, audit, and break-glass. Includes flags, output formats, exit codes, and the API call and Cedar action for each command.
 tags: [avirt, cli, avirtadmin, administration]
 implementation: planned
-generated: { by: claude-code/claude-opus-5-5, at: 2026-10-17T22:30:00Z }
+generated: { by: codex/gpt-6, at: 2026-10-18T03:05:39Z }
 ---
 
 # Status: planned
 
-`avirtadmin` is the host's local admin CLI, from `crates/avirtadmin`. It owns nothing (see [components](./components.md#host-services)). It runs on the host as avirthostd's own UID or as root, and talks gRPC directly to avirthostd on `admin.sock`. It never goes through avirtapid or avirtedgeproxyd, and no peer, workload or web UI user can reach the operations on this page.
+`avirtadmin` is the host's local <!-- Project glossary term. --><!-- vale project.WordList = NO -->admin CLI<!-- vale project.WordList = YES -->, from `crates/avirtadmin`. All state belongs to other components (see [components](./components.md#host-services)). Running on the host as avirthostd's own UID or as root, it talks gRPC directly to avirthostd on `admin.sock`. This path bypasses avirtapid and avirtedgeproxyd. The operations on this page remain inaccessible to peers, workloads, and web UI users.
 
-[avirt](./operator-cli.md) is the operator CLI, and [avirtguest](./guest-cli.md) is the CLI inside a workload container. Where the three overlap they share command names, flags, output formats and exit codes.
+[avirt](./operator-cli.md) is the <!-- Project glossary term. --><!-- vale project.WordList = NO -->operator CLI<!-- vale project.WordList = YES -->, and [avirtguest](./guest-cli.md) is the command-line tool inside a workload container. Where the three overlap they share command names, flags, output formats, and exit codes.
 
 ## Connection and authentication
 
-`admin.sock` is a Unix socket in avirthostd's runtime directory, 0600 and owned by the UID avirthostd runs as (see [trust boundaries](./trust-boundaries.md#listeners)). avirthostd reads the caller's credentials from the socket (`LOCAL_PEERCRED` on macOS, `SO_PEERCRED` on Linux) and accepts only its own UID or root. Every accepted call has the principal `Admin::"uid:<uid>"` and `via: "admin"` in its Cedar context, and is evaluated against the host policy snapshot, by avirthostd or, for secrets, by avirtsecretsd, except the [break-glass](#break-glass) commands. A refused caller gets exit 3.
+`admin.sock` is a Unix socket in avirthostd's runtime directory, 0600 and owned by the UID avirthostd runs as (see [trust boundaries](./trust-boundaries.md#listeners)). avirthostd reads the caller's credentials from the socket (`LOCAL_PEERCRED` on macOS, `SO_PEERCRED` on Linux) and accepts only its own UID or root. Each accepted call has the principal `Admin::"uid:<uid>"` and `via: "admin"` in its Cedar context. Except for [break-glass](#break-glass) commands, avirthostd evaluates calls against the host policy snapshot. avirtsecretsd performs this evaluation for secrets. A refused caller gets exit 3.
 
-avirthostd serves the admin services itself and calls the host service that owns the state for the rest: avirtpolicyd for policy, avirtsecretsd for secrets, providers and bindings, and avirtauditd for audit delivery status. Each of those calls is authenticated as `/service/avirthostd` and carries the admin principal.
+avirthostd serves its administration services itself and calls the responsible host services for other state. These are avirtpolicyd for policy, avirtsecretsd for secrets, providers, and bindings, and avirtauditd for audit delivery status. Each call authenticates as `/service/avirthostd` and includes the administrator principal.
 
 ```mermaid
 flowchart LR
@@ -28,7 +28,7 @@ flowchart LR
     hostd -->|"lifecycle, namespaces, peers, CA"| state[("avirthostd state")]
 ```
 
-The default host policy set holds the built-in policy `avirt-admin`, which permits `Admin` every action. Only avirthostd's admin socket produces an `Admin` principal. A host policy can narrow it with `forbid` policies, for example to forbid policy writes as root.
+The default host policy set holds the built-in policy `avirt-admin`, which permits `Admin` each action. Only avirthostd's <!-- Project glossary term. --><!-- vale project.WordList = NO -->admin socket<!-- vale project.WordList = YES --> produces an `Admin` principal. A host policy can narrow it with `forbid` policies, such as forbidding policy writes as root.
 
 ```cedar
 @id("avirt-admin")
@@ -107,27 +107,27 @@ avirtadmin
 
 | Flag | Default | Meaning |
 | --- | --- | --- |
-| `--socket PATH` | `AVIRTADMIN_SOCKET`, else `$TMPDIR/avirt-<uid>/admin.sock` for the caller's own UID | avirthostd's admin socket. Run as root, it names the socket in avirthostd's runtime directory. |
+| `--socket PATH` | `AVIRTADMIN_SOCKET`, else `$TMPDIR/avirt-<uid>/admin.sock` for the caller's own UID | avirthostd's <!-- Project glossary term. --><!-- vale project.WordList = NO -->admin socket<!-- vale project.WordList = YES -->. When running as root, specify the socket in avirthostd's runtime directory. |
 | `--namespace NS`, `-n NS` | `default` | The namespace for namespaced commands |
 | `--output FORMAT`, `-o FORMAT` | `text` | `text` or `json`, as in [output formats](./operator-cli.md#output-formats) |
 | `--yes`, `-y` | Off | Skip the confirmation prompt on `namespace rm`, `peer revoke`, `ca rotate` and the break-glass commands. Without a terminal, those commands require it. |
 
 avirtadmin has no `--context` and no `--host`. It administers only the host it runs on.
 
-## Status, health and draining
+## Status, health, and draining
 
-`avirtadmin status` reports avirthostd and every host service, from avirthostd's view of the supervisor's reports:
+`avirtadmin status` reports avirthostd and each host service, from avirthostd's view of the supervisor's reports:
 
 | Field | Meaning |
 | --- | --- |
 | `state` | Per component: `starting`, `ready`, `restarting`, `degraded` or `stopped` (see [all-in-one server image](./components.md#all-in-one-server-image)) |
-| `essential` | Whether a degraded state refuses new launches: avirtsecretsd, avirtpolicyd, avirtedgeproxyd, avirtdnsd, avirtregistryd and avirtmodelgwd |
+| `essential` | Whether a degraded state refuses new launches: avirtsecretsd, avirtpolicyd, avirtedgeproxyd, avirtdnsd, avirtregistryd, and avirtmodelgwd |
 | `restarts` | Restarts in the current 10-minute window |
-| `admission` | `open`, or `refused` with each reason: an required host service degraded, `draining`, or `lockdown` |
-| `policy` | The host policy snapshot's version, mode and expiry |
+| `admission` | `open`, or `refused` with each reason: a degraded required host service, `draining`, or `lockdown` |
+| `policy` | The host policy snapshot's version, mode, and expiry |
 | `workloads` | Live workloads, and workloads at their mediator restart limit |
 
-`status` exits 0 when every component is `ready` and admission is open, and 6 otherwise, so a script can gate on it.
+`status` exits 0 when each component is `ready` and admission is open, and 6 otherwise, so a script can gate on it.
 
 | Command | Does |
 | --- | --- |
@@ -141,68 +141,68 @@ avirtadmin has no `--context` and no `--host`. It administers only the host it r
 | --- | --- |
 | `avirtadmin namespace create NS` | Creates a namespace. `NS` is a lowercase DNS label of at most 63 characters, rejected rather than truncated (see [avirt names](./dns.md#avirt-names)). |
 | `avirtadmin namespace list`, `inspect NS` | As `avirt namespace list` and `inspect` |
-| `avirtadmin namespace rm NS` | Removes an empty namespace. A namespace with a live workload, a service or a workspace repository is refused with exit 5. `default` is never removed. |
+| `avirtadmin namespace rm NS` | Removes an empty namespace. avirtadmin refuses a namespace with a live workload, a service, or a workspace repository with exit 5. It never removes `default`. |
 
 ## Workloads
 
-`avirtadmin workload list`, `inspect`, `stop` and `rm` behave as the [`avirt workload`](./operator-cli.md#workloads) commands of the same name, over the same `Workloads` service on the admin socket, with `Admin` as principal. `--all-namespaces` lists every namespace's workloads. avirtadmin launches nothing: workloads are created through avirt, avirtwebd or avirtguest.
+`avirtadmin workload list`, `inspect`, `stop` and `rm` behave as the [`avirt workload`](./operator-cli.md#workloads) commands of the same name, over the same `Workloads` service on the <!-- Project glossary term. --><!-- vale project.WordList = NO -->admin socket<!-- vale project.WordList = YES -->, with `Admin` as principal. `--all-namespaces` lists each namespace's workloads. avirtadmin omits launch commands. Use avirt, avirtwebd, or avirtguest to create workloads.
 
 ## Policy
 
-avirtpolicyd stores, validates, proves, compiles and distributes policy (see [egress policies](./egress-policies.md#policy-snapshots)). avirtadmin reaches it only through avirthostd. Policies are Cedar files, grouped in named **policy sets**: `host` is the host policy set, and a workload's policy reference names a set. A policy is addressed by its `@id` within its set.
+avirtpolicyd stores, validates, proves, compiles and distributes policy (see [egress policies](./egress-policies.md#policy-snapshots)). avirtadmin reaches it only through avirthostd. Policies are Cedar files, grouped in named **policy sets**: `host` is the host policy set, and a workload's policy reference names a set. A policy's `@id` identifies it within its set.
 
 | Command | Does |
 | --- | --- |
 | `avirtadmin policy list` | Lists the set's policies by `@id`, with the version that last changed each |
 | `avirtadmin policy show ID` | Prints one policy's text |
-| `avirtadmin policy validate FILE...` | Validates the files against the avirt Cedar schema and runs the prover over the set as it would be with them applied. Nothing is stored. Each failure names the policy and the property. |
-| `avirtadmin policy apply FILE...` | Adds or replaces every policy in the files, by `@id`, in one new version of the set. A set that fails validation or the prover produces no version and exits 5. `--dry-run` is `validate` with the resulting diff. |
+| `avirtadmin policy validate FILE...` | Validates the files against the avirt Cedar schema and runs the prover over the set as it would be with them applied. Validation leaves storage unchanged. Each failure identifies the policy and the property. |
+| `avirtadmin policy apply FILE...` | Adds or replaces each policy in the files, by `@id`, in one new version of the set. Failure of validation or the prover leaves the version unchanged and causes exit 5. `--dry-run` runs `validate` and shows the resulting diff. |
 | `avirtadmin policy rm ID...` | Removes policies in one new version |
 | `avirtadmin policy mode audit\|enforce` | Sets the host default mode, or one namespace's mode with `--namespace` (see [modes](./egress-policies.md#modes)) |
 | `avirtadmin policy snapshot` | Shows the host policy snapshot's version, schema, mode, issue and expiry times, sha256 and entity revision, or with `--workload` that workload's policy snapshot |
-| `avirtadmin policy history` | Lists the set's versions with their time and the admin principal that made each |
+| `avirtadmin policy history` | Lists the set's versions with their time and the administrator principal that made each |
 | `avirtadmin policy schema` | Prints the avirt Cedar schema text |
 
 ## Peers and enrollment
 
-Enrollment follows [peering](./peering.md#enrollment): each host's operator writes an enrollment file with `peer export`, the operators exchange the files and compare fingerprints out of band, and each enrolls the other's file with `peer enroll FILE --fingerprint FP`. The `avirtadmin peer` commands, with their flags and Cedar actions, are in [peering](./peering.md#avirtadmin).
+Enrollment follows [peering](./peering.md#enrollment). Each host's operator writes an enrollment file with `peer export`. The operators exchange files and compare fingerprints out of band. Each then enrolls the other's file with `peer enroll FILE --fingerprint FP`. The `avirtadmin peer` commands, with their flags and Cedar actions, are in [peering](./peering.md#avirtadmin).
 
 ## Trust domain and CA
 
-The SPIFFE CA and its rotation schedule are in [issuer](./identity.md#issuer). The trust domain is fixed for the life of the installation.
+The SPIFFE CA and its rotation schedule are in [issuer](./identity.md#issuer). The trust domain remains immutable for the life of the installation.
 
 | Command | Does |
 | --- | --- |
 | `avirtadmin ca status` | Shows each root in the bundle and the current issuing CA, with their validity, and the next scheduled rotation of each |
-| `avirtadmin ca bundle` | Prints the SPIFFE bundle as PEM. A peer enrolls from the enrollment file, which carries the bundle, never from this output. |
-| `avirtadmin ca rotate --issuing` | Generates a new issuing CA now. New SVIDs chain to it, and existing SVIDs stay valid until they expire. |
+| `avirtadmin ca bundle` | Prints the SPIFFE bundle as PEM. A peer enrolls from the enrollment file, which contains the bundle, never from this output. |
+| `avirtadmin ca rotate --issuing` | Generates a new issuing CA now. New SVIDs chain to it, and existing SVIDs remain valid until expiry. |
 | `avirtadmin ca rotate --root` | Generates a new root now and adds it to the bundle, as the scheduled rotation does. Peers pick it up on their next bundle refresh. |
 
-No command prints a private key, and the workload MITM CAs have no admin command.
+No command prints a private key, and the workload MITM CAs lack an administration command.
 
-## Secrets, providers and bindings
+## Secrets, providers, and bindings
 
-avirtsecretsd holds every real credential and every secret record (see [secrets](./secrets.md)). avirtadmin manages them through avirthostd, which forwards each call to avirtsecretsd's Admin API with the `Admin` principal (see [APIs](./secrets.md#apis)). No command takes a secret value as an argument, and no output contains one. `SECRET` is `<scope>/<name>`, where the scope is `host` or a namespace.
+avirtsecretsd stores each real credential and each secret record (see [secrets](./secrets.md)). avirtadmin manages them through avirthostd, which forwards each call to avirtsecretsd's Admin API with the `Admin` principal (see [APIs](./secrets.md#apis)). No command takes a secret value as an argument, and no output contains one. `SECRET` is `<scope>/<name>`, where the scope is `host` or a namespace.
 
 | Command | Does |
 | --- | --- |
 | `avirtadmin secret define FILE` | Defines a secret from a record in the form in [secrets and references](./secrets.md#secrets-and-references) |
-| `avirtadmin secret update FILE` | Replaces a secret's record. A revoked secret is restored. |
-| `avirtadmin secret list`, `inspect SECRET` | Lists secret records, or shows one with its provider, kind, owner, current version id and refresh state |
-| `avirtadmin secret rotate SECRET` | Forces a fetch, so new leases carry the provider's current version (see [rotation and revocation](./secrets.md#rotation-and-revocation)) |
-| `avirtadmin secret revoke SECRET` | Revokes the secret: no new lease, and every gateway drops its cached value |
+| `avirtadmin secret update FILE` | Replaces a secret's record. Updating a revoked secret restores it. |
+| `avirtadmin secret list`, `inspect SECRET` | Lists secret records, or shows one with its provider, kind, owner, current version id, and refresh state |
+| `avirtadmin secret rotate SECRET` | Forces a fetch, so new leases use the provider's current version (see [rotation and revocation](./secrets.md#rotation-and-revocation)) |
+| `avirtadmin secret revoke SECRET` | Revokes the secret: no new lease, and each gateway drops its cached value |
 | `avirtadmin secret login SECRET` | Clears `needs-login` after a new login |
-| `avirtadmin secret import SECRET` | Writes a value into a provider that supports writes. The value is read from stdin, or from `--from-file`, never from argv. |
-| `avirtadmin secret provider add FILE` | Adds a provider instance from its configuration, which names its type and the reference to the provider's own credential, never a value (see [providers](./secrets.md#providers)) |
+| `avirtadmin secret import SECRET` | Writes a value into a provider that supports writes. The command reads the value from stdin or `--from-file`, never from argv. |
+| `avirtadmin secret provider add FILE` | Adds a provider instance from its configuration, which specifies its type and the reference to the provider's own credential, never a value (see [providers](./secrets.md#providers)) |
 | `avirtadmin secret provider list`, `status [NAME]` | Lists provider instances, or shows each one's state: `ready`, `degraded`, `rate-limited`, `unauthenticated`, `needs-user` or `locked` |
-| `avirtadmin secret provider rm NAME` | Removes a provider instance that no secret uses |
+| `avirtadmin secret provider rm NAME` | Removes a provider instance without any secrets that use it |
 | `avirtadmin secret binding add FILE` | Adds a binding from a record in the form in [bindings](./egress-credentials.md#bindings) |
-| `avirtadmin secret binding list`, `inspect ID` | Lists bindings, or shows one: its secret reference, its `workload` field, credential injector, header and destinations |
-| `avirtadmin secret binding rm ID` | Removes a binding that no live workload holds |
+| `avirtadmin secret binding list`, `inspect ID` | Lists bindings or shows one binding's secret reference and `workload` field, plus its credential injector, header, and destinations |
+| `avirtadmin secret binding rm ID` | Removes a binding absent from all live workloads |
 
 ## Audit
 
-Every admin call, every workload management call and every break-glass command is an event. avirthostd writes a workload-scoped event to that workload's log, which avirtauditd delivers as OCSF (see [event provenance](./trust-boundaries.md#event-provenance)), and sends a host-scoped event, such as a namespace change, a policy write or a break-glass command, to avirtoteld (see [audit events](./secrets.md#audit-events)).
+Administration calls, workload management calls, and break-glass commands each produce events. avirthostd writes workload-scoped events to that workload's log for avirtauditd to deliver as OCSF (see [event provenance](./trust-boundaries.md#event-provenance)). It sends host-scoped events to avirtoteld (see [audit events](./secrets.md#audit-events)). These include namespace changes, policy writes, and break-glass commands.
 
 | Command | Does |
 | --- | --- |
@@ -212,22 +212,22 @@ Every admin call, every workload management call and every break-glass command i
 
 ## Break-glass
 
-The break-glass commands are for when policy, a peer or the control plane cannot be trusted. avirthostd authorizes them by peer credentials alone and never evaluates Cedar for them, so they work while avirtpolicyd is unreachable, the host policy snapshot has expired, or a policy forbids the admin. Each needs `--reason`, asks for confirmation unless `--yes` is given, and records a `break_glass` event with the principal, the command and the reason before it acts.
+The break-glass commands apply when trust in policy, a peer, or the control plane fails. avirthostd authorizes them by peer credentials alone, without evaluating Cedar. They work with an unreachable avirtpolicyd or an expired host policy snapshot, and despite a policy that denies access to the administrator. Each command requires `--reason`. It requests confirmation unless the caller supplies `--yes`. Before acting, it records a `break_glass` event with the principal, the command, and the reason.
 
 | Command | Does |
 | --- | --- |
-| `avirtadmin break-glass stop-all` | Stops every live workload on the host, in the teardown order in [lifecycle](./lifecycle.md#teardown) |
-| `avirtadmin break-glass lockdown` | Refuses every new launch and every call that avirtapid forwards, until `lift`. Running workloads keep running. `admission` in `status` reads `lockdown`. |
+| `avirtadmin break-glass stop-all` | Stops each live workload on the host, in the teardown order in [lifecycle](./lifecycle.md#teardown) |
+| `avirtadmin break-glass lockdown` | Refuses each new launch and each call that avirtapid forwards, until `lift`. Running workloads keep running. `admission` in `status` reads `lockdown`. |
 | `avirtadmin break-glass lift` | Ends a lockdown |
 | `avirtadmin break-glass revoke-peer HOST` | `peer revoke` without Cedar evaluation |
 
 ## Exit codes
 
-The codes are those in [exit codes](./operator-cli.md#exit-codes). For avirtadmin, 3 also means avirthostd refused the caller's peer credentials, 6 also means `status` found a component not ready or admission refused, and 7 means `admin.sock` could not be reached, which is the case whenever avirthostd is not running.
+The codes are those in [exit codes](./operator-cli.md#exit-codes). For avirtadmin, 3 also means avirthostd refused the caller's peer credentials, 6 also means `status` found a component not ready or admission refused, and 7 means connecting to `admin.sock` failed, which is the case whenever avirthostd isn't running.
 
 ## API and policy map
 
-avirthostd serves every RPC on `admin.sock`. `avirt.v1` services are the ones avirtapid forwards for avirt, served here with `Admin` as principal, and `avirt.admin.v1` services exist only on `admin.sock`. Every action is evaluated against the host policy snapshot with `via: "admin"`, by avirthostd except where the table names avirtsecretsd. Every action and entity is in the avirt Cedar schema (see [egress policies](./egress-policies.md#schema-text)). avirtsecretsd's Admin API is in [secrets](./secrets.md#apis).
+avirthostd serves each RPC on `admin.sock`. `avirt.v1` services are the ones avirtapid forwards for avirt, served here with `Admin` as principal, and `avirt.admin.v1` services exist only on `admin.sock`. avirthostd evaluates each action against the host policy snapshot with `via: "admin"`, except where the table specifies avirtsecretsd as the evaluator. Each action and entity is in the avirt Cedar schema (see [egress policies](./egress-policies.md#schema-text)). avirtsecretsd's Admin API is in [secrets](./secrets.md#apis).
 
 | Command | RPC | Cedar action | Resource |
 | --- | --- | --- | --- |
@@ -267,7 +267,7 @@ avirthostd serves every RPC on `admin.sock`. `avirt.v1` services are the ones av
 # Open questions
 
 1. **Host-scoped audit record.** `audit list` and the break-glass event need a durable host-scoped record beside the workload logs. Whether host-scoped events get one that avirtauditd reads, rather than going to avirtoteld only, is open (see [secrets](./secrets.md#open-questions)).
-2. **Issuing CA compromise.** `ca rotate --issuing` stops new SVIDs chaining to the old issuing CA, but SVIDs it signed stay valid until they expire. Whether avirthostd can distrust an issuing CA early, and what recovery from a root key compromise is, is open.
-3. **Supervision outside the all-in-one image.** On a direct host install, which process reports component state to avirthostd for `status` is open (see [components](./components.md#open-questions)).
-4. **Admin socket while avirthostd is down.** avirtadmin has no path to the host services when avirthostd is not running, so no break-glass command works then. Whether any admin operation needs a path that does not depend on avirthostd is open.
-5. **Namespace creation by operators.** Whether a local or web UI user can create namespaces through avirtapid under policy, in addition to avirtadmin, is open (see [components](./components.md#open-questions)).
+2. **Issuing CA compromise.** `ca rotate --issuing` stops new SVIDs chaining to the old issuing CA, but SVIDs it signed remain valid until expiry. Early distrust of an issuing CA remains open. Recovery from a root key compromise is also open.
+3. **Supervision outside the all-in-one image.** On a direct host install, the process that reports the state of components to avirthostd for `status` is open (see [components](./components.md#open-questions)).
+4. **Admin socket while avirthostd is down.** avirtadmin has no path to the host services when avirthostd isn't running, so no break-glass command works then. Whether any administration operation needs a path that doesn't depend on avirthostd is open.
+5. **Namespace creation by operators.** Allowing local or web UI users to create namespaces through avirtapid under policy, along with avirtadmin, remains open (see [components](./components.md#open-questions)).
