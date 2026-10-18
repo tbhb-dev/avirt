@@ -511,17 +511,17 @@ The parser canonicalizes each external host once. Later checks always use the ca
 2. After converting the authority to lowercase, the parser strips one trailing dot.
 3. A valid label is 1 to 63 characters of `a`-`z`, `0`-`9`, `-`, and `_`, and the whole name is at most 253 characters. Anything outside these constraints makes the name malformed.
 4. A name whose last label is all digits must be a canonical dotted quad and becomes an IP literal. Examples of malformed authorities include `2130706433`, `0177.0.0.1`, `0x7f000001`, and `127.1`.
-5. An IPv6 literal arrives bracketed (`[2001:db8::1]:443`). Parsing converts it into an `ipaddr`. avirtmediatord canonicalizes IPv4-mapped addresses before synthetic-table lookup, and `private-dest` checks the real upstream destination.
+5. An IPv6 literal arrives bracketed (`[2001:db8::1]:443`). Parsing converts it into an `ipaddr`. avirtmediatord canonicalizes IPv4-mapped addresses before lookup in the synthetic address table, and `private-dest` checks the real upstream destination.
 
 A real IP literal becomes a `Destination` with `ip` and no `host`, so no hostname rule and no `like` pattern can match it: it's permitted only by a policy that compares `resource.ip`, by equality or with `isInRange`.
 
-The parser canonicalizes the SNI under TLS passthrough and the `Host` header under TLS interception the same way. On a named flow both must equal the flow name (`Host` may omit a default port), and avirtmediatord refuses `encrypted_client_hello`. Names come only from the mediator's synthetic DNS table or a CONNECT authority. avirtmediatord logs SNI and Host on a real-address flow without assigning it a name.
+The parser canonicalizes the SNI under TLS passthrough and the `Host` header under TLS interception the same way. On a named flow both must equal the flow's hostname (`Host` may omit a default port), and avirtmediatord refuses `encrypted_client_hello`. Names come only from the mediator's synthetic address table or a CONNECT authority. avirtmediatord logs SNI and Host on a flow to an address supplied directly outside the ranges used for synthetic addresses without assigning it a name.
 
 ### Request path canonicalization
 
 `context.path` for `request` is the request target's path after canonicalization:
 
-1. avirtmediatord serializes the target in origin form (`/…`). An absolute-form authority must agree with Host and the flow name before conversion. A disagreement or an asterisk form gets 400.
+1. avirtmediatord serializes the target in origin form (`/…`). An absolute-form authority must agree with Host and the flow's hostname before conversion. A disagreement or an asterisk form gets 400.
 2. After dropping the query string, the parser records whether there was one in `context.query`.
 3. For percent-encoded unreserved characters (`A`-`Z`, `a`-`z`, `0`-`9`, `-`, `.`, `_`, `~`), the parser decodes the characters. It converts other percent-encodings to uppercase and retains them, so `%2F` stays `%2F` and never becomes a segment separator.
 4. After that decoding, the parser removes dot segments.

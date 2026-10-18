@@ -266,7 +266,7 @@ When avirtoteld isn't deployed, producers export nothing over OTLP and write eac
 
 ### Metrics from avirtmediatord and avirtedgeproxyd
 
-avirtmediatord and avirtedgeproxyd record counters, gauges and histograms through avirt's OpenTelemetry path. Their metrics include connection counts, active streams, TLS handshake results, upstream dial latency, DNS cache outcomes, datagram drops, rate refusals, synthetic-table exhaustion, timeouts and drain outcomes under the same cardinality limits as other daemons. avirtmediatord also records lifecycle and readiness metrics. Each process uses its binary name as `service.name`.
+avirtmediatord and avirtedgeproxyd record counters, gauges and histograms through avirt's OpenTelemetry path. Their metrics include connection counts, active streams, TLS handshake results, upstream dial latency, DNS cache outcomes, datagram drops, rejections for exceeding rate limits, exhaustion of the synthetic address table, timeouts and results of draining connections under the same cardinality limits as other daemons. avirtmediatord also records lifecycle and readiness metrics. Each process uses its binary name as `service.name`.
 
 | Instrument | Kind | Attributes |
 | --- | --- | --- |

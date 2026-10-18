@@ -178,7 +178,7 @@ avirtmediatord injects only the bindings whose `injector` is `mediator`. It fetc
 
 ### HTTP injection
 
-avirtmediatord authorizes and serializes one canonical request. It refuses duplicate bound headers, disagreement between `:authority` and Host, ambiguous Content-Length or Transfer-Encoding, and credential-bearing trailers. An absolute-form authority must agree with Host and the flow name before conversion to origin-form. Before injecting exactly one credential, avirtmediatord strips hop-by-hop fields. An httparse pre-check examines every HTTP/1 request head before hyper normalizes it. Redirects and each request on a reused connection require a fresh authorization check.
+avirtmediatord authorizes and serializes one canonical request. It refuses duplicate bound headers, disagreement between `:authority` and Host, ambiguous Content-Length or Transfer-Encoding, and trailers that include client credentials. An absolute-form authority must agree with Host and the flow's hostname before conversion to origin-form. Before injecting exactly one credential, avirtmediatord strips hop-by-hop fields. An httparse pre-check examines every HTTP/1 request head before hyper normalizes it. Redirects and each request on a reused connection require a fresh authorization check.
 
 On an intercepted request whose host, port and canonical path match a mediator-injected binding:
 
@@ -189,11 +189,11 @@ avirtmediatord then opens its own TLS connection to the upstream through avirted
 
 ### gRPC
 
-Every intercepted TLS destination offers `h2` and `http/1.1`. A binding's `protocol: grpc` selects gRPC path matching. It isn't an ALPN switch. Binding paths match the call's canonical `:path`, and bound headers become metadata on HEADERS. avirtmediatord refuses credential-bearing trailers. Binary metadata encoding requires an explicit binding contract. A refusal is a trailers-only HTTP 200 with `grpc-status: 7`, including `credential-misplaced`. Body forwarding starts after a short deadline or byte threshold so bidirectional calls progress. A later scan hit resets the stream and records the rejection.
+Every intercepted TLS destination offers `h2` and `http/1.1`. A binding's `protocol: grpc` selects gRPC path matching. The client's TLS ALPN selects the HTTP version. Binding paths match the call's canonical `:path`, and bound headers become metadata on HEADERS. avirtmediatord refuses trailers that include client credentials. Binary metadata encoding requires an explicit binding contract. A refusal is a trailers-only HTTP 200 with `grpc-status: 7`, including `credential-misplaced`. Body forwarding starts after a short deadline or byte threshold so bidirectional calls progress. A later scan hit resets the stream and records the rejection.
 
 ### SSH injection
 
-An SSH binding fixes the upstream username, host, port, pinned host key, and credential together. The guest authenticates with a per-workload placeholder key. avirtmediatord obtains the upstream key or certificate through `binding_credential` and keeps it in memory. It connects upstream during authentication. A pin mismatch fails authentication. avirtmediatord presents certificates from the per-workload SSH host CA only for hosts in the SSH intercept set. The guest's `@cert-authority` configuration helps cooperating clients and doesn't enforce access.
+An SSH binding fixes the upstream username, host, port, pinned host key, and credential together. The guest authenticates with a per-workload placeholder key. avirtmediatord obtains the upstream key or certificate through `binding_credential` and keeps it in memory. It connects upstream during authentication. A pin mismatch fails authentication. avirtmediatord presents host certificates from the workload's host CA only for hosts permitted for SSH interception. The guest's `@cert-authority` configuration helps cooperating clients and doesn't enforce access.
 
 By default avirtmediatord permits only exec of `git-upload-pack`, `git-receive-pack`, or `git-upload-archive`, with one single-quoted canonical repository path and no shell syntax. The mediator authorizes the command and constructs its own upstream exec string. Shell, `pty-req`, forwarding, environment other than `GIT_PROTOCOL`, and subsystems require explicit permission. avirtmediatord refuses SFTP on a repository-bound binding and caps sessions and channels per workload.
 
@@ -201,7 +201,7 @@ Each git HTTPS binding installs `url.insteadOf` rules for its own host, and poli
 
 ### Recipient trust
 
-A binding requires trust in its recipient. An upstream can return an injected credential in a body, redirect, metadata, or frame. Prefer short-lived, narrowly scoped or sender-constrained credentials when supported. Refresh tokens remain broker-only. Response scanning is optional and can't guarantee detection.
+A binding requires trust in its recipient. An upstream can return an injected credential in a body, redirect, metadata, or frame. Prefer short-lived, narrowly scoped or sender-constrained credentials when supported. Only avirtsecretsd holds refresh tokens. Response scanning is optional and can't guarantee detection.
 
 ## avirtmodelgwd
 

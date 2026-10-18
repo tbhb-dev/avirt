@@ -1,7 +1,7 @@
 ---
 type: Component Design
 title: Egress and TLS termination
-description: Flow authorization, protocol inspection, credential checks, upstream connections, DNS and websockets in avirtmediatord and avirtedgeproxyd, with TLS certificates and egress events.
+description: Authorization of TCP, UDP, and ICMP flows, protocol inspection, private-dest checks, synthetic addresses, websockets, TLS certificates, and events in avirtmediatord and avirtedgeproxyd.
 tags: [avirt, egress, proxy, tls, networking]
 implementation: partial
 generated: { by: codex/gpt-6, at: 2026-10-18T12:00:00Z }
@@ -64,24 +64,24 @@ Every outbound connection from avirtmediatord passes through a runtime-provided 
 
 ## Mediator process
 
-avirtmediatord runs as one process. Traffic handling and lifecycle share its UID and SVID, `/ns/<ns>/workload/<uuid>/mediator/<gen>`. It serves the workload listener at `/run/avirt/workload.sock`, where it applies the workload policy snapshot while storing the synthetic DNS table and interception keys for that workload. The table persists across mediator restarts and never reassigns an address to another name within the workload's lifetime.
+avirtmediatord runs as one process. Traffic handling and lifecycle share its UID and SVID, `/ns/<ns>/workload/<uuid>/mediator/<gen>`. It serves the workload listener at `/run/avirt/workload.sock`, where it applies the workload policy snapshot while storing the synthetic address table and interception keys for that workload. The table persists across mediator restarts and never reassigns an address to another name within the workload's lifetime.
 
 ## Transport scope
 
-TCP uses one HTTP/2 CONNECT stream per flow. UDP uses CONNECT-UDP with DATAGRAM capsules and an RFC 9298 Context ID, with one immutable destination per stream. Ping uses extended CONNECT with `:protocol` `icmp` and `{type, id, seq, payload}` messages. Messages omit the destination. [HTTP/2 streams](./networking.md#http2-streams) defines framing, capsule bounds, flow control, and explicit drain before close.
+TCP uses one HTTP/2 CONNECT stream per flow. UDP uses CONNECT-UDP with DATAGRAM capsules and an RFC 9298 Context ID, with one immutable destination per stream. Ping uses extended CONNECT with `:protocol` `icmp` and `{type, id, seq, payload}` messages. Messages omit the destination. [HTTP/2 streams](./networking.md#http2-streams) defines framing, capsule length and buffer limits, flow control, and explicit drain before close.
 
 ## How avirtmediatord handles egress
 
-1. **Destination.** Use the canonical authority or IP address. A synthetic address maps to a name only through the mediator's persistent table. Refuse an unknown synthetic address. A CONNECT authority supplies a name directly. Other addresses stay IP destinations even if a client supplies SNI or Host. `name_from` is `dns`, `connect` or `none`.
-2. **Entity.** Resolve internal names to workload or service entities and refuse unresolved names. Ordinary flows can't target host services. MCP and guest CLI streams reach only their designated service paths.
+1. **Destination.** Use the canonical authority or IP address. A synthetic address maps to a name only through the mediator's synthetic address table. Refuse an unknown synthetic address. A CONNECT authority supplies a name directly. Other addresses stay IP destinations even if a client supplies SNI or Host. `name_from` is `dns`, `connect` or `none`.
+2. **Entity.** Resolve internal names to Workload or Service entities and refuse unresolved names. Ordinary flows can't target host services. MCP and guest CLI streams reach only their designated service paths.
 3. **Connection policy.** Check `connect` with the destination protocol and port, using port 0 for ICMP. The principal comes from the authenticated workload identity, never its source address.
 4. **Protocol.** Select SSH, HTTP, or TLS from port and policy before dialing. Port 22 or an SSH binding selects SSH. Skip probe dials. Check `intercept` for TLS or SSH at any permitted port, or `passthrough` with the detected protocol.
-5. **Inspection.** Under TLS interception, present a leaf certificate from the workload's MITM CA and offer both `h2` and `http/1.1`. Check authorization and `credential-misplaced` on one canonical request. Serialize it with only the credential its binding permits. Check the exact Codex refresh match before the placeholder scan. Act as the cleartext HTTP server with authorization per request and no injection. SSH uses the binding's pinned host key, placeholder-key authentication and allowed channel operations.
-6. **Upstream.** Send model requests to avirtmodelgwd and MCP to avirtmcpgwd on their authenticated service paths. Other traffic reaches avirtedgeproxyd on a stream for its flow protocol. Intercepted TLS opens a separate upstream TLS connection within the edge tunnel and verifies its certificate. Every request, redirect and request on a pooled connection requires authorization.
-7. **Passthrough.** On named TLS and QUIC flows require matching SNI and refuse `encrypted_client_hello`. A passthrough permit grants access to the endpoint and anything it tunnels. HTTP Host must equal the flow name, otherwise return 421. An SNI mismatch closes the connection.
+5. **Inspection.** Under TLS interception, present a leaf certificate from the workload's MITM CA and offer both `h2` and `http/1.1`. Check authorization and `credential-misplaced` on one canonical request. Serialize it with only the credential its binding permits. Check the exact Codex refresh match before the placeholder scan. Act as the cleartext HTTP server with authorization per request and no injection. SSH uses the binding's pinned host key, authentication with a placeholder key, and allowed channel operations.
+6. **Upstream.** Send model requests to avirtmodelgwd and MCP to avirtmcpgwd on their authenticated service paths. Other traffic reaches avirtedgeproxyd on a stream for its protocol. Intercepted TLS opens a separate upstream TLS connection within the edge tunnel and verifies its certificate. Every request, redirect and request on a pooled connection requires authorization.
+7. **Passthrough.** On named TLS and QUIC flows require matching SNI and refuse `encrypted_client_hello`. A passthrough permit grants access to the endpoint and anything it tunnels. HTTP Host must equal the flow's hostname, otherwise return 421. An SNI mismatch closes the connection.
 8. **Events and close.** Record decisions and flow outcomes. A tunnel must shut down its sending side and drain the peer with a deadline, recording the outcome in its log. Dropping a stream proves nothing about delivery.
 
-[HTTP and TLS](./networking.md#http-and-tls) specifies request ambiguity checks, gRPC refusals, and streaming scans. [QUIC](./networking.md#quic) defines Initial parsing and bounds, and [SSH and git](./networking.md#ssh-and-git) defines channel restrictions and per-binding git HTTPS rewrites. [ICMP echo](./networking.md#echo-with-icmp) specifies echo validation, reply matching, and rate limits.
+[HTTP and TLS](./networking.md#http-and-tls) specifies request ambiguity checks, gRPC refusals, and streaming scans. [QUIC](./networking.md#quic) defines Initial parsing and bounds, and [SSH and git](./networking.md#ssh-and-git) defines channel restrictions and per-binding git HTTPS rewrites. [ICMP echo](./networking.md#icmp-echo) specifies echo validation, reply matching, and rate limits.
 
 ## Edge proxy egress
 
@@ -91,7 +91,7 @@ Internal names resolve to canonical entities. Local workload ports use the desti
 
 ## `private-dest`
 
-The edge refuses non-global addresses and addresses assigned to the host's own interfaces for all flow protocols. Non-global ranges include loopback, private, CGNAT, link-local, documentation, benchmarking, multicast, and reserved ranges. A watcher tracks host addresses. The mediator translates synthetic addresses through its table before the edge checks the real upstream address, and an authorized service record allows only its recorded backend. A peer connection may use enrolled peer addresses, but never an address of the host itself.
+The edge refuses non-global addresses and addresses assigned to the host's own interfaces for all extended CONNECT protocols and forwarded HTTP. Non-global ranges include loopback, private, CGNAT, link-local, documentation, benchmarking, multicast, and reserved ranges. A watcher tracks host addresses. The mediator translates synthetic addresses through its table before the edge checks the real upstream address, and an authorized service record allows only its recorded backend. A peer connection may use enrolled peer addresses, but never an address of the host itself.
 
 | Status | Cause |
 | --- | --- |
@@ -103,13 +103,13 @@ avirtedgeproxyd doesn't decrypt the upstream TLS opened by a mediator or gateway
 
 ## Workload DNS
 
-All TCP and UDP port 53 traffic reaches avirtnetd's DNS handler, including queries sent to an arbitrary address and UDP port 53 read from the TUN. Each query opens a separate `POST /dns` stream with `application/dns-message` request and response bodies and a separate concurrency limit. `resolve` applies at both the mediator and edge, including every name in a CNAME chain.
+All TCP and UDP port 53 traffic reaches avirtnetd's DNS stub resolver, including queries sent to an arbitrary address and UDP port 53 read from the TUN. Each query opens a separate `POST /dns` stream with `application/dns-message` request and response bodies and a separate concurrency limit. `resolve` applies at both the mediator and edge, including every name in a CNAME chain.
 
-The mediator returns synthetic answers for both external and internal names. The persistent table has a size limit. Allocations fail when full. DNS rewrites include HTTPS and SVCB address hints, AliasMode, TargetName and port, with consistent `mandatory` and `no-default-alpn` fields. The synthesizer removes `ech` and omits `h3` for intercepted names. Guest DNSSEC validation fails on rewritten answers. [Names and DNS](./networking.md#names-and-dns) specifies the table and residual channels. [DNS](./dns.md) defines internal names.
+The mediator returns synthetic answers for both external and internal names. The synthetic address table has a size limit. Allocations fail when full. DNS rewrites include HTTPS and SVCB address hints, AliasMode, TargetName and port, with consistent `mandatory` and `no-default-alpn` fields. The synthesizer removes `ech` and omits `h3` for intercepted names. Guest DNSSEC validation fails on rewritten answers. [Names and DNS](./networking.md#names-and-dns) specifies the table and residual channels. [DNS](./dns.md) defines internal names.
 
 ## Websockets
 
-HTTP/1 upgrades and HTTP/2 extended CONNECT under RFC 8441 pass request policy and placeholder checks. websocket upgrades use HTTP/1 upstream. avirtmediatord strips `permessage-deflate` and refuses unnegotiated extensions. It unmasks client data and scans across fragments and continuation frames with a bounded matcher, scanning control frames separately. A placeholder hit closes with 1008 and records credential rejection. Both relay directions preserve frame boundaries, including when injecting a Close. Encoding a placeholder can evade scanning. Credential injection applies to the opening request only.
+HTTP/1 upgrades and HTTP/2 extended CONNECT under RFC 8441 pass request policy and placeholder checks. Websocket upgrades use HTTP/1 upstream. avirtmediatord strips `permessage-deflate` and refuses unnegotiated extensions. It unmasks client data and scans across fragments and continuation frames with a bounded matcher, scanning control frames separately. A placeholder hit closes with 1008 and records rejection of client credentials. Both relay directions preserve frame boundaries, including when injecting a Close. Encoding a placeholder can evade scanning. Credential injection applies to the opening request only.
 
 ## MITM CA and leaf certificates
 

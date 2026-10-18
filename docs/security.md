@@ -72,11 +72,11 @@ Every flow leaves through the workload's mediator and, in the planned design, av
 - **Met.** The mediator accepts only `CONNECT host:port` with an explicit port and a canonical hostname or IP literal ([CONNECT app](./egress.md#pingora-connect-app)).
 - **Met.** The mediator refuses each resolved address in a non-global range or assigned to one of the host's own interfaces, which it reads on each connection ([private-address block](./egress.md#private-address-block-private-dest)).
 - **Future.** Enforce mode requires an explicit Cedar permit for each flow, request, or DNS query. Today the mediator allows each destination that passes the private-address block under rule `allow-all` ([decision semantics](./egress-policies.md#decision-semantics)).
-- **Future.** The sandbox VM has no network device. Its TUN and nftables REDIRECT send TCP, UDP, and ICMP to avirtnetd. DNS to any address on port 53 uses one `/dns` stream per query. [Networking](./networking.md) defines the flow protocols and limits.
-- **Future.** avirtedgeproxyd checks every real upstream address for non-global ranges and host-interface addresses, using a routing-socket watcher. Synthetic addresses never exempt a destination from `private-dest`.
-- **Future.** Names come only from the mediator's persistent synthetic table or an explicit CONNECT authority. SNI and Host on real-address flows remain observations. On named flows they must match the flow name, and ECH causes refusal.
+- **Future.** The sandbox VM has no network device. Its TUN and nftables REDIRECT send TCP, UDP, and ICMP to avirtnetd. DNS to any address on port 53 uses one `/dns` stream per query. [Networking](./networking.md) defines the extended CONNECT protocols, forwarded HTTP, and their limits.
+- **Future.** avirtedgeproxyd checks every real upstream address for non-global ranges and addresses assigned to the host's interfaces, using a watcher connected to a routing socket. Synthetic addresses never exempt a destination from `private-dest`.
+- **Future.** Names come only from the mediator's synthetic address table or an explicit CONNECT authority. SNI and Host on flows to addresses supplied directly outside the ranges used for synthetic addresses remain observations. On named flows they must match the flow's hostname, and ECH causes refusal.
 - **Future.** Passthrough permits access to an endpoint and whatever it tunnels. Distinguishing names at a shared endpoint requires interception. DNS, ICMP payloads and timing remain possible channels under policy.
-- **Future.** macOS content filtering covers TCP and UDP. Every avirt host daemon other than avirtedgeproxyd also has a process sandbox profile denying non-loopback inet sockets, including ICMP. Linux restricts off-host connections by UID.
+- **Future.** macOS content filtering covers TCP and UDP. Every avirt daemon on the host other than avirtedgeproxyd also has a macOS Seatbelt profile denying non-loopback inet sockets, including ICMP. Linux restricts off-host connections by UID.
 - **Future.** TCP and UDP ingress require publication and permission from both hosts' edge proxies and the destination mediator. Each UDP association binds its caller, workload generation, publication and tunnel, with expiry, revocation, and amplification limits.
 
 ## Strong workload identity
@@ -108,7 +108,7 @@ Independent layers confine the agent. Escaping one leaves the others in place.
 - **Future.** On Docker Desktop, where each workload shares one kernel, the runtime's capability and seccomp layers sit beneath avirtinitd's, and avirtbuilderd refuses command builds ([runtime outer layer](./workload-hardening.md#runtime-outer-layer)).
 - **Out of Scope.** Approving individual tool calls inside the agent. avirt approves each permission request automatically ([ACP](./acp.md#permission-requests)).
 
-A credential binding requires trust in its recipient: an upstream can return an injected credential to the agent. Short-lived, narrowly scoped or sender-constrained credentials reduce exposure. Refresh tokens remain broker-only. Response scanning is optional and can't guarantee detection.
+A credential binding requires trust in its recipient: an upstream can return an injected credential to the agent. Short-lived, narrowly scoped or sender-constrained credentials reduce exposure. Only avirtsecretsd holds refresh tokens. Response scanning is optional and can't guarantee detection.
 
 ## Bounded mediator compromise
 
@@ -216,7 +216,7 @@ Peered hosts trust each other's identities explicitly and narrowly: a peer authe
 1. **Secrets at rest.** Whether to encrypt durable secrets at rest, such as the SPIFFE root key in the macOS Keychain, remains open. Storage for avirtsecretsd's cached provider values is also open.
 2. **Base image pinning.** Whether the avirt base, the harness bases and the mediator image pin their own base images by digest and their downloads by checksum is open.
 3. **Extension callouts.** Request and response inspection, external authorization, their access under TLS passthrough, and their failure behavior remain unspecified.
-4. **Restrictions on host connections.** The Network Extension content filter covers TCP and UDP. Every avirt host daemon other than avirtedgeproxyd also needs a process sandbox profile denying non-loopback inet sockets, including ICMP. Runtime tests must verify both restrictions (see [networking](./networking.md#limits-events-and-verification)).
+4. **Restrictions on host connections.** The Network Extension content filter covers TCP and UDP. Every avirt daemon on the host other than avirtedgeproxyd also needs a macOS Seatbelt profile denying non-loopback inet sockets, including ICMP. Runtime tests must verify both restrictions (see [networking](./networking.md#limits-events-and-verification)).
 
 # Threat model
 

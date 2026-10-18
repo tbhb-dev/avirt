@@ -61,7 +61,7 @@ flowchart LR
 | --- | --- | --- | --- | --- | --- | --- |
 | `connection.rtt` | Echo round trip of a small payload across the workload's connection to its mediator, including avirthostd's vsock forwarding where present | µs | Bench harness | External benchmark | Containerization, Docker | diag |
 | `connection.throughput` | Sustained bytes per second per direction on one CONNECT stream across that connection | MB/s | Bench harness | External benchmark | Containerization, Docker | diag |
-| `connection.stream_setup` | Flow stream opened by avirtnetd → response headers received, by TCP, UDP, or ICMP. | ms | avirtnetd | Histogram | All | diag |
+| `connection.stream_setup` | HTTP/2 stream for a workload flow opened by avirtnetd → response headers received, by TCP, UDP, or ICMP. | ms | avirtnetd | Histogram | All | diag |
 | `connection.mtls_handshake` | Transport connected → TLS 1.3 handshake complete with the peer ID authorized, per side | ms | avirtinitd, mediator, avirthostd | Histogram | Containerization, Docker | diag |
 | `svid.issue` | CSR sent → SVID received, end to end, plus avirthostd's signing time | ms | Mediator, avirtinitd, avirthostd | Histogram | Containerization, Docker | diag |
 | `svid.rotation` | `rotate` pushed → new connection in use with the new SVID and GOAWAY sent on the old one | ms | avirthostd, mediator | Span | Containerization, Docker | diag |
@@ -72,7 +72,7 @@ flowchart LR
 
 | Metric | Definition | Unit | Where | How | Runtimes | Class |
 | --- | --- | --- | --- | --- | --- | --- |
-| `egress.connect_setup` | Flow request received by the mediator → response headers written, by transport | ms | Mediator and edge proxy | Histogram | All | SLO |
+| `egress.connect_setup` | HTTP/2 request that opens a flow received by the mediator → response headers written, by transport | ms | Mediator and edge proxy | Histogram | All | SLO |
 | `egress.dns` | Name lookup started → addresses returned | ms | avirtedgeproxyd | Histogram | All | diag |
 | `egress.dial` | First upstream dial started → connected | ms | avirtedgeproxyd | Histogram | All | diag |
 | `egress.tls_accept` | `200` written → downstream TLS handshake complete | ms | Mediator | Histogram | Containerization, Docker | diag |

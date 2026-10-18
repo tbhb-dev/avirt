@@ -36,7 +36,7 @@ A **workload** is the lifecycle unit, like a pod with a sidecar. Its **sandbox c
 | avirtacp | Runs an agent workload through the Agent Client Protocol (see [ACP](./acp.md)) | workload | Partial |
 | avirtagent | Runs an agent workload through its native harness | workload | Planned |
 | avirtexec | Generic execution | workload | Planned |
-| avirtnetd | Provides guest networking with the client end of the workload's HTTP/2 connection to its mediator and stores the workload SVID. Receives redirected TCP and reads UDP and ICMP from its TUN. Provides synthetic DNS through the mediator and an optional forward proxy. Also provides the reverse proxy and guest control gRPC API | workload | Partial |
+| avirtnetd | Provides guest networking with the client end of the workload's HTTP/2 connection to its mediator and stores the workload SVID. Receives redirected TCP and reads UDP and ICMP from its TUN. Provides DNS answers with synthetic addresses through the mediator and an optional forward proxy. Also provides the reverse proxy and guest control gRPC API | workload | Partial |
 | avirtguestd | Workload services: a file server and an MCP server | workload | Planned |
 | avirtmcp | A stdio MCP server, launched by the agent, that relays to avirtmcpgwd | workload | Planned |
 | avirtguest | The guest CLI in sandbox images, which reaches avirtapid through avirtnetd, avirtmediatord, and avirtedgeproxyd (see [guest CLI](./guest-cli.md)) | workload | Planned |
@@ -108,7 +108,7 @@ Short IDs must be unique on the host for live workloads and ended workloads whos
 
 ## Internal names
 
-Each workload and service has internal names on this host and under a peer's host name under `host.avirt.internal` or an active peer's host name, which is the peer's FQDN (see [peering](./peering.md#peers-host-names)), and avirtdnsd is the only component that answers them. The name forms, label syntax, length caps and the rejection rule are in [DNS](./dns.md#internal-names).
+Each workload and service has internal names under `host.avirt.internal` on this host or under an active peer's fully qualified host name (see [peering](./peering.md#peers-host-names)), and avirtdnsd is the only component that answers them. The name forms, label syntax, length caps and the rejection rule are in [DNS](./dns.md#internal-names).
 
 ## Workload management
 
@@ -181,7 +181,7 @@ Each workload has one mediator container, a sidecar to its sandbox container. Th
 | Component | What it does | Talks to |
 | --- | --- | --- |
 | avirtinitd (mediator mode) | Binds `/run/avirt/workload.sock` and `/run/avirt/ingress.sock`, then passes their listening descriptors to avirtmediatord when starting it under its UID and Landlock ruleset. Stops the mediator when avirtmediatord exits. | avirtmediatord |
-| avirtmediatord | Maintains its connection to avirthostd and handles workload lifecycle and rotation. Serves the workload and ingress listeners. Evaluates the workload Cedar policy snapshot in-process with `cedar-policy`. Handles TCP, UDP, and ICMP flow streams. Intercepts TLS and SSH under request policy and credential checks. Stores the persistent synthetic DNS table. Handles Codex refresh interception and writes events. | avirtnetd, avirthostd, host services, and avirtedgeproxyd |
+| avirtmediatord | Maintains its connection to avirthostd and handles workload lifecycle and rotation. Serves the workload and ingress listeners. Evaluates the workload Cedar policy snapshot in-process with `cedar-policy`. Handles HTTP/2 streams for TCP, UDP, and ICMP workload flows. Intercepts TLS and SSH under request policy and credential checks. Stores the synthetic address table. Handles Codex refresh interception and writes events. | avirtnetd, avirthostd, host services, and avirtedgeproxyd |
 
 avirtmediatord uses hyper 1.x, h2 0.4.20, rustls 0.23 with ring, tokio-rustls and rcgen. It stores its SVID's private key in its own memory. Rotation swaps the client and server TLS configuration for new connections. Readiness is internal state, including policy and placeholder availability (see [launch handshake](./workload-topology.md#launch-handshake)).
 
@@ -199,7 +199,7 @@ Each sandbox container's root filesystem is a harness base image derived from th
 | Process | UID | What it does | Talks to |
 | --- | --- | --- | --- |
 | avirtinitd | 0 | PID 1, the launcher, lifecycle, and freeze authority. It doesn't have an SVID. It needs root to start children under other UIDs, create the agent cgroup, write the system CA bundle and `/etc/resolv.conf`, configure the TUN and nftables REDIRECT, hand the TUN and transparent TCP, DNS and optional forward-proxy sockets to avirtnetd, freeze the agent cgroup, and end every process in it. | Its children, over one launcher socket per role, `/run/avirt/init/<role>.sock` |
-| avirtnetd | `avirt-net` | The client end of the workload's HTTP/2 connection to its mediator: TLS client and h2 client on `/run/avirt/mediator.sock`. Stores the workload SVID and key in memory. It owns the `/envelopes` stream (sequence numbers and the replay ring), the TUN, transparent TCP listeners, optional forward proxy, DNS handler (see [egress](./egress.md#workload-dns)), the reverse proxy and the guest control gRPC API, and serves the local service sockets the other workload processes use. | avirtmediatord. Workload processes connect over loopback and Unix sockets |
+| avirtnetd | `avirt-net` | The client end of the workload's HTTP/2 connection to its mediator: TLS client and h2 client on `/run/avirt/mediator.sock`. Stores the workload SVID and key in memory. It owns the `/envelopes` stream (sequence numbers and the replay ring), the TUN, transparent TCP listeners, optional forward proxy, DNS stub resolver (see [egress](./egress.md#workload-dns)), the reverse proxy and the guest control gRPC API, and serves the local service sockets the other workload processes use. | avirtmediatord. Workload processes connect over loopback and Unix sockets |
 | avirtacp | `avirt-run` | Runs an agent workload through the Agent Client Protocol and exposes a session control API through the mediator (see [ACP](./acp.md#session-control-api)). avirtinitd launches the adapter at its request and hands it the adapter's stdio pipes. It taps each JSON-RPC line and submits the envelopes to avirtnetd. It provides the ACP client that's part of avirtinitd in the current code. | The ACP adapter (stdio), avirtnetd, avirtinitd |
 | avirtagent | `avirt-run` | Runs an agent workload through its native harness | The agent's harness, avirtnetd, avirtinitd |
 | avirtexec | `avirt-run` | Generic execution | avirtnetd, avirtinitd |
@@ -355,4 +355,4 @@ Status: planned. These items have no phase yet (see [roadmap](./roadmap.md#unsch
 12. **Web UI listener.** The host loopback port for avirtedgeproxyd's web UI listener remains unspecified.
 13. **Frontend repository layout.** Where the web UI's frontend app belongs in the repository is open.
 14. **Local user principal.** The design has yet to specify the Cedar principal for a local caller on avirtedgeproxyd's `edgeproxy.sock` or how `x-avirt-caller` conveys it.
-15. **Content filter prototype.** On macOS a Network Extension content filter drops each non-loopback flow from avirt-signed host processes. The filter covers TCP and UDP only. Each avirt host daemon other than avirtedgeproxyd also runs under a process sandbox profile that denies non-loopback inet sockets, including ICMP. Both restrictions require runtime verification (see [networking](./networking.md#limits-events-and-verification)).
+15. **Content filter prototype.** On macOS a Network Extension content filter drops each non-loopback flow from avirt-signed host processes. The filter covers TCP and UDP only. Each avirt daemon on the host other than avirtedgeproxyd also runs under a macOS Seatbelt profile that denies non-loopback inet sockets, including ICMP. Both restrictions require runtime verification (see [networking](./networking.md#limits-events-and-verification)).

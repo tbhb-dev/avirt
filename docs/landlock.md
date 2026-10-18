@@ -283,7 +283,7 @@ Landlock port rules match the port only, never the address. The sandbox VM has n
 
 Each ruleset sets both ABI 6 scopes:
 
-- `SCOPE_SIGNAL`: a process may signal only processes in its own domain or a nested one. The agent can signal its own tools. It can't send signals to avirtnetd, avirtacp, avirtagent, avirtexec, and avirtguestd, avirtinitd, or the runtime's init.
+- `SCOPE_SIGNAL`: a process may signal only processes in its own domain or a nested one. The agent can signal its own tools. It can't send signals to avirtnetd, avirtacp, avirtagent, avirtexec, avirtguestd, avirtinitd, or the runtime's init.
 - `SCOPE_ABSTRACT_UNIX_SOCKET`: a process may connect only to abstract Unix sockets created in its own domain or a nested one. Abstract sockets have no file mode, so this scope is the only layer that keeps the agent off an abstract socket created by any other workload process or by the runtime.
 
 ## Configuration
