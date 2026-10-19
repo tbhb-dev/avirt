@@ -114,11 +114,11 @@ flowchart LR
 | --- | --- | --- | --- | --- | --- | --- |
 | `build.rust_cold` | Clean `cargo build --workspace` start → finish | s | CI, bench harness | External benchmark | All | diag |
 | `build.rust_incremental` | `cargo build --workspace` after a one-file change in `avirt-core` | s | CI, bench harness | External benchmark | All | diag |
-| `build.swift_shim` | Shim build from source (including Containerization) start → finish, and the same with `AVIRT_SWIFTSHIM_DIR` set | s | CI (macOS) | External benchmark | Containerization | diag |
+| `build.avirtvmd` | avirtvmd build from source (including Containerization) start → finish | s | CI (macOS) | External benchmark | Containerization | diag |
 | `build.images` | `mise run build-images` both cold and with cached layers | s | CI, bench harness | External benchmark | All | diag |
 | `size.images` | Sandbox container and mediator image sizes | MiB | CI | External benchmark | All | diag |
 | `size.binaries` | `avirthostd`, `avirt`, `avirtmediatord` and `avirtinitd` sizes, per target | MiB | CI | External benchmark | All | diag |
-| `size.dylib` | Swift shim dylib size | MiB | CI (macOS) | External benchmark | Containerization | diag |
+| `size.avirtvmd` | avirtvmd binary size | MiB | CI (macOS) | External benchmark | Containerization | diag |
 
 # Reliability counters
 

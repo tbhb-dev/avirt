@@ -146,7 +146,7 @@ Status: planned. These hold for each runtime and each phase once the planned des
 - [Lifecycle and state](./lifecycle.md) - launch and teardown order, the runtime directory, crash cleanup, and path limits
 - [Workload lifecycle and layers](./workload-lifecycle.md) - the sandbox container's layers from the avirt base to the per-workload writable layer. Assembly on each runtime and progression through boot, running, and teardown
 - [Compute runtimes](./compute-runtimes.md) - the runtime interface, the Containerization runtime for Apple, Docker Desktop, and the Apple container CLI runtime the current code uses
-- [Build and platforms](./build-and-platforms.md) - build targets, Swift gating, linking, signing, the CI matrix, the toolchain, and host privileges per runtime
+- [Build and platforms](./build-and-platforms.md) - build targets, the avirtvmd build, signing, the CI matrix, the toolchain, and host privileges per runtime
 - [avirthostd API and log format](./hostd-api.md) - starting avirthostd, the control API, environment variables, and the NDJSON log
 - [Operator CLI](./operator-cli.md) - `avirt`, which launches workloads and follows their logs
 - [Admin CLI](./admin-cli.md) - `avirtadmin`, the local admin CLI

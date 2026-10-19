@@ -1,7 +1,7 @@
 ---
 type: Build Reference
 title: Build and platforms
-description: Build targets for the guest and host binaries, how the Swift Containerization shim is gated and linked, the Rust data-plane stack, signing, the CI matrix, the toolchain, host privileges per runtime and guest artifact pins.
+description: Build targets for the guest and host binaries, how the avirtvmd helper is built and signed, the Rust data-plane stack, signing, the CI matrix, the toolchain, host privileges per runtime and guest artifact pins.
 tags: [avirt, build, ci, platforms, signing, swift]
 implementation: partial
 generated: { by: codex/gpt-6, at: 2026-10-18T05:10:25Z }
@@ -11,7 +11,9 @@ generated: { by: codex/gpt-6, at: 2026-10-18T05:10:25Z }
 
 ## Workspace layout
 
-The root workspace includes `avirt-connect` for CONNECT authority parsing and destination checks. `mise run check` checks the root workspace. The implemented mediator uses the [Pingora CONNECT app](./egress.md#pingora-connect-app).
+The root workspace includes `avirt-connect` for CONNECT authority parsing and destination checks. `mise run check` checks that workspace. `crates/avirtvmd` is a SwiftPM package outside it, and on macOS `mise run build-vmd` builds the package and signs it with the `com.apple.security.virtualization` entitlement, and avirthostd starts the result from `AVIRT_VMD_BIN` or from the file next to its own binary. The implemented mediator uses the [Pingora CONNECT app](./egress.md#pingora-connect-app).
+
+Runtime backends conform to the `Runtime` trait from `avirt-core`. At run time `AVIRT_RUNTIME` selects `container` or `containerization`, and Docker isn't a choice. Because the Containerization backend starts the avirtvmd helper for each workload, avirthostd links no Swift.
 
 ## Prose checks
 
@@ -44,34 +46,9 @@ The guest binaries don't depend on the host OS. Each host build produces `avirth
 | `crates/avirthostd` | The host daemon |
 | `crates/avirtmediatord` | The mediator |
 | `crates/avirtinitd` | The sandbox container entrypoint |
-| `crates/avirt-runtime-containerization` | The Containerization runtime: a Swift package and a `build.rs` |
+| `crates/avirtvmd` | The per-workload VM host helper: a Swift package that builds on macOS only |
 
 `workloads/` contains only the image build directories (see [sandbox images](#sandbox-images)).
-
-Runtime backends conform to the `Runtime` trait from `avirt-core`. During a build, target `cfg` and the cargo features `runtime-containerization` and `runtime-docker` select them. During execution, `AVIRT_RUNTIME` selects among those compiled in.
-
-The build uses two target checks to control inclusion of the Containerization runtime:
-
-- `crates/avirt-runtime-containerization` contains the Swift package, whose `.dynamic` product exports a `@_cdecl` C ABI. Its `build.rs` keys on `CARGO_CFG_TARGET_OS` (the target, not the host) and does nothing on non-macOS targets.
-
-- `avirthostd` depends on that crate only under `[target.'cfg(target_os = "macos")'.dependencies]`.
-
-```mermaid
-flowchart LR
-    core["avirt-core (Runtime trait)"]
-    hostd["avirthostd"]
-    rc["avirt-runtime-containerization (macOS targets)"]
-    swift["Swift package: .dynamic product, @_cdecl C ABI"]
-    cz["Containerization 0.47.0 (SwiftPM, pinned tag)"]
-    dk["Docker runtime (feature runtime-docker)"]
-    hostd --> core
-    hostd -->|"cfg(target_os = macos), feature runtime-containerization"| rc
-    hostd --> dk
-    rc --> core
-    dk --> core
-    rc -->|"build.rs"| swift
-    swift --> cz
-```
 
 ## Sandbox images
 
@@ -94,17 +71,13 @@ Status: planned. avirtmediatord and avirtedgeproxyd use hyper 1.x for HTTP, h2 0
 
 The mediator binary targets Linux. avirtedgeproxyd is a host binary, including on macOS, and is a host service in the all-in-one image. HTTP parsing, upgrades, flow control, and TLS use the libraries. avirt provides policy, credentials, routing, limits, and lifecycle. The transport checks in [workload topology](./workload-topology.md#admission-and-flow-control) and [half-close behavior](./workload-topology.md#timeouts-and-keepalive) verify the system's properties.
 
-## Linking
-
-avirthostd loads the shim dylib through an `@executable_path` rpath. The distribution places the dylib next to the avirthostd binary. The Swift runtime comes from the OS.
-
 ## Containerization source
 
-Apple doesn't publish a prebuilt Containerization artifact. The build compiles the library from source with SwiftPM at the pinned tag (0.47.0). `build.rs` uses a prebuilt shim dylib when `AVIRT_SWIFTSHIM_DIR` points at one, and builds from source otherwise. CI publishes the dylib as a checksummed artifact.
+Apple doesn't publish a prebuilt Containerization artifact. SwiftPM builds the library from source at the pinned tag (0.47.0) when it builds avirtvmd.
 
 ## Signing
 
-- **Development.** macOS avirthostd builds use an ad-hoc signature with the `com.apple.security.virtualization` entitlement. `cargo run` and `cargo test` go through a signing runner configured in `.cargo/config.toml`, so test and run binaries contain the entitlement.
+- **Development.** The avirtvmd build signs the helper with the `com.apple.security.virtualization` entitlement. avirthostd and its tests don't need it.
 - **Distribution.** Distribution builds sign `avirthostd` with Developer ID and notarize it.
 - **Secrets broker.** Distribution builds sign `avirtsecretsd` and `avirtsecrets-1password` with Developer ID and notarize them. Each has a stable signing identifier that keeps its designated requirements unchanged across releases (see [macOS Keychain](./secrets-keychain.md#code-signing-and-entitlements)).
 
@@ -112,7 +85,7 @@ Apple doesn't publish a prebuilt Containerization artifact. The build compiles t
 
 | Runner | Builds |
 | --- | --- |
-| macOS | The Swift dylib, then avirthostd, then signing, plus avirtedgeproxyd, avirtapid and the macOS `avirt` command-line tool |
+| macOS | avirtvmd, then its signing, then avirthostd, plus avirtedgeproxyd, avirtapid and the macOS `avirt` command-line tool |
 | Linux | The guest binaries for both architectures, the Linux avirthostd and command-line tool |
 | Windows, or Linux with `cargo-xwin` | The Windows avirthostd and command-line tool |
 
@@ -126,7 +99,7 @@ mise pins Rust and defines the tasks on every OS: `serve` runs `avirthostd`, and
 
 | Host | Runtime | Constraint |
 | --- | --- | --- |
-| macOS | Containerization | The avirthostd binary contains `com.apple.security.virtualization` |
+| macOS | Containerization | The avirtvmd binary contains `com.apple.security.virtualization` |
 | macOS | Docker Desktop | Docker Desktop running for the user |
 | Linux | KVM microVM (planned) | Access to `/dev/kvm` |
 | Windows | Hyper-V through HCS (planned) | Membership in Hyper-V Administrators |

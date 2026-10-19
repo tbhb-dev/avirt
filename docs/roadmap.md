@@ -114,7 +114,7 @@ Status: planned. These items split the sandbox images into the avirt base image 
 
 - **Linux host runtime.** A KVM microVM per workload and mediator with vhost-vsock, mapping to the workload's HTTP/2 connection to its mediator over vsock, whose bytes avirthostd forwards unchanged. It needs `/dev/kvm`.
 - **Windows host runtime.** Hyper-V through HCS with hvsock, mapping to the same connection. It needs Hyper-V Administrators membership. Restrictions on host connections on Windows remain open (see [build and platforms](./build-and-platforms.md#open-questions)).
-- **Pure-Rust Apple runtime (deferred).** VMs through `objc2-virtualization`, with a Rust guest init in place of vminitd, replacing the Swift shim.
+- **Pure-Rust Apple runtime (deferred).** VMs through `objc2-virtualization`, with a Rust guest init in place of vminitd, replacing the avirtvmd helper.
 
 Status: planned. These items from [components](./components.md) have no phase or item yet:
 

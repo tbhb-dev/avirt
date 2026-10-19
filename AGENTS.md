@@ -116,4 +116,4 @@ The regression suite, with its bypass, positive and lifecycle checks, is in [doc
 
 ## Signing
 
-Once avirt supports the Containerization runtime, `avirthostd` on macOS must have the `com.apple.security.virtualization` entitlement. `cargo run` and `cargo test` then go through a signing runner. [docs/build-and-platforms.md](docs/build-and-platforms.md) describes the targets, the signing setup, and the CI matrix.
+`avirtvmd` on macOS must have the `com.apple.security.virtualization` entitlement, and `mise run build-vmd` signs it. `avirthostd` doesn't need the entitlement. [docs/build-and-platforms.md](docs/build-and-platforms.md) describes the targets, the signing setup, and the CI matrix.

@@ -14,7 +14,7 @@ okf_version: "0.2"
 
 # Build Reference
 
-* [Build and platforms](build-and-platforms.md) - Build targets for guest and host binaries, Swift Containerization shim build gates and linking, and the Rust data-plane stack. Signing, the CI matrix, toolchain, host privileges per runtime, and guest artifact pins.
+* [Build and platforms](build-and-platforms.md) - Build targets for guest and host binaries, the avirtvmd helper build and signing, and the Rust data-plane stack. Signing, the CI matrix, toolchain, host privileges per runtime, and guest artifact pins.
 
 # Command reference
 
