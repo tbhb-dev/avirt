@@ -68,7 +68,7 @@ avirtmediatord runs as one process. Traffic handling and lifecycle share its UID
 
 ## Transport scope
 
-TCP uses one HTTP/2 CONNECT stream per flow. UDP uses CONNECT-UDP with DATAGRAM capsules and an RFC 9298 Context ID, with one immutable destination per stream. Ping uses extended CONNECT with `:protocol` `icmp` and `{type, id, seq, payload}` messages. Messages omit the destination. [HTTP/2 streams](./networking.md#http2-streams) defines framing, capsule length and buffer limits, flow control, and explicit drain before close.
+TCP uses one HTTP/2 CONNECT stream per flow. UDP uses CONNECT-UDP with `DATAGRAM` capsules and an RFC 9298 Context ID, with one immutable destination per stream. Ping uses extended CONNECT with `:protocol` `icmp` and `{type, id, seq, payload}` messages. Messages omit the destination. [HTTP/2 streams](./networking.md#http2-streams) defines framing, capsule length and buffer limits, flow control, and explicit drain before close.
 
 ## How avirtmediatord handles egress
 

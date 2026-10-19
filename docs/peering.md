@@ -1,7 +1,7 @@
 ---
 type: Security Design
 title: Peering
-description: How two avirt hosts peer, with peers' host names as fully qualified DNS names, out-of-band enrollment with enrollment files and fingerprints, trust bundle exchange, root rotation, revocation and removal, discovery and transport over avirtedgeproxyd's peer listener, what crosses a peering and what never does, policy on both sides with cross-host delegation chain and the `Workloads/KeepAlive` call that bounds a workload created from a peer, pairwise topology, failure modes, observability and audit, and the avirtadmin and avirt commands.
+description: How two avirt hosts peer, with peers' host names as fully qualified DNS names, out-of-band enrollment with enrollment files and fingerprints, trust bundle exchange, root rotation, revocation and removal, discovery and transport over avirtedgeproxyd's peer listener, what crosses a peering and what never does, policy on both sides with cross-host delegation chain and the keepalive call that bounds a workload created from a peer, pairwise topology, failure modes, observability and audit, and the avirtadmin and avirt commands.
 tags: [avirt, peering, federation, spiffe, edge-proxy, policy, security]
 implementation: planned
 generated: { by: codex/gpt-6, at: 2026-10-18T05:20:59Z }

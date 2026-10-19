@@ -237,7 +237,7 @@ The implemented mediator's Pingora CONNECT proxy on `proxy.sock`, which parses t
 
 ## CONNECT-UDP
 
-An HTTP tunnel for relaying UDP datagrams to one immutable destination per stream, with DATAGRAM capsules over HTTP/2. Status: planned. See [HTTP/2 streams](./networking.md#http2-streams).
+An HTTP tunnel for relaying UDP datagrams to one immutable destination per stream, with `DATAGRAM` capsules over HTTP/2. Status: planned. See [HTTP/2 streams](./networking.md#http2-streams).
 
 ## Connection header
 
@@ -257,7 +257,7 @@ avirthostd's store of runtime artifacts, keyed by digest: kernels, initfs images
 
 ## Context ID
 
-The RFC 9298 identifier in a CONNECT-UDP DATAGRAM capsule. Status: planned. See [networking](./networking.md#http2-streams).
+The RFC 9298 identifier in a CONNECT-UDP `DATAGRAM` capsule. Status: planned. See [networking](./networking.md#http2-streams).
 
 ## Control plane
 
@@ -277,7 +277,7 @@ avirtedgeproxyd and avirtmediatord, which transport and inspect traffic, as dist
 
 ## Datagram
 
-One UDP message, kept intact within an HTTP/2 DATAGRAM capsule. The receiver checks its capsule length before allocation. Status: planned. See [HTTP/2 streams](./networking.md#http2-streams).
+One UDP message, kept intact within an HTTP/2 `DATAGRAM` capsule. The receiver checks its capsule length before allocation. Status: planned. See [HTTP/2 streams](./networking.md#http2-streams).
 
 ## Delegation chain
 

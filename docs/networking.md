@@ -126,7 +126,7 @@ The loopback HTTP CONNECT forward proxy remains available to explicitly configur
 | Traffic | Stream | Destination and framing |
 | --- | --- | --- |
 | TCP | CONNECT | One stream per flow, with the original IP address and port, or the forward proxy's CONNECT authority |
-| UDP | CONNECT-UDP | One immutable destination per stream with RFC 9298 Context ID and DATAGRAM capsules |
+| UDP | CONNECT-UDP | One immutable destination per stream with RFC 9298 Context ID and `DATAGRAM` capsules |
 | ICMP echo | Extended CONNECT with `:protocol` `icmp` | One checked destination per stream. Messages contain `{type, id, seq, payload}` |
 | DNS | POST `/dns` | One stream per query, with DNS over HTTPS (RFC 8484) requests and responses |
 | TCP ingress | Extended CONNECT on `/ingress` with `:protocol` `connect-tcp` | A published port on a destination workload |

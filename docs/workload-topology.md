@@ -78,7 +78,7 @@ One HTTP/2 connection per mediator generation transports each stream. avirtnetd 
 | control | `POST /control`, always the first stream | avirtnetd | avirtmediatord, NDJSON messages in both directions for the life of the connection |
 | envelopes | `POST /envelopes` with `avirt-resume-seq: N` | Envelopes from avirtinitd, the main workload process and avirtnetd, each containing a `seq` | avirthostd, `POST /workload/envelopes` |
 | TCP egress | CONNECT, one stream per flow | avirtnetd's transparent listener or optional forward proxy | avirtmediatord, then avirtedgeproxyd |
-| UDP egress | CONNECT-UDP with DATAGRAM capsules and an RFC 9298 Context ID | avirtnetd's TUN reader | One immutable destination and connected upstream socket |
+| UDP egress | CONNECT-UDP with `DATAGRAM` capsules and an RFC 9298 Context ID | avirtnetd's TUN reader | One immutable destination and connected upstream socket |
 | ICMP echo | Extended CONNECT with `:protocol` `icmp` | avirtnetd's TUN reader | One checked target, with `{type, id, seq, payload}` messages and no per-message destination |
 | guest CLI | `POST /guest-cli` | avirtguest's gRPC, through `guest.sock` | avirtedgeproxyd, then avirtapid, under the `guest-cli` principal (see [identity](./identity.md#trust-domain-and-ids)) |
 | MCP | `POST /mcp` | avirtmcp, through `mcp.sock` | avirtmcpgwd |
