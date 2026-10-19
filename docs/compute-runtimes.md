@@ -84,7 +84,7 @@ Status: planned. Guest kernels need TUN, nftables REDIRECT and connection tracki
 
 Status: implemented.
 
-The sandbox container runs with `terminal = false`, and avirtvmd supplies separate non-blocking writers for stdout and stderr, which feed `logs/<workload-id>.stdio.ndjson`. The VM console comes from `bootLog`. avirtlogd tails both (see [observability](./observability.md#workload-stdout-and-stderr)).
+The sandbox container runs with `terminal = false`, and avirtvmd supplies separate non-blocking writers for stdout and stderr, which feed `logs/<workload-id>.stdio.ndjson`. The VM console comes from `bootLog`. In the planned design, avirtlogd tails both (see [observability](./observability.md#workload-stdout-and-stderr)).
 
 ## State
 
