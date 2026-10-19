@@ -36,7 +36,7 @@ Pingora never reuses connections or checks peers because the socket's mode contr
 | 403 | `private-dest` |
 | 501 | Any method other than CONNECT (`plain-http` for an absolute `http://` URI, else `unsupported-method`) |
 | 502 | DNS or dial failure |
-| 504 | Connection timeout |
+| 504 | Connect timeout |
 
 The proxy allows and logs other destinations under rule `allow-all`.
 
@@ -85,7 +85,7 @@ TCP uses one HTTP/2 CONNECT stream per flow. UDP uses CONNECT-UDP with `DATAGRAM
 
 ## Edge proxy egress
 
-avirtedgeproxyd accepts CONNECT, CONNECT-UDP and `icmp` streams from authorized mediators and host services, and from enrolled peers on its peer listener. It verifies the caller's SVID and current generation before evaluating the host policy snapshot. On authorized delegated calls it also checks the originating principal in `x-avirt-caller`.
+avirtedgeproxyd accepts CONNECT, CONNECT-UDP and `icmp` streams, and forwarded HTTP, from authorized mediators and host services, and from enrolled peers on its peer listener. It verifies the caller's SVID and current generation before evaluating the host policy snapshot. On authorized delegated calls it also checks the originating principal in `x-avirt-caller`.
 
 avirt hostnames resolve to canonical entities. Local workload ports use the destination mediator's ingress listener. A service can use its authorized backend, and an avirt hostname under a peer's host name routes through that peer's avirtedgeproxyd. The edge resolves external names and checks every resolved address before dialing. Retries repeat the checks and never trigger an unchecked re-resolution. TCP and UDP use separate sockets per flow. UDP sockets connect to their fixed destination. ICMP uses unprivileged datagram sockets.
 
@@ -97,7 +97,7 @@ The edge refuses non-global addresses and addresses assigned to the host's own i
 | --- | --- |
 | 403 | `private-dest`, an unknown avirt hostname, or a denied caller or destination |
 | 502 | DNS or dial failure |
-| 504 | Connection timeout |
+| 504 | Connect timeout |
 
 avirtedgeproxyd doesn't decrypt the upstream TLS opened by a mediator or gateway. It records its own connection events with `src: "edgeproxy"`.
 

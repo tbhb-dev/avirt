@@ -31,7 +31,7 @@ The avirt DNS zone maps names under `host.avirt.internal` to this host's avirted
 | `<id>.<ns>.workload.host.avirt.internal`, `<alias>-<id>.<ns>.workload.host.avirt.internal`, `<generated>.<ns>.workload.host.avirt.internal` | A workload on this host | This host's avirtedgeproxyd |
 | `<name>.<ns>.svc.host.avirt.internal`, `<alias>.<ns>.svc.host.avirt.internal` | A service on this host | This host's avirtedgeproxyd |
 | `<id>.workload.host.avirt.internal`, `<alias>-<id>.workload.host.avirt.internal`, `<generated>.workload.host.avirt.internal`, `<name>.svc.host.avirt.internal`, `<alias>.svc.host.avirt.internal` | The same entity as the long form in the `default` namespace | This host's avirtedgeproxyd |
-| `<id>.<ns>.workload.<host>`, `<alias>-<id>.<ns>.workload.<host>`, `<generated>.<ns>.workload.<host>`, `<name>.<ns>.svc.<host>`, `<alias>.<ns>.svc.<host>` | A workload or service on an `active` peer, where `<host>` is that peer's fully qualified host name | That peer's avirtedgeproxyd |
+| `<id>.<ns>.workload.<host>`, `<alias>-<id>.<ns>.workload.<host>`, `<generated>.<ns>.workload.<host>`, `<name>.<ns>.svc.<host>`, `<alias>.<ns>.svc.<host>` | A workload or service on an `active` peer, where `<host>` is that peer's fully qualified host name | This host's avirtedgeproxyd, then that peer's |
 
 - **Workload name forms.** A workload's first DNS label is its `<id>`, `<alias>-<id>` if it has an alias, or its `<generated>` name. These three forms refer to the same workload.
   - `<id>` is the workload's short ID, exactly 8 lowercase hexadecimal characters (`[0-9a-f]{8}`). This name applies only to DNS. The workload's canonical ID is its UUIDv7, which appears in SPIFFE IDs and Cedar entities (see [workload IDs](./components.md#workload-ids)).

@@ -565,7 +565,7 @@ The check, applied in both policy modes, that refuses every resolved address in 
 
 ## `private-dest`
 
-A check in both policy modes that refuses a resolved address in a non-global range or assigned to one of the host's own interfaces, with 403 `private-dest`, as SSRF protection. It runs at avirtedgeproxyd for TCP, UDP and ICMP after the mediator translates synthetic addresses to names and the edge resolves the real upstream address. See [`private-dest` check](./egress.md#private-dest).
+A check in both policy modes that refuses a resolved address in a non-global range or assigned to one of the host's own interfaces, with 403 `private-dest`, as SSRF protection. Today avirtmediatord's CONNECT app applies it to every resolved address of a TCP CONNECT. Status: planned. It runs at avirtedgeproxyd for TCP, UDP and ICMP after the mediator translates synthetic addresses to names and the edge resolves the real upstream address. See [`private-dest` check](./egress.md#private-dest).
 
 ## Producer
 
