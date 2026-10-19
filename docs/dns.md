@@ -1,7 +1,7 @@
 ---
 type: Component Design
 title: DNS
-description: The avirt DNS zone that avirtdnsd serves, the local and internal name under a peer's host name forms for workloads and services, the label syntax and length caps, how avirtedgeproxyd receives connections to those names, and how the workload resolver and the DNS stream use them.
+description: The avirt DNS zone that avirtdnsd serves, the name forms for workloads and services on this host and under a peer's host name, the label syntax and length caps, how avirtedgeproxyd receives connections to those names, and how the workload resolver and the DNS stream use them.
 tags: [avirt, dns, avirtdnsd, names, hickory]
 implementation: planned
 generated: { by: codex/gpt-6, at: 2026-10-18T05:20:59Z }

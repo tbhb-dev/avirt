@@ -215,7 +215,7 @@ Each source produces one layer. Every source takes `destination`, `primary`, `st
 - **Remote git.** The repository at `remote-url`, or at the URL of `remote` in the local repository, fetched at `revision`, or at the head of `branch` or `tag`. Remote sources never read the local working tree. A build whose revision isn't on the remote fails with `commit not on remote`. Fetches use the HTTPS form of SSH remotes for known hosts, such as `https://github.com/foo/bar.git` for `git@github.com:foo/bar.git`.
 - **`github`.** The repository `owner/name` on GitHub, fetched at `revision`, or at the head of `branch` or `tag`, else at the head of the default branch. It differs from a remote `git` source in authenticating with a GitHub installation token and in recording the `dev.avirt.image.github.*` annotations. A source specifies one ref. Which refs stay built is a [prebuild policy](./workspace-build.md#prebuild-policies)'s decision, and a prebuild replaces the primary source's ref with the ref it's building.
 
-Only builds that the command-line tool starts from a local config accept sources read on the host. Such sources make the build an image built from local sources. A prebuild fails with `config not buildable by policy` when the config it reads names a `directory`, `file` or local `git` source.
+Only builds that the command-line tool starts from a local config accept sources read on the host. Such sources make the build produce an image built from local sources. A prebuild fails with `config not buildable by policy` when the config it reads names a `directory`, `file` or local `git` source.
 
 ### Images built from local sources
 
@@ -411,6 +411,6 @@ when { context.namespace == Namespace::"prod" && resource.provenance == "local" 
 # Open questions
 
 1. **Snapshots to workspace images.** Whether to convert an avirtguestd workspace snapshot of a running workload container into a new workspace image remains open. The producer for such images also remains open.
-2. **Zero-config in a repository with a remote.** The zero-config git source fetches the local `HEAD` commit from `origin`, so unpushed commits fail with `commit not on remote` and the source never reads the working tree. Whether zero-config should use a local git source instead remains open. That choice would make the build an image built from local sources.
+2. **Zero-config in a repository with a remote.** The zero-config git source fetches the local `HEAD` commit from `origin`, so unpushed commits fail with `commit not on remote` and the source never reads the working tree. Whether zero-config should use a local git source instead remains open. That choice would make the build produce an image built from local sources.
 3. **The guest CLI.** Whether `guest-cli` may search workspaces or start builds from inside a workload container is open (see [guest CLI](./guest-cli.md#open-questions)).
 4. **`github` and `git` sources.** With ref selection in prebuild policies, a `github` source is a remote `git` source with GitHub authentication and annotations. Whether to represent it as `git` with a provider key is open.

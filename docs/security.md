@@ -73,7 +73,7 @@ The agent's only way out is its workload's mediator, each connection needs an ex
 - **Met.** The mediator refuses each resolved address in a non-global range or assigned to one of the host's own interfaces, which it reads on each connection ([private-address block](./egress.md#private-address-block-private-dest)).
 - **Future.** Enforce mode requires an explicit Cedar permit for a connection, request, or DNS query. Today the mediator allows each destination that passes the private-address block under rule `allow-all` ([decision semantics](./egress-policies.md#decision-semantics)).
 - **Future.** avirtedgeproxyd is the policy enforcement point for each workload-to-workload, service, host-local service and external connection, and the only host service that opens connections off the host ([avirtedgeproxyd](./components.md#avirtedgeproxyd), [networking](./networking.md#restrictions-on-off-host-connections)).
-- **Future.** avirtedgeproxyd runs on the host. The macOS content filter permits its binary and blocks non-loopback flows from other avirt-signed processes. Linux permits new off-host flows only from its UID ([Restrictions on off-host connections](./networking.md#restrictions-on-off-host-connections)).
+- **Future.** avirtedgeproxyd runs on the host. The macOS content filter permits its binary and blocks non-loopback flows from other avirt-signed processes. Linux permits new off-host flows only from its UID ([restrictions on off-host connections](./networking.md#restrictions-on-off-host-connections)).
 - **Future.** avirtedgeproxyd refuses the host's own interface addresses, which it reads with `getifaddrs` on every connection, as well as the non-global ranges ([edge proxy egress](./egress.md#edge-proxy-egress)).
 - **Future.** Workload DNS goes through the `resolve` action, which applies as evaluated in audit mode too, and the mediator logs each query ([workload DNS](./egress.md#workload-dns)).
 - **Future.** The `Host` of a request under TLS interception must equal its CONNECT host, and the SNI of a connection under TLS passthrough must equal its CONNECT host ([how avirtmediatord handles egress](./egress.md#how-avirtmediatord-handles-egress)).
@@ -119,7 +119,7 @@ A compromised mediator controls only its own workload's traffic. It can't access
 - **Future.** The mediator has only placeholders and short-lived mediator-injected credentials. Long-lived real credentials for model or MCP traffic remain outside it ([bindings](./egress-credentials.md#bindings)).
 - **Future.** avirthostd's SNI routing never connects one mediator to another, and each host listener refuses a superseded generation ([SNI routing](./workload-topology.md#sni-routing)).
 - **Future.** The workload's MITM CA is name-constrained to the hosts its policy can intercept, and a workload lacks a MITM CA unless its policy permits interception ([MITM CA name constraints](./egress-policies.md#mitm-ca-name-constraints)).
-- **Future.** avirthostd labels events that the mediator reports with `src: "mediator"`. Trust in these events must never exceed trust in the mediator ([The `src` field](./trust-boundaries.md#the-src-field)).
+- **Future.** avirthostd labels events that the mediator reports with `src: "mediator"`. Trust in these events must never exceed trust in the mediator ([the `src` field](./trust-boundaries.md#the-src-field)).
 
 ## Least privilege for host services
 
@@ -165,7 +165,7 @@ avirt records each agent action and each avirt decision with an authenticated id
 - **Met.** The workload log records each JSON-RPC line and each proxied connection before `container_exit` ([log files](./hostd-api.md#log-files), [events](./egress.md#events)).
 - **Met.** avirtinitd records each automatic approval as an `auto_approve` meta event ([ACP](./acp.md#permission-requests)).
 - **In Progress.** avirt's own events exclude secret values: the Codex write-back logs a fixed reason string. Lines the agent produces can still contain its credentials ([Codex](./egress-credentials.md#codex)).
-- **Future.** Each event includes `workload`, `gen`, `seq` and a `src` label that avirthostd stamps from the authenticated connection it arrived on ([The `src` field](./trust-boundaries.md#the-src-field)).
+- **Future.** Each event includes `workload`, `gen`, `seq` and a `src` label that avirthostd stamps from the authenticated connection it arrived on ([the `src` field](./trust-boundaries.md#the-src-field)).
 - **Future.** Each policy decision records the deciding rule and policy snapshot version, and each workload management call records the caller, the action, the resource and the delegation chain ([events](./egress.md#events), [workload management](./components.md#workload-management)).
 - **Future.** Event loss never happens silently. A full event ring refuses new work with 503, and a workload at its log's hard cap ends ([resuming after reconnect](./workload-topology.md#resuming-after-reconnect)).
 - **Future.** avirtauditd delivers the log as OCSF with `src` intact. Its backpressure never stalls a workload ([audit](./observability.md#audit)).

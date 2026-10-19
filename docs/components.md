@@ -158,7 +158,7 @@ flowchart LR
 
 ## Where avirtedgeproxyd runs
 
-avirtedgeproxyd runs as a host process on macOS and as a host service in the all-in-one server image. The host enforces off-host access by the signature and signing identifier of the executable on macOS and by UID on Linux (see [Restrictions on off-host connections](./networking.md#restrictions-on-off-host-connections)). Its listeners use host Unix sockets or host TCP sockets. avirtapid stays a separate process, accepts mutual TLS connections and receives requests from avirtedgeproxyd over a local Unix socket.
+avirtedgeproxyd runs as a host process on macOS and as a host service in the all-in-one server image. The host enforces off-host access by the signature and signing identifier of the executable on macOS and by UID on Linux (see [restrictions on off-host connections](./networking.md#restrictions-on-off-host-connections)). Its listeners use host Unix sockets or host TCP sockets. avirtapid stays a separate process, accepts mutual TLS connections and receives requests from avirtedgeproxyd over a local Unix socket.
 
 ## Policy and credential placement
 

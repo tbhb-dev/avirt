@@ -302,5 +302,5 @@ Only the Admin API writes records in `secrets.d/` and `bindings.d/`.
 
 1. **Binding namespace scope.** Secrets have host or namespace scopes. Whether bindings can also have namespace scope remains open (see [components](./components.md#open-questions)).
 2. **Host-scoped audit record.** Host-scoped events go to avirtoteld only. Whether host-scoped events also need a durable record beside the workload logs for avirtauditd to read remains open.
-3. **Plugin egress enforcement.** Connections to the 1Password desktop app use local IPC without egress. How the host restricts plugin connections to avirtsecretsd's egress socket remains open (see [Restrictions on off-host connections](./networking.md#restrictions-on-off-host-connections)).
+3. **Plugin egress enforcement.** Connections to the 1Password desktop app use local IPC without egress. How the host restricts plugin connections to avirtsecretsd's egress socket remains open (see [restrictions on off-host connections](./networking.md#restrictions-on-off-host-connections)).
 4. **Memory locking.** Memory locking remains an open question. This includes whether avirtsecretsd needs locked pages for values and how it behaves when a host refuses to lock pages containing values.

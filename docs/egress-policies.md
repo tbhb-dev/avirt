@@ -577,7 +577,7 @@ These apply as evaluated in both modes:
 - every action that avirthostd, avirtbuilderd, avirtregistryd, and avirtsecretsd check, so audit mode never widens control-plane authority or credential access.
 - a deny for `unknown-name`, `evaluation-error` or `snapshot-expired`.
 
-The checks that apply in both policy modes aren't policy and apply in both modes: authority parsing and canonicalization (400), the private-address block (403 `private-dest`), `Host` and SNI matching (421 and close), the placeholder misuse check (403 `credential-misplaced`), credential bindings (a credential is injected only on its own binding), the Codex refresh intercept's exact match, caller authentication, and generation fencing.
+These checks aren't policy and apply in both modes: authority parsing and canonicalization (400), the private-address block (403 `private-dest`), `Host` and SNI matching (421 and close), the placeholder misuse check (403 `credential-misplaced`), credential bindings (a credential is injected only on its own binding), the Codex refresh intercept's exact match, caller authentication, and generation fencing.
 
 ## Policy snapshots
 
@@ -659,7 +659,7 @@ The prover runs inside avirtpolicyd on every candidate policy set, before avirtp
 1. **Validation.** The set validates against the schema in strict mode.
 2. **Ids.** Each policy has an `@id`, unique across every set that can apply together. Reserved rule names can't serve as policy IDs.
 3. **`like`.** Every `like` is on an allowed operand with an allowed pattern form (see [restrictions on `like`](#restrictions-on-like)).
-4. **Conditions on policy sets.** The set passes the checks for all invariants that the host policy declares.
+4. **Conditions on policy sets.** The set passes the checks for all conditions that the host policy declares.
 
 By reasoning symbolically over the schema, the prover obtains results that hold for every request and every entity state the schema admits, including precise results for entity-hierarchy membership such as `in Namespace::"team-a"`.
 
@@ -669,11 +669,11 @@ A condition on policy sets is itself written in Cedar, as one of:
 
 | Kind | Holds when |
 | --- | --- |
-| Limits on permitted requests | Within the invariant's scope, the candidate set permits only requests that the boundary set also permits. |
-| Required allow | Within the invariant's scope, the candidate set permits every request that the required set permits. |
-| Denial of all requests | Within the invariant's scope, the candidate set denies all requests. |
+| Limits on permitted requests | Within the condition's scope, the candidate set permits only requests that the limiting set also permits. |
+| Required allow | Within the condition's scope, the candidate set permits every request that the required set permits. |
+| Denial of all requests | Within the condition's scope, the candidate set denies all requests. |
 
-Each invariant has an id and a scope: one or more actions, and the principal and resource entity types it covers. The prover omits a candidate policy annotated `@exempt("<invariant id>")` from that invariant's check. Only host administration writes policies. A condition limiting permitted requests scoped to `connect` from a `Workload` to a `Workload` or `Service` can permit only connections within a namespace. Connections from outside the namespace require a policy exempt from that invariant. A condition requiring the set to permit specified requests can keep the model API reachable for every agent workload, preventing any referenced set from forbidding it. A condition denying all requests scoped to `create_workload` can rule out workload creation everywhere.
+Each condition has an id and a scope: one or more actions, and the principal and resource entity types it covers. The prover omits a candidate policy annotated `@exempt("<condition id>")` from that condition's check. Only host administration writes policies. A condition limiting permitted requests scoped to `connect` from a `Workload` to a `Workload` or `Service` can permit only connections within a namespace. Connections from outside the namespace require a policy exempt from that condition. A condition requiring the set to permit specified requests can keep the model API reachable for every agent workload, preventing any referenced set from forbidding it. A condition denying all requests scoped to `create_workload` can rule out workload creation everywhere.
 
 ### MITM CA name constraints
 
@@ -875,7 +875,7 @@ permit (principal in Namespace::"team-a", action in [Action::"resolve", Action::
 
 ### Limits on permitted requests
 
-The boundary set of an invariant scoped to `connect` from a `Workload` to a `Workload` or `Service` permits connections within `team-a` only. Before avirtpolicyd builds any policy snapshot, the prover checks every candidate set against this boundary. It omits policies annotated `@exempt` with the invariant's id, such as `xns-team-a-to-shared` below. The boundary set defines the check, and avirtpolicyd never distributes it.
+The limiting set of a condition scoped to `connect` from a `Workload` to a `Workload` or `Service` permits connections within `team-a` only. Before avirtpolicyd builds any policy snapshot, the prover checks every candidate set against this limit. It omits policies annotated `@exempt` with the condition's id, such as `xns-team-a-to-shared` below. The limiting set defines the check, and avirtpolicyd never distributes it.
 
 ```cedar
 @id("boundary-same-namespace")
@@ -896,6 +896,6 @@ permit (principal in Namespace::"team-a", action == Action::"connect", resource 
 # Open questions
 
 1. **Internal names under a peer's host name below the namespace.** An internal name under a peer's host name resolves locally to the peer's namespace, so local policy can't distinguish one peer workload from another. It remains open whether avirtedgeproxyd should look up the name at the peer to resolve it to the peer's entities (see [peering](./peering.md#evaluation-on-each-side)).
-2. **Limits on permitted requests over every namespace.** A set limiting permitted requests is a Cedar policy set. Cedar lacks a variable that binds the principal's namespace to the resource's, which requires the example to name `team-a`. avirtpolicyd could generate one boundary per namespace from the entity revision. Or the prover could gain a built-in namespace isolation invariant. The choice remains open.
+2. **Limits on permitted requests over every namespace.** A set limiting permitted requests is a Cedar policy set. Cedar lacks a variable that binds the principal's namespace to the resource's, which requires the example to name `team-a`. avirtpolicyd could generate one limiting set per namespace from the entity revision. Or the prover could gain a built-in namespace isolation invariant. The choice remains open.
 3. **Per-namespace modes for host services.** A host service's off-host connection uses the host default mode. The choice remains open for a component acting for a workload, such as avirtmodelgwd: should it use the workload's namespace mode?
 4. **Policy authorship.** Policy writes are host administration through avirtadmin. It remains open whether namespace owners may write their own policy sets within limits on permitted requests.

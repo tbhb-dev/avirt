@@ -509,7 +509,7 @@ The first `git` or `github` source of a workspace config, or the one marked `pri
 
 ## Private-address block
 
-The check that applies in both policy modes that refuses every resolved address in a non-global range or assigned to one of the host's own interfaces, with 403 `private-dest`, as SSRF protection. It runs in the CONNECT app, and in the planned design at avirtedgeproxyd. See [private-address block](./egress.md#private-address-block-private-dest).
+The check, applied in both policy modes, that refuses every resolved address in a non-global range or assigned to one of the host's own interfaces, with 403 `private-dest`, as SSRF protection. It runs in the CONNECT app, and in the planned design at avirtedgeproxyd. See [private-address block](./egress.md#private-address-block-private-dest).
 
 ## Producer
 

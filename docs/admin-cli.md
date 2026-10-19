@@ -202,7 +202,7 @@ avirtsecretsd stores each real credential and each secret record (see [secrets](
 
 ## Audit
 
-Administration calls, workload management calls, and break-glass commands each produce events. avirthostd writes workload-scoped events to that workload's log for avirtauditd to deliver as OCSF (see [The `src` field](./trust-boundaries.md#the-src-field)). It sends host-scoped events to avirtoteld (see [audit events](./secrets.md#audit-events)). These include namespace changes, policy writes, and break-glass commands.
+Administration calls, workload management calls, and break-glass commands each produce events. avirthostd writes workload-scoped events to that workload's log for avirtauditd to deliver as OCSF (see [the `src` field](./trust-boundaries.md#the-src-field)). It sends host-scoped events to avirtoteld (see [audit events](./secrets.md#audit-events)). These include namespace changes, policy writes, and break-glass commands.
 
 | Command | Does |
 | --- | --- |

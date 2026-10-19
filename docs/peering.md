@@ -280,7 +280,7 @@ avirtdnsd answers a name only when it's an internal name under the host name of 
 
 ### Entities
 
-A `Peer` entity represents an enrolled peer, and a peer's namespaces are in it, so `principal in Peer::"<host>"` matches each identity from that peer and `resource in Peer::"<host>"` each internal name under a peer's host name under that peer host name.
+A `Peer` entity represents an enrolled peer, and a peer's namespaces are in it, so `principal in Peer::"<host>"` matches each identity from that peer and `resource in Peer::"<host>"` each internal name under that peer host name.
 
 | Entity | Id | Parents | Attributes | Source |
 | --- | --- | --- | --- | --- |
