@@ -108,7 +108,7 @@ mise pins Rust and defines the tasks on every OS: `serve` runs `avirthostd`, and
 
 Kernel and initfs pins belong to each runtime. The Containerization runtime pins:
 
-- the Kata Containers 3.32.0 arm64 `vmlinux` by URL and tarball sha256 `8736c054d9223974735394f822000823baef509e1c33405ec798240fa9b6e4b5`.
+- the Kata Containers 3.32.0 arm64 `vmlinux` by URL and tarball sha256 `8736c054d9223974735394f822000823baef509e1c33405ec798240fa9b6e4b5`, and the extracted `vmlinux` by sha256 `fb2cfb79eb1ae19447a85d75682d7fa5cfec97e24beb2609a492b806e8072c8d`.
 - the initfs `ghcr.io/apple/containerization/vminit:0.47.0`.
 
 Both move together with the Containerization package version. Docker Desktop supplies its own kernel.
