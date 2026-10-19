@@ -116,8 +116,8 @@ run = "bats .agents/skills/agent-commit/tests .agents/skills/agent-pr/tests .age
 [tasks.test-jargon]
 description = "Unit tests for the new-term check"
 run = [
-  "uv venv -q --clear --python 3.11 .venv-jargon",
-  "uv pip install -q --python .venv-jargon --require-hashes -r scripts/tests/requirements.txt",
+  "[ -d .venv-jargon ] || uv venv -q --python 3.11 .venv-jargon",
+  "uv pip sync -q --python .venv-jargon --require-hashes scripts/tests/requirements.txt",
   ".venv-jargon/bin/pytest scripts/tests -q",
 ]
 
