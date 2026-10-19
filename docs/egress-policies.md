@@ -662,21 +662,21 @@ The prover runs inside avirtpolicyd on every candidate policy set, before avirtp
 1. **Validation.** The set validates against the schema in strict mode.
 2. **Ids.** Each policy has an `@id`, unique across every set that can apply together. Reserved rule names can't serve as policy IDs.
 3. **`like`.** Every `like` is on an allowed operand with an allowed pattern form (see [restrictions on `like`](#restrictions-on-like)).
-4. **Invariants.** The set passes the checks for all invariants that the host policy declares.
+4. **Conditions.** The set passes the checks for all conditions that the host policy declares.
 
 By reasoning symbolically over the schema, the prover obtains results that hold for every request and every entity state the schema admits, including precise results for entity-hierarchy membership such as `in Namespace::"team-a"`.
 
-### Invariants
+### Conditions
 
-An invariant is itself written in Cedar, as one of:
+A condition is itself written in Cedar, as one of:
 
 | Kind | Holds when |
 | --- | --- |
-| Limit on permitted requests | Within the invariant's scope, the candidate set permits only requests that the boundary set also permits. |
-| Required allow | Within the invariant's scope, the candidate set permits every request that the required set permits. |
-| Condition that requires denial | Within the invariant's scope, the candidate set denies all requests. |
+| Limit on permitted requests | Within the condition's scope, the candidate set permits only requests that the limiting set also permits. |
+| Required allow | Within the condition's scope, the candidate set permits every request that the required set permits. |
+| Condition that requires denial | Within the condition's scope, the candidate set denies all requests. |
 
-Each invariant has an id and a scope: one or more actions, and the principal and resource entity types it covers. The prover omits a candidate policy annotated `@exempt("<invariant id>")` from that invariant's check. Only host administration writes policies. A limit on permitted requests scoped to `connect` from a `Workload` to a `Workload` or `Service` can permit only connections within a namespace. Connections from outside the namespace require a policy exempt from that invariant. A condition that requires permission can keep the model API reachable for every agent workload, preventing any referenced set from forbidding it. With a condition that requires denial, an invariant scoped to `create_workload` can rule out workload creation everywhere.
+Each condition has an id and a scope: one or more actions, and the principal and resource entity types it covers. The prover omits a candidate policy annotated `@exempt("<condition id>")` from that condition's check. Only host administration writes policies. A limit on permitted requests scoped to `connect` from a `Workload` to a `Workload` or `Service` can permit only connections within a namespace. Connections from outside the namespace require a policy exempt from that condition. A condition that requires permission can keep the model API reachable for every agent workload, preventing any referenced set from forbidding it. With a condition that requires denial, a condition scoped to `create_workload` can rule out workload creation everywhere.
 
 ### MITM CA name constraints
 

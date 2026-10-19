@@ -212,7 +212,7 @@ These never cross a peering:
 
 - **Secrets.** Credential values, placeholders, bindings and binding references, provider configuration, and avirtsecretsd records. A workload created on a peer gets only the peer's own bindings, under the peer's policy.
 - **Keys.** Any private key, the SPIFFE CA, the MITM CAs, and each SVID other than the two hosts' avirtedgeproxyd SVIDs.
-- **Policy.** Policy sets, policy snapshots, invariants, and decisions. Each host's policy remains private to that host. Its decisions don't bind the other host.
+- **Policy.** Policy sets, policy snapshots, conditions, and decisions. Each host's policy remains private to that host. Its decisions don't bind the other host.
 - **Audit and logs.** Audit logs, workload logs and audit records stay on the host that wrote them. A peer reads a workload's log only through `Logs/ReadLog` on its routes, under the peer's own `read_log` policy, which is a control-plane call and not audit delivery.
 - **DNS queries.** avirtdnsd answers each avirt hostname under a peer's host name locally (see [DNS](#dns)).
 - **Topology.** This host never reveals its other peers to a peer. Peer routes exclude `Peers/*`, and avirt never forwards a stream to a third host.

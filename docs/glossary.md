@@ -215,6 +215,10 @@ A cached root filesystem, or on Docker Desktop a composed image, made of a harne
 
 The backend that creates and removes the sandbox container and mediator for a workload and provides their Unix sockets to the host. The implementations are the Containerization runtime, the Docker Desktop runtime, or the Apple container CLI runtime. See [runtime interface](./compute-runtimes.md#runtime-interface).
 
+## Condition on policy sets
+
+A condition that must remain true for every candidate policy set. The prover checks it before avirtpolicyd builds a policy snapshot. A condition can limit the requests a set permits. It can also require permission or denial for specified requests. Status: planned. See [conditions](./egress-policies.md#conditions).
+
 ## Configuration layer
 
 The read-only OCI layer that avirthostd builds for each launch with the harness's managed settings, its MCP configuration and `/etc/avirt/launch.toml`, layer 4 of the layer stack. It contains no secret or placeholder value. Status: planned. See [configuration layer](./workload-lifecycle.md#configuration-layer).
@@ -415,10 +419,6 @@ The tag `build-<build id>` that every promoted workspace image gets, which no ot
 
 avirtmediatord's listener on `/run/avirt/ingress.sock`, on which avirtedgeproxyd, through avirthostd's SNI routing, reaches that workload's published ports. Status: planned. See [runtime-provided sockets](./workload-topology.md#runtime-provided-sockets).
 
-## Invariant
-
-A condition that must remain true for every candidate policy set. The prover checks it before avirtpolicyd builds a policy snapshot. An invariant can limit the requests a set permits. It can also require permission or denial for specified requests. Status: planned. See [invariants](./egress-policies.md#invariants).
-
 ## Issuing CA
 
 The in-memory intermediate SPIFFE CA, valid for 7 days and signed by the root, that signs every SVID. Status: planned. See [issuer](./identity.md#issuer).
@@ -589,7 +589,7 @@ The authenticated origin of a workspace image in avirtregistryd's index, `builde
 
 ## Prover
 
-The Cedar policy prover in avirtpolicyd. Before avirtpolicyd builds any snapshot, the prover checks every candidate policy set against the schema, the `@id` and `like` rules, and the invariants. It also derives each MITM CA's name constraints. Status: planned. See [the prover](./egress-policies.md#the-prover).
+The Cedar policy prover in avirtpolicyd. Before avirtpolicyd builds any snapshot, the prover checks every candidate policy set against the schema, the `@id` and `like` rules, and the conditions. It also derives each MITM CA's name constraints. Status: planned. See [the prover](./egress-policies.md#the-prover).
 
 ## Provider
 
@@ -721,7 +721,7 @@ avirthostd's directory for state that persists beyond the runtime directory. Sta
 
 ## SVCB
 
-A DNS service binding record. The synthesizer handles its AliasMode, TargetName, port, address hints, and parameter consistency. Status: planned. See [synthetic answers](./dns.md#synthetic-answers).
+A DNS service binding record. avirtmediatord handles its AliasMode, TargetName, port, address hints, and parameter consistency. Status: planned. See [synthetic answers](./dns.md#synthetic-answers).
 
 ## SVID
 

@@ -38,7 +38,7 @@ Status: planned. avirt's enforcement points accept extensions where content insp
 
 - **Mediator data plane.** avirtmediatord evaluates workload policy and inspects intercepted requests. It checks placeholders and injects credentials in its own process. Request and response inspection extensions can add checks at this point (see [egress](./egress.md#how-avirtmediatord-handles-egress)).
 - **Edge proxy.** avirtedgeproxyd evaluates host policy for workload, service, peer and external connections in its own process. External authorization extensions can add checks to these connections.
-- **Cedar policy.** Host and workload policy sets, with invariants that the prover checks before avirtpolicyd builds any policy snapshot (see [egress policies](./egress-policies.md#the-prover)).
+- **Cedar policy.** Host and workload policy sets, with conditions that the prover checks before avirtpolicyd builds any policy snapshot (see [egress policies](./egress-policies.md#the-prover)).
 - **Secret providers.** avirtsecretsd reads real credentials from the providers that the host configuration names, and is the only component that does (see [egress credentials](./egress-credentials.md#status-planned)).
 
 An extension adds checks and never removes one. Cedar decisions, the `private-dest` check, `Host` and SNI matching, the `credential-misplaced` check and credential bindings apply whatever an extension decides.

@@ -64,7 +64,7 @@ avirtmediatord maintains a bounded synthetic address table for each workload, us
 
 TCP and UDP queries to port 53 at any address reach `/dns`, including UDP read from the TUN. Each query has its own stream and event. Both the mediator and edge enforce `resolve`, including CNAME names. For external queries, the edge parses requests rather than relaying arbitrary DNS bytes. Supported query types include A, AAAA, HTTPS, SVCB, and CNAME. Queries have size and rate limits. MX and TXT require permission.
 
-HTTPS and SVCB rewriting handles AliasMode, TargetName, `port`, synthetic address hints, and the consistency of `mandatory` and `no-default-alpn`. The synthesizer removes `ech` and, for intercepted names, `h3`. HTTP responses for intercepted names omit `Alt-Svc`. Rewritten answers prevent guest DNSSEC validation. Permitted encrypted DNS endpoints and encoded names remain possible channels under policy.
+HTTPS and SVCB rewriting handles AliasMode, TargetName, `port`, synthetic address hints, and the consistency of `mandatory` and `no-default-alpn`. avirtmediatord removes `ech` and, for intercepted names, `h3`. HTTP responses for intercepted names omit `Alt-Svc`. Rewritten answers prevent guest DNSSEC validation. Permitted encrypted DNS endpoints and encoded names remain possible channels under policy.
 
 ## Workload DNS policy and the DNS stream
 
