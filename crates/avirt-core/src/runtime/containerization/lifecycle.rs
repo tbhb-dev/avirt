@@ -76,6 +76,8 @@ pub enum HelperState {
 pub struct HelperStatus {
     /// The incarnation in the launch intent, if the intent was readable.
     pub incarnation: Option<Incarnation>,
+    /// The state in the launch intent, if the intent was readable.
+    pub recorded: Option<State>,
     /// What avirthostd knows about the helper.
     pub state: HelperState,
     /// The workload's id.
@@ -334,16 +336,23 @@ impl ChildSupervisor {
             Err(err) if err.kind() == io::ErrorKind::NotFound => return None,
             Err(err) => {
                 let state = HelperState::Unknown(format!("the launch intent is unreadable: {err}"));
-                return Some(HelperStatus { incarnation: None, state, workload: name.to_owned() });
+                return Some(HelperStatus { incarnation: None, recorded: None, state, workload: name.to_owned() });
             }
         };
+        let recorded_ended = intent.state == State::Ended;
         let state = match lock_state(dir) {
+            // avirthostd saw the lock free before it recorded the end, and no helper spawns again for
+            // this directory, so the record settles what a failed check can't.
+            LockState::Failed(_) | LockState::Free | LockState::Missing if recorded_ended => HelperState::Ended,
             LockState::Failed(why) => HelperState::Unknown(format!("the helper's lock: {why}")),
             LockState::Free | LockState::Missing => HelperState::Ended,
+            LockState::Held if recorded_ended => {
+                HelperState::Unknown("the launch intent records that the helper ended, but its lock is held".to_owned())
+            }
             LockState::Held => self.live_state(name, dir, &intent).await,
         };
         let incarnation = Incarnation::from_hex(&intent.incarnation);
-        Some(HelperStatus { incarnation, state, workload: name.to_owned() })
+        Some(HelperStatus { incarnation, recorded: Some(intent.state), state, workload: name.to_owned() })
     }
 
     /// The connection for asking a helper to stop: this supervisor's own if it started the

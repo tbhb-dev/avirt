@@ -12,7 +12,9 @@ use anyhow::{Context as _, Result, bail, ensure};
 use core::time::Duration;
 use std::fs::{self, File, OpenOptions};
 use std::os::unix::fs as unix_fs;
+use std::os::unix::fs::PermissionsExt as _;
 use std::path::{Path, PathBuf};
+use std::time::Instant;
 
 /// How long a test waits on a helper that doesn't speak.
 const SHORT: Duration = Duration::from_millis(300);
@@ -221,6 +223,8 @@ async fn a_helper_whose_lock_is_free_or_missing_has_ended() -> Result<()> {
     let statuses = listed(root.path()).await?;
     let states: Vec<_> = statuses.iter().map(|status| &status.state).collect();
     ensure!(states == [&HelperState::Ended, &HelperState::Ended], "the states are {states:?}");
+    let recorded: Vec<_> = statuses.iter().map(|status| status.recorded).collect();
+    ensure!(recorded.contains(&Some(State::Intended)) && recorded.contains(&Some(State::Running)), "{recorded:?}");
     Ok(())
 }
 
@@ -243,6 +247,78 @@ async fn a_directory_without_an_intent_is_not_listed_and_a_damaged_intent_is_unk
     let status = only(listed(root.path()).await?)?;
     ensure!(status.workload == "1a2b3c4d", "the workload is {}", status.workload);
     ensure!(matches!(status.state, HelperState::Unknown(_)), "{status:?}");
+    ensure!(status.recorded.is_none(), "{status:?}");
+    Ok(())
+}
+
+/// An ended intent with a held lock is unknown, and a listing doesn't probe it.
+///
+/// # Errors
+///
+/// Fails when the status differs from the expected one or the listing waits for a probe.
+///
+/// # Panics
+///
+/// Panics if the async runtime fails to start.
+#[tokio::test]
+async fn an_ended_intent_with_a_held_lock_is_unknown_and_not_probed() -> Result<()> {
+    let root = tempfile::tempdir()?;
+    let dir = workload_dir(root.path(), "1a2b3c4d", State::Ended)?;
+    let _lock = hold_lock(&dir)?;
+    let started = Instant::now();
+    let status = only(listed(root.path()).await?)?;
+    ensure!(started.elapsed() < SHORT, "the listing waited for a probe");
+    let HelperState::Unknown(why) = &status.state else { bail!("the state is {:?}", status.state) };
+    ensure!(why.contains("records that the helper ended, but its lock is held"), "the text is {why}");
+    Ok(())
+}
+
+/// An ended intent with a lock that can't be checked has ended.
+///
+/// # Errors
+///
+/// Fails when the status isn't `Ended`.
+///
+/// # Panics
+///
+/// Panics if the async runtime fails to start.
+#[tokio::test]
+async fn an_ended_intent_with_an_unreadable_lock_has_ended() -> Result<()> {
+    let root = tempfile::tempdir()?;
+    let dir = workload_dir(root.path(), "1a2b3c4d", State::Ended)?;
+    let lock = dir.join("vmd.lock");
+    fs::write(&lock, b"")?;
+    fs::set_permissions(&lock, fs::Permissions::from_mode(0o000))?;
+    // Root opens the file anyway, so the check can't fail for it.
+    if File::open(&lock).is_ok() {
+        return Ok(());
+    }
+    let status = only(listed(root.path()).await?)?;
+    ensure!(status.state == HelperState::Ended, "the state is {:?}", status.state);
+    Ok(())
+}
+
+/// A listing reports the state each intent records.
+///
+/// # Errors
+///
+/// Fails when a recorded state differs from the intent.
+///
+/// # Panics
+///
+/// Panics if the async runtime fails to start.
+#[tokio::test]
+async fn a_listing_reports_the_recorded_state() -> Result<()> {
+    let root = tempfile::tempdir()?;
+    let states = [State::Ended, State::Intended, State::Running, State::Starting, State::Stopping];
+    let ids = ["00000001", "00000002", "00000003", "00000004", "00000005"];
+    for (id, state) in ids.iter().zip(states) {
+        workload_dir(root.path(), id, state)?;
+    }
+    for status in listed(root.path()).await? {
+        let index = ids.iter().position(|id| *id == status.workload).context("an unexpected workload")?;
+        ensure!(status.recorded == states.get(index).copied(), "{status:?}");
+    }
     Ok(())
 }
 

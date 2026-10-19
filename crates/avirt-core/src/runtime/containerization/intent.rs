@@ -6,6 +6,7 @@
 #[cfg(test)]
 mod tests;
 
+use core::fmt;
 use serde::{Deserialize, Serialize};
 use std::fs::{self, File, OpenOptions};
 use std::io::{self, Write as _};
@@ -31,6 +32,18 @@ pub enum State {
     Starting,
     /// avirthostd has begun to stop the helper.
     Stopping,
+}
+
+impl fmt::Display for State {
+    fn fmt(&self, f: &mut fmt::Formatter<'_>) -> fmt::Result {
+        f.write_str(match self {
+            Self::Ended => "ended",
+            Self::Intended => "intended",
+            Self::Running => "running",
+            Self::Starting => "starting",
+            Self::Stopping => "stopping",
+        })
+    }
 }
 
 /// What avirthostd means to launch.
