@@ -427,11 +427,11 @@ impl HelperSupervisor for ChildSupervisor {
         }
         // A failed write doesn't hold up the stop: stopping the VM is a safety action, and a restart
         // stops a `running` workload the same way.
-        let marked = if intent.is_some() && !ended {
-            rewrite_intent(&dir, |launch| launch.state = State::Stopping).await
-        } else {
-            Ok(())
-        };
+        let before_stop = intent
+            .as_ref()
+            .is_some_and(|launch| matches!(launch.state, State::Intended | State::Starting | State::Running));
+        let marked =
+            if before_stop { rewrite_intent(&dir, |launch| launch.state = State::Stopping).await } else { Ok(()) };
         if let Some(client) = self.stop_connection(record.as_ref(), intent.as_ref(), &dir).await {
             request_stop(&client, grace).await;
         }
