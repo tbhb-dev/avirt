@@ -83,11 +83,11 @@ On the Containerization runtime, avirtvmd's writer is on the read path of the sa
 3. It frames lines and marks partial lines. It flushes on a timer or a size threshold and caps line length. It encodes invalid UTF-8 as base64.
 4. It flushes on `close()`.
 
-A dedicated writer thread behind the ring writes the per-workload NDJSON file `logs/<workload-id>.stdio.ndjson` (0640, group readable only by avirtlogd's UID), one record per line as `{ts, workload, ns, short_id, stream, partial, text|b64}`. The writer rotates files and caps their total disk usage. Rotation never removes a segment that avirtlogd hasn't checkpointed past. At the disk cap the writer stops writing and its ring fills. The writer drops further chunks and counts them in a `dropped_bytes` record without stalling the workload. avirtlogd needs only read access to that directory. The VMs, vsock and the virtualization entitlement stay in avirthostd.
+A dedicated writer thread behind the ring writes the per-workload NDJSON file `logs/<workload-id>.stdio.ndjson` (0640, group readable only by avirtlogd's UID), one record per line as `{ts, workload, ns, short_id, stream, partial, text|b64}`. The writer rotates files and caps their total disk usage. Rotation never removes a segment that avirtlogd hasn't checkpointed past. At the disk cap the writer stops writing and its ring fills. The writer drops further chunks and counts them in a `dropped_bytes` record without stalling the workload. avirtlogd needs only read access to that directory. The VMs, vsock and the virtualization entitlement stay with avirtvmd.
 
 The VM console, the guest kernel's console plus vminitd's own logs, comes from Containerization's `bootLog` as a file or file handle. avirtlogd reads it as a separate source with `stream=console`.
 
-Workload stdio log content is untrusted, console text included. The identity attributes on each record come from trusted runtime and host metadata: the fields avirthostd writes on the Containerization runtime, and avirthostd's records of each container on Docker Desktop. Fields parsed from log content never override them.
+Workload stdio log content is untrusted, console text included. The identity attributes on each record come from trusted runtime and host metadata: the fields avirtvmd writes on the Containerization runtime, and avirthostd's records of each container on Docker Desktop. Fields parsed from log content never override them.
 
 avirtlogd tails each file with persisted offsets and advances an offset only after avirtoteld accepts the records before it. While avirtoteld refuses, avirtlogd stops reading, and the file is the buffer.
 

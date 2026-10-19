@@ -44,7 +44,7 @@ For an item's version, the provider uses `kSecAttrModificationDate`. Without cha
 
 ## Code signing and entitlements
 
-The file-based keychain works without entitlements. avirtsecretsd runs as a separate binary from avirthostd and omits both `com.apple.security.virtualization` and keychain entitlements (see [build and platforms](./build-and-platforms.md#signing)).
+The file-based keychain works without entitlements. avirtsecretsd runs as a separate binary from avirthostd and omits the keychain entitlements. Only avirtvmd holds `com.apple.security.virtualization` (see [build and platforms](./build-and-platforms.md#signing)).
 
 Constraint: a login keychain ACL trusts avirtsecretsd by its <!-- Apple code-signing term. --><!-- vale write-good.TooWordy = NO -->designated requirement<!-- vale write-good.TooWordy = YES -->, which must stay identical across builds and upgrades.
 
