@@ -68,7 +68,7 @@ New launches get 503 meanwhile. Cleanup also runs when setup fails partway.
 
 ## Runtime directory
 
-The runtime directory, `$TMPDIR/avirt-<uid>/` (0700), contains everything a workload leaves on disk:
+The runtime directory, `$TMPDIR/avirt-<uid>/` (0700), contains what a workload leaves on disk apart from the workload logs in `logs/`, which are outside it:
 
 | Path | Holds |
 | --- | --- |
@@ -90,7 +90,7 @@ When SIGKILL stops avirthostd:
 
 The next `avirthostd` sweeps before it listens:
 
-1. On the command-line runtime, it stops and deletes every container labelled `avirt=1` (the label goes on every `container run`). On Containerization, it lists the helpers and stops each one still running. It then removes that workload's directories. A workload whose helper still runs after the stop stays on disk for the next startup.
+1. On the command-line runtime, it stops and deletes every container labelled `avirt=1` (the label goes on every `container run`). On Containerization, it lists the helpers and stops each one still running. It then removes the directories of each workload whose helper stopped. A workload whose helper still runs after the stop stays on disk for the next startup.
 2. It restores permissions and then empties `workloads/`, `scratch/`, and `hostd/`, without following links, because the agent can `chmod 0000` its own mounted files.
 3. It skips host write-back and logs what it removed.
 

@@ -481,7 +481,7 @@ The largest IP packet a network interface sends without fragmentation, called it
 
 ## Mutable tag
 
-A movable OCI tag on a promoted workspace image, from `--tag` or a prebuild policy's `tag-format`, which no selector reads. Status: planned. See [tags](./workspace-build.md#tags).
+A movable OCI tag on a promoted workspace image, from `--tag` or a prebuild configuration's `tag-format`, which no selector reads. Status: planned. See [tags](./workspace-build.md#tags).
 
 ## Mutual TLS
 
