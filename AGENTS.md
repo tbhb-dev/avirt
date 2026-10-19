@@ -108,7 +108,7 @@ An end-to-end run launches a real workload:
 
 1. Start avirthostd with `mise run serve`.
 2. Launch with `mise run launch <agent> "<prompt>" -- --follow`.
-3. Read `logs/<workload-id>.ndjson`. It ends with a `container_exit` meta event, and the `dir: "egress"` lines record every proxied connection. On the Containerization runtime, `logs/<workload-id>.stdio.ndjson` holds the container's stdout, stderr, and console, and `logs/<workload-id>.avirtvmd.log` holds the helper's stderr. A start that fails renames the stdio log to `logs/<workload-id>.stdio.ndjson.failed`, which keeps the boot log.
+3. Read `logs/<workload-id>.ndjson`. It ends with a `container_exit` meta event, and the `dir: "egress"` lines record every proxied connection. On the Containerization runtime, `logs/<workload-id>.stdio.ndjson` holds the container's stdout, stderr, and console, and `logs/<workload-id>.avirtvmd.log` holds the helper's stderr. If the VM fails to start after its stdio log opens, avirtvmd renames the log to `logs/<workload-id>.stdio.ndjson.failed`, which keeps the boot log.
 
 `AVIRT_RUNTIME` picks the runtime: `containerization` (the default) or `container`, which drives Apple's `container` command. The Containerization runtime runs without a `container` binary.
 

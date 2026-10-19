@@ -75,7 +75,7 @@ Status: implemented.
 
 Status: implemented.
 
-- **Kernel.** The Kata Containers 3.32.0 arm64 `vmlinux`, pinned by URL and by the release tarball's sha256 `8736c054d9223974735394f822000823baef509e1c33405ec798240fa9b6e4b5`. avirthostd extracts it once and caches it in its runtime directory after checking the extracted file against the sha256 `fb2cfb79eb1ae19447a85d75682d7fa5cfec97e24beb2609a492b806e8072c8d`.
+- **Kernel.** The Kata Containers 3.32.0 arm64 `vmlinux`, pinned by URL and by the release tarball's sha256 `8736c054d9223974735394f822000823baef509e1c33405ec798240fa9b6e4b5`. avirthostd has avirtvmd's prepare step extract it once and caches it in its runtime directory, checking the extracted file against the sha256 `fb2cfb79eb1ae19447a85d75682d7fa5cfec97e24beb2609a492b806e8072c8d` before caching and on every launch.
 - **Init filesystem.** avirtvmd's prepare step pulls `ghcr.io/apple/containerization/vminit:0.47.0` and writes its root filesystem, and avirthostd checks the image digest against the pin before it stores the result in its runtime directory.
 
 Status: planned. Guest kernels need TUN, nftables REDIRECT and connection tracking, including IPv6 original-destination lookup, which avirtinitd configures before it starts the other guest processes. The avirt base, harness base, and mediator images live in avirthostd's own content-addressed cache in the runtime directory. Every sandbox container's writable root block device is an APFS `clonefile` copy of its composed root filesystem with the configuration layer unpacked into it (see [workload lifecycle](./workload-lifecycle.md#layer-stack)).
