@@ -319,6 +319,10 @@ A numbered set of the Cedar entities avirthostd owns, such as namespaces, worklo
 
 One line of the workload log, `{ts, dir, msg}`, where `dir` is `client->agent`, `agent->client`, `meta` or `egress`. See [envelope](./hostd-api.md#envelope).
 
+## External endpoint
+
+A destination that's neither an avirt hostname nor a host service, given by a canonical host name or an IP literal and a port, and reached only through avirtedgeproxyd. Status: planned. See [how avirtmediatord handles egress](./egress.md#how-avirtmediatord-handles-egress).
+
 ## Federation
 
 SPIFFE trust between two trust domains that exchange trust bundles. avirt federates only enrolled peers, and peers never share a CA key. Status: planned. See [federation](./identity.md#federation).
@@ -330,6 +334,10 @@ A proxy that opens connections on behalf of clients. avirtnetd provides an optio
 ## Freeze reason
 
 A reason, `connection` or `workspace-snapshot`, for which avirtinitd keeps the agent cgroup frozen. The agent resumes only once no reason remains. Status: planned. See [workload startup and failure semantics](./components.md#workload).
+
+## Generated name
+
+The `<adverb>-<adjective>-<noun>` name, such as `quietly-brave-otter`, that avirthostd gives every workload at creation, unique in its namespace among live workloads. Status: planned. See [avirt hostnames](./dns.md#avirt-hostnames).
 
 ## Generation
 
@@ -355,6 +363,10 @@ An image `FROM` the avirt base that adds one harness and its adapter under `/opt
 
 The harness config file `/opt/agent/harness.toml` in a harness base image. It specifies the harness and its adapter command and protocol. It also specifies the main workload process and managed configuration paths. Status: planned. See [`harness.toml`](./acp.md#harnesstoml).
 
+## Helper
+
+A workload helper is a process in the sandbox container other than avirtinitd and the agent. The helpers are avirtnetd, the main workload process, and avirtguestd. Each runs under its own UID distinct from 0 and 1000. Status: planned. See [security contexts](./workload-hardening.md#security-contexts).
+
 ## Host
 
 The machine that runs avirthostd and its host services. References to the literal DNS label `host`, a peer's host name `<host>`, the `Host` request header, or the host name of an external endpoint always distinguish these meanings. See [architecture](./architecture.md#overview).
@@ -379,6 +391,10 @@ The policy set that applies to every decision on the host, beside the policy set
 
 An avirt daemon that runs on the host outside every workload, such as avirthostd, avirtsecretsd or avirtedgeproxyd, each with the SPIFFE ID `spiffe://<td>/service/<name>` and the Cedar entity `HostService::"<name>"`. Status: planned. See [host services](./components.md#host-services).
 
+## Host-local service
+
+A service running on the host outside avirt, such as one bound to the host's `127.0.0.1`, reachable only as the backend of a service record. Status: planned. See [avirtedgeproxyd](./components.md#avirtedgeproxyd).
+
 ## httparse
 
 The HTTP/1 request-head parser used before hyper normalizes a request. The parser checks ambiguity in each request head. Status: planned. See [HTTP and TLS](./networking.md#http-and-tls).
@@ -386,6 +402,14 @@ The HTTP/1 request-head parser used before hyper normalizes a request. The parse
 ## ICMP
 
 Internet Control Message Protocol. avirt supports echo through an extended CONNECT stream with `:protocol` `icmp`, with one target per stream. Status: planned. See [ICMP echo](./networking.md#icmp-echo).
+
+## Image record
+
+avirtregistryd's index entry for one workspace image: its repository, tags, digest, annotations, producer, base image reference, provenance, referrers and the live workloads that reference it. Status: planned. See [search API](./workspace-registry.md#search-api).
+
+## Immutable tag
+
+The tag `build-<build id>` that every promoted workspace image gets, which no other build reuses. Status: planned. See [tags](./workspace-build.md#tags).
 
 ## Ingress listener
 
@@ -399,6 +423,10 @@ A condition that must remain true for every candidate policy set. The prover che
 
 The in-memory intermediate SPIFFE CA, valid for 7 days and signed by the root, that signs every SVID. Status: planned. See [issuer](./identity.md#issuer).
 
+## Keepalive
+
+The `Workloads/KeepAlive` call that a creator's host makes every 60 s to a peer for each workload created there, without which the peer stops that workload after 5 minutes. Status: planned. See [workload management across hosts](./peering.md#workload-management-across-hosts).
+
 ## Label
 
 A free-form key and value on a workload or a service, used for selection and visible to Cedar as an entity tag. Only avirthostd sets keys under `avirt.internal/`. A label isn't a trust boundary by itself. Status: planned. See [namespaces and labels](./components.md#namespaces-and-labels).
@@ -411,9 +439,21 @@ The Linux security module that confines a process's filesystem access, TCP ports
 
 The sequence on the workload's HTTP/2 connection to its mediator, from the mutual TLS handshake through `attach`, the first SVID rotation and the accepted `/envelopes` stream to `confirm`, before which no agent process exists. Status: planned. See [launch handshake](./workload-topology.md#launch-handshake).
 
+## Layer stack
+
+The layers of a sandbox container's root filesystem, with five levels. The avirt base and a harness base form the first two. The workspace layers, the configuration layer, and the per-workload writable layer follow. Status: planned. See [layer stack](./workload-lifecycle.md#layer-stack).
+
 ## Lease
 
 A time-bounded grant of one secret value from avirtsecretsd to one caller, for one workload, binding and generation, in the sense of a Vault lease, that expires no later than the secret's cache lifetime. Status: planned. See [scoping](./secrets.md#scoping).
+
+## Local client listener
+
+avirtedgeproxyd's user-owned Unix socket `edgeproxy.sock` in the runtime directory, with mode 0600. avirt and local clients access avirtapid through it. Status: planned. See [listeners](./trust-boundaries.md#listeners).
+
+## Main workload process
+
+The one workload helper that drives the workload's work: avirtacp, avirtagent or avirtexec, named by the `main_process` key of `harness.toml`. Status: planned. See [sandbox container](./components.md#sandbox-container).
 
 ## Managed configuration paths
 
@@ -446,6 +486,10 @@ Multipath TCP. avirtinitd turns it off with `net.mptcp.enabled=0`, and seccomp d
 ## MTU
 
 The largest IP packet a network interface sends without fragmentation, called its maximum transmission unit. Status: planned. avirt must choose and test its fragmentation strategy and TUN MTU. See [guest networking](./networking.md#guest-networking).
+
+## Mutable tag
+
+A movable OCI tag on a promoted workspace image, from `--tag` or a prebuild policy's `tag-format`, which no selector reads. Status: planned. See [tags](./workspace-build.md#tags).
 
 ## Mutual TLS
 
@@ -483,9 +527,21 @@ The telemetry standard, with its OTLP protocol, in which avirt emits logs, metri
 
 Another avirt host, with its own trust domain, that this host has enrolled. A peering is active once both hosts have enrolled each other. Status: planned. See [peering](./peering.md#enrollment).
 
+## Peer host name
+
+`<host>`, a peer's own fully qualified DNS name, taken from its enrollment file at enrollment and fixed for the life of the enrollment, which its avirtedgeproxyd must present as a DNS SAN. It's distinct from the literal label `host` in local avirt hostnames. Status: planned. See [peer host names](./peering.md#peers-host-names).
+
+## Peer listener
+
+avirtedgeproxyd's TCP listener on the host network, which accepts only enrolled peers' edge proxies over mutual TLS with federated bundles. Status: planned. See [peer listener](./peering.md#peer-listener).
+
 ## Placeholder
 
 A string that avirtsecretsd issues per workload and binding, a client-acceptable prefix then `avirtph` then 32 random characters, which the sandbox container contains in place of a real credential and which grants nothing by itself. Status: planned. See [placeholders](./egress-credentials.md#placeholders).
+
+## Placeholder misuse check
+
+avirtmediatord's rejection, with 403 `credential-misplaced` in both policy modes, of any issued placeholder found anywhere in a request except its bound header. Status: planned. See [placeholders](./egress-credentials.md#placeholders).
 
 ## Policy mode
 
@@ -515,6 +571,14 @@ An operator-registered TOML file that tells avirtbuilderd which refs of one repo
 
 The Boolean key that selects which workspace source supplies the image's remote and revision annotations. Without an explicit selection, avirt uses the first `git` or `github` source. Status: planned. See [top-level keys](./workspaces.md#top-level-keys).
 
+## Primary source
+
+The first `git` or `github` source of a workspace config, or the one marked `primary`, whose remote and revision become the image's source annotations. Status: planned. See [top-level keys](./workspaces.md#top-level-keys).
+
+## Private-address block
+
+The check, applied in both policy modes, that refuses every resolved address in a non-global range or assigned to one of the host's own interfaces, with 403 `private-dest`, as SSRF protection. It runs in the CONNECT app, and in the planned design at avirtedgeproxyd. See [private-address block](./egress.md#private-address-block-private-dest).
+
 ## `private-dest`
 
 A check in both policy modes that refuses a resolved address in a non-global range or assigned to one of the host's own interfaces, with 403 `private-dest`, as SSRF protection. It runs at avirtedgeproxyd for TCP, UDP and ICMP after the mediator translates synthetic addresses to names and the edge resolves the real upstream address. See [`private-dest` check](./egress.md#private-dest).
@@ -542,6 +606,10 @@ A transport protocol over UDP. avirt relays permitted datagrams after bounded In
 ## quinn
 
 The Rust QUIC library used with avirt's bounded Initial parser for passthrough inspection. Status: planned. See [QUIC](./networking.md#quic).
+
+## Required host service
+
+A host service whose degraded state makes avirthostd refuse new launches: avirtsecretsd, avirtpolicyd, avirtedgeproxyd, avirtdnsd, avirtregistryd, and avirtmodelgwd. Status: planned. See [all-in-one server image](./components.md#all-in-one-server-image).
 
 ## Routing socket
 
@@ -643,6 +711,10 @@ Server-Sent Events, an HTTP response stream. avirt forwards it without buffering
 
 avirtmediatord acting as the SSH server for the guest and the SSH client for the upstream. It checks commands against policy and injects credentials through a binding. Status: planned. See [networking](./networking.md#ssh-and-git).
 
+## Startup cleanup
+
+The cleanup avirthostd runs before it listens, which removes every container, VM, socket and workload directory an earlier avirthostd left. See [crash cleanup](./lifecycle.md#crash-cleanup) and [startup cleanup](./lifecycle.md#startup-cleanup).
+
 ## State directory
 
 avirthostd's directory for state that persists beyond the runtime directory. Startup cleanup leaves it intact. It stores the installation ID, the SPIFFE root, and the enrollment records, in the sense of systemd's `StateDirectory=`. Status: planned. See [durable state](./lifecycle.md#durable-state).
@@ -719,6 +791,10 @@ The virtio socket transport between a VM and its host, which the Containerizatio
 
 The unit avirthostd launches and tears down, consisting of a sandbox container plus its mediator, like a pod with an egress sidecar. It has one canonical ID, one namespace, and one Cedar `Workload` entity. A workload runs one ACP session, or more than one ACP session in a multi-session workload. See [architecture](./architecture.md#overview).
 
+## Workload configuration
+
+The immutable record avirthostd keeps for a workload: its namespace, IDs, alias, labels, image and workspace image digests, configuration layer digest, policy reference, and credential binding references. It stores references and never a secret value. Status: planned. See [host services](./components.md#host-services).
+
 ## Workload ID
 
 The 8 random hexadecimal characters that name a workload in the implemented system and specify its log files, `logs/<workload-id>.*`. In the planned design a workload has a canonical ID and a short ID instead. See [workload log](./observability.md#workload-log).
@@ -726,6 +802,10 @@ The 8 random hexadecimal characters that name a workload in the implemented syst
 ## Workload log
 
 The durable, sequence-numbered NDJSON record of one workload at `logs/<workload-id>.ndjson`. Only avirthostd writes it. It records every JSON-RPC line, meta event, and egress event, ending with `container_exit`. It's distinct from the workload stdio log. See [log files](./hostd-api.md#log-files).
+
+## Workload management
+
+The creation, listing, inspection, stopping and deletion of workloads by another workload through avirtguest, under policy and within the workload management constraints that keep a workload from gaining more authority than it holds. Status: planned. See [workload management](./components.md#workload-management).
 
 ## Workload policy snapshot
 
