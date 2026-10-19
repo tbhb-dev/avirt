@@ -172,7 +172,7 @@ avirt
 └── version
 ```
 
-`WORKLOAD` is any name of a workload in the command's namespace: its short ID, `<alias>-<id>`, its generated name, or its canonical UUIDv7. avirthostd resolves the name to the workload's canonical entity before it authorizes anything, so the form used never changes the outcome (see [components](./dns.md#avirt-names)).
+`WORKLOAD` is any name of a workload in the command's namespace: its short ID, `<alias>-<id>`, its generated name, or its canonical UUIDv7. avirthostd resolves the name to the workload's canonical entity before it authorizes anything, so the form used never changes the outcome (see [components](./dns.md#avirt-hostnames)).
 
 ## Global flags
 
@@ -212,7 +212,7 @@ avirt launch --agent claude|codex PROMPT
 | `--publish PORT[/PROTO]` | A port publication made at launch, repeatable. `PROTO` is `tcp` (default) or `http`. |
 | `--follow`, `-f` | Stream the workload log until `container_exit`, as `avirt logs --follow` does |
 
-`launch` prints the workload's short ID, generated name, namespace and canonical UUIDv7, and its local avirt name. With `--follow` it then prints the log, and exits 0 when the workload's exit code is 0 and 8 otherwise. A child workload that `avirt` launches has the local user as its `avirt.internal/creator` and `avirt.internal/root` (see [workload management](./components.md#workload-management)).
+`launch` prints the workload's short ID, generated name, namespace and canonical UUIDv7, and its local avirt hostname. With `--follow` it then prints the log, and exits 0 when the workload's exit code is 0 and 8 otherwise. A child workload that `avirt` launches has the local user as its `avirt.internal/creator` and `avirt.internal/root` (see [workload management](./components.md#workload-management)).
 
 | Command | Does |
 | --- | --- |

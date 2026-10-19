@@ -20,13 +20,27 @@ fn sweep_empties_the_layout_and_the_lock_is_exclusive() -> Result<()> {
     // Refuse a second avirthostd in the same user's temp dir while the first lives.
     let second = Root::open_in(base.path());
     ensure!(second.is_err_and(|err| err.to_string().contains("already running")), "a second root opened");
-    drop(first.sweep());
+    drop(first.sweep(&[]));
     fs::create_dir_all(first.scratch().join("avirt-codex-x"))?;
     fs::write(first.scratch().join("avirt-codex-x/auth.json"), "secret")?;
-    let swept = first.sweep();
+    let swept = first.sweep(&[]);
     ensure!(swept.dirs >= 1 && swept.failures.is_empty(), "the sweep left {:?}", swept.failures);
     ensure!(!first.scratch().join("avirt-codex-x").exists(), "the sweep kept the directory");
     ensure!(first.scratch().is_dir(), "the sweep removed the scratch directory");
+    // A sweep leaves the caches, the images, and the container state for the runtime to clean.
+    let kept = [first.cache(), first.containers(), first.images()];
+    for dir in &kept {
+        fs::create_dir_all(dir)?;
+    }
+    drop(first.sweep(&[]));
+    ensure!(kept.iter().all(|dir| dir.is_dir()), "the sweep removed a directory it should leave");
+    // A workload directory that the caller names stays, and the others go.
+    fs::create_dir_all(first.workloads().join("00000001"))?;
+    fs::create_dir_all(first.workloads().join("00000002"))?;
+    let named = first.sweep(&["00000001".to_owned()]);
+    ensure!(named.dirs == 1 && named.failures.is_empty(), "the sweep reported {named:?}");
+    ensure!(first.workloads().join("00000001").is_dir(), "the sweep removed a named directory");
+    ensure!(!first.workloads().join("00000002").exists(), "the sweep kept an unnamed directory");
     Ok(())
 }
 
@@ -44,7 +58,7 @@ fn a_tree_the_agent_made_unreadable_is_still_removed() -> Result<()> {
     fs::write(trap.join("auth.json"), "secret")?;
     fs::set_permissions(trap.join("auth.json"), Permissions::from_mode(0o000))?;
     fs::set_permissions(&trap, Permissions::from_mode(0o000))?;
-    let swept = root.sweep();
+    let swept = root.sweep(&[]);
     ensure!(swept.failures.is_empty(), "{:?}", swept.failures);
     ensure!(!trap.exists(), "the sweep kept the tree");
     Ok(())

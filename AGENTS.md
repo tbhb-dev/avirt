@@ -23,6 +23,7 @@ Every crate lives directly under `crates/`, and each directory uses its package 
 | `avirthostd` | Binary | Host | The host daemon: control API, workload launch and teardown, logs, Codex `auth.json` write-back |
 | `avirt` | Binary `avirt` | Host | The operator CLI: `avirt launch` |
 | `avirtmediatord` | Binary | Host (one per workload) | The implemented host mediator. Planned: one process for workload traffic and lifecycle. Holds its SVID and handles rotation. |
+| `avirtvmd` | Binary (Swift) | Host (one per workload) | The per-workload VM host helper, a Swift package built on Containerization. It hosts the workload VM and prepares the guest artifacts |
 | `avirtinitd` | Binary | Linux guest only (the workload) | The ACP client spawns the adapter and taps JSON-RPC. It drops to uid 1000 under seccomp |
 | `avirt-connect` | Library | Both | CONNECT authority parsing and destination checks for the Pingora CONNECT app |
 | `avirt-core` | Library | Both | Shared code for the `api` module and the `avirthostd` server. Includes the `avirtinitd` harness and the client for the workload's HTTP/2 connection to its mediator. Also includes the log envelope and runtime directory |
@@ -30,7 +31,7 @@ Every crate lives directly under `crates/`, and each directory uses its package 
 | `avirtwebd` | Binary | Host | The backend for the avirt web UI (not implemented) |
 | `avirtapid` | Binary | Host | The API server: the gRPC and REST API in front of the local avirthostd and peers' API servers, reached through the edge proxy (not implemented) |
 | `avirtedgeproxyd` | Binary | Host | The edge proxy: host policy evaluation, external resolution, private-address checks and upstream connections (not implemented) |
-| `avirtdnsd` | Binary | Host | The DNS resolver for `<name>.<ns>.svc.host.avirt.internal` and `<name>.<ns>.workload.host.avirt.internal`, which answers with the local avirtedgeproxyd or, for peered names, their host's avirtedgeproxyd (not implemented) |
+| `avirtdnsd` | Binary | Host | The DNS resolver for `<name>.<ns>.svc.host.avirt.internal` and `<name>.<ns>.workload.host.avirt.internal`, which answers with the local avirtedgeproxyd or, for internal names under a peer's host name, their host's avirtedgeproxyd (not implemented) |
 | `avirtmcpgwd` | Binary | Host | The MCP gateway (not implemented) |
 | `avirtmodelgwd` | Binary | Host | The model gateway, which injects model credentials (not implemented) |
 | `avirtbuilderd` | Binary | Host | The builder, which watches VCS and builds repository OCI artifacts for fast workload startup (not implemented) |
@@ -58,8 +59,8 @@ Every crate lives directly under `crates/`, and each directory uses its package 
 mise run bootstrap                                               # first step in a fresh clone or worktree: vendir sync, toolchain, Vale styles, git hooks
 mise install                                                      # pins Rust
 mise run check                                                    # fmt --check, clippy, rustdoc, shear, deny, nextest, doc tests, docs checks
-mise run build-images                                             # both workload images (needs Apple container)
-mise run serve                                                    # avirthostd
+mise run build-images                                             # both workload images and their OCI archives (needs Apple container)
+mise run serve                                                    # avirthostd on the Containerization runtime (builds avirtvmd too)
 mise run launch claude "Reply with the word pong" -- --follow     # avirt launch, in a second terminal
 ```
 
@@ -91,6 +92,7 @@ Pre-commit hooks run rustfmt, cargo-shear and cargo-deny on the files they cover
   - after editing, run `mise run check-docs`, which runs `scripts/okf-check.py docs` and `scripts/okf-check.py --repo .`.
 - **Docs content.** Docs and code comments describe what the system is and does. Don't include history or decision rationale. State facts that constrain behavior as constraints. Mark planned work with a `Status: planned` section, never with version names.
 - **Markdown.** Diagrams are Mermaid. Each paragraph is one line, with no hard wrapping. Run `guard-markdown <file>` on every Markdown file you edit.
+- **Invented terms.** Don't coin terms. Write for the reader in ordinary words, or use terms established by the glossary or a standard. Vale's banned-term rules block lint. Don't add a term to the Vale lists yourself.
 - **Invented terms.** `scripts/jargon_check.py` (`mise run lint-jargon`) is an optional report for human review, outside lint and pre-commit. It prints candidate terms from added prose and exits 0 whatever it finds. A usage error such as a bad `--base` exits 1. Judge each candidate in context. Preserve correct grammar and reserve glossary entries for real terms. Its tests are part of `mise run check`. Set `JARGON_BASE` to the parent branch when checking a stacked branch. An explicit `--base` takes precedence. The report skips a term that a glossary heading, a line of `.vale/config/vocabularies/project/accept.txt`, or a line of `jargon-accept.txt` at the repository root names. Each `jargon-accept.txt` line is a term, then `#` and the reason, and the report flags a line with no reason.
 
 ## Secrets
@@ -106,7 +108,9 @@ An end-to-end run launches a real workload:
 
 1. Start avirthostd with `mise run serve`.
 2. Launch with `mise run launch <agent> "<prompt>" -- --follow`.
-3. Read `logs/<workload-id>.ndjson`. It ends with a `container_exit` meta event, and the `dir: "egress"` lines record every proxied connection.
+3. Read `logs/<workload-id>.ndjson`. It ends with a `container_exit` meta event, and the `dir: "egress"` lines record every proxied connection. On the Containerization runtime, `logs/<workload-id>.stdio.ndjson` holds the container's stdout, stderr, and console, and `logs/<workload-id>.avirtvmd.log` holds the helper's stderr.
+
+`AVIRT_RUNTIME` picks the runtime: `containerization` (the default) or `container`, which drives Apple's `container` command. The Containerization runtime runs without a `container` binary.
 
 The regression suite, with its bypass, positive and lifecycle checks, is in [docs/roadmap.md](docs/roadmap.md#regression-suite). Run bypass checks inside the agent's own process tree, by prompting the agent to run the script. A process started from outside the agent's tree isn't under its restrictions, and checking from there doesn't prove the restrictions apply.
 

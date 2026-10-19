@@ -175,7 +175,7 @@ when { principal.hasTag("avirt.internal/build") && resource has host && resource
 
 | Compromised | Can reach | Can't reach |
 | --- | --- | --- |
-| Build job (guest root in the build VM) | Its own inputs and staging repository. Its cache scope and anything its workload policy snapshot allows through avirtedgeproxyd. Writing anything into its staging output. | Any workspace repository, tag or annotation (only avirtbuilderd promotes), another build's inputs or staging, real credentials, avirtapid, avirthostd's control API, any signing key |
+| Build job (root in the build VM) | Its own inputs and staging repository. Its cache scope and anything its workload policy snapshot allows through avirtedgeproxyd. Writing anything into its staging output. | Any workspace repository, tag or annotation (only avirtbuilderd promotes), another build's inputs or staging, real credentials, avirtapid, avirthostd's control API, any signing key |
 | avirtbuilderd | Starting build jobs and promoting chosen outputs. Writing any annotation | Running commands on the host, any SVID other than its own, avirthostd's control API beyond creating build jobs |
 
 # Open questions

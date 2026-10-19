@@ -35,7 +35,7 @@ The cgroup v2 group that holds the agent and every tool it starts, which avirtin
 
 ## Alias
 
-An optional DNS label that a workload or a service contains beside its ID or name. Name resolution maps it to the same entity, and it never grants anything. Status: planned. See [avirt names](./dns.md#avirt-names).
+An optional DNS label that a workload or a service contains beside its ID or name. Name resolution maps it to the same entity, and it never grants anything. Status: planned. See [avirt hostnames](./dns.md#avirt-hostnames).
 
 ## All-in-one server image
 
@@ -63,9 +63,9 @@ The project, always written in lowercase, and its operator CLI, the `avirt` bina
 
 The image from which every planned workload image derives. It includes the OS userland and the `agent` user, along with the helper users, the `avirt-ws` group, and every avirt guest binary. Status: planned. See [layer stack](./workload-lifecycle.md#layer-stack).
 
-## avirt name
+## avirt hostname
 
-A DNS name under `host.avirt.internal`, or ending in an active peer's host name, that specifies a workload or a service, which only avirtdnsd answers and which resolves to avirtedgeproxyd on the host that serves it. Status: planned. See [avirt names](./dns.md#avirt-names).
+A DNS name under `host.avirt.internal`, or ending in an active peer's host name, that specifies a workload or a service, which only avirtdnsd answers and which resolves to avirtedgeproxyd on the host that serves it. Status: planned. See [avirt hostnames](./dns.md#avirt-hostnames).
 
 ## avirtacp
 
@@ -93,7 +93,7 @@ The host service that schedules workspace builds and runs prebuild policies. It 
 
 ## avirtdnsd
 
-The host service that answers avirt names with the address of avirtedgeproxyd on the host that serves them. Status: planned. See [DNS](./dns.md).
+The host service that answers avirt hostnames with the address of avirtedgeproxyd on the host that serves them. Status: planned. See [DNS](./dns.md).
 
 ## avirtedgeproxyd
 
@@ -273,11 +273,11 @@ A component that evaluates policy and enforces the decision on traffic or a call
 
 ## Enrollment
 
-The act by which an operator adds a peer to this host from the peer's enrollment file, after comparing its fingerprint out of band. This makes the host trust the peer's trust bundle and peered names. Status: planned. See [enrollment](./peering.md#enrollment).
+The act by which an operator adds a peer to this host from the peer's enrollment file, after comparing its fingerprint out of band. This makes the host trust the peer's trust bundle and internal names under the peer's host name. Status: planned. See [enrollment](./peering.md#enrollment).
 
 ## Enrollment file
 
-The JSON file, written by `avirtadmin peer export`, that contains a host's trust domain, host names, peer listener addresses and SPIFFE bundle for enrollment on a peer. It contains no key or secret. Status: planned. See [enrollment file](./peering.md#enrollment-file).
+The JSON file, written by `avirtadmin peer export`, that contains a host's trust domain, host names, peer listener addresses and trust bundle for enrollment on a peer. It contains no key or secret. Status: planned. See [enrollment file](./peering.md#enrollment-file).
 
 ## Entity revision
 
@@ -287,13 +287,9 @@ A numbered set of the Cedar entities avirthostd owns, such as namespaces, worklo
 
 One line of the workload log, `{ts, dir, msg}`, where `dir` is `client->agent`, `agent->client`, `meta` or `egress`. See [envelope](./hostd-api.md#envelope).
 
-## Event provenance
-
-The `src` label on every planned event, such as `hostd`, `edgeproxy`, `gateway`, `mediator`, `secrets`, or `workload`. avirthostd stamps it from the authenticated connection the event arrived on. It states how far the recipient can trust the event. Status: planned. See [event provenance](./trust-boundaries.md#event-provenance).
-
 ## External endpoint
 
-A destination that's neither an avirt name nor a host service, given by a canonical host name or an IP literal and a port, and reached only through avirtedgeproxyd. Status: planned. See [how avirtmediatord handles egress](./egress.md#how-avirtmediatord-handles-egress).
+A destination that's neither an avirt hostname nor a host service, given by a canonical host name or an IP literal and a port, and reached only through avirtedgeproxyd. Status: planned. See [how avirtmediatord handles egress](./egress.md#how-avirtmediatord-handles-egress).
 
 ## Federation
 
@@ -309,7 +305,7 @@ A reason, `connection` or `workspace-snapshot`, for which avirtinitd keeps the a
 
 ## Generated name
 
-The `<adverb>-<adjective>-<noun>` name, such as `quietly-brave-otter`, that avirthostd gives every workload at creation, unique in its namespace among live workloads. Status: planned. See [avirt names](./dns.md#avirt-names).
+The `<adverb>-<adjective>-<noun>` name, such as `quietly-brave-otter`, that avirthostd gives every workload at creation, unique in its namespace among live workloads. Status: planned. See [avirt hostnames](./dns.md#avirt-hostnames).
 
 ## Generation
 
@@ -322,10 +318,6 @@ Each host listener that accepts mediator SVIDs refuses connections from a supers
 ## `guest-cli` principal
 
 The principal `spiffe://<td>/ns/<ns>/workload/<uuid>/guest-cli` under which avirtnetd forwards avirtguest's calls. It's never issued as an SVID, and any permission granted to this principal is also available to the agent. Status: planned. See [trust domain and IDs](./identity.md#trust-domain-and-ids).
-
-## Guest root
-
-Root inside a workload container's VM or container, taken as a compromise scope: it holds the workload SVID but never a real credential or a mediator key. Status: planned. See [compromise scope](./trust-boundaries.md#compromise-scope).
 
 ## Harness
 
@@ -403,10 +395,6 @@ A time-bounded grant of one secret value from avirtsecretsd to one caller, for o
 
 avirtedgeproxyd's user-owned Unix socket `edgeproxy.sock` in the runtime directory, with mode 0600. avirt and local clients access avirtapid through it. Status: planned. See [listeners](./trust-boundaries.md#listeners).
 
-## Local provenance
-
-The mark on a workspace image built from host-local sources. Such an image can never replace a ref's image, and policy can forbid it. Status: planned. See [local provenance](./workspaces.md#local-provenance).
-
 ## Main workload process
 
 The one workload helper that drives the workload's work: avirtacp, avirtagent or avirtexec, named by the `main_process` key of `harness.toml`. Status: planned. See [workload container](./components.md#workload-container).
@@ -455,10 +443,6 @@ A grouping of workloads that's a trust and access boundary for policy and a scop
 
 Newline-delimited JSON, one object per line, the format of the workload log, the envelopes, and the audit logs. See [envelope](./hostd-api.md#envelope).
 
-## Non-policy checks
-
-The checks that apply in both policy modes and that no policy can relax: authority parsing, the private-address block, `Host` and SNI matching, the placeholder misuse check, credential bindings, the Codex refresh interception's exact match, caller authentication, and generation fencing. Status: planned. See [modes](./egress-policies.md#modes).
-
 ## OCI artifact
 
 Content stored in an OCI registry under an image manifest with an `artifactType`. A workspace image uses this storage format. Status: planned. See [workspace image format](./workspaces.md#workspace-image-format).
@@ -471,10 +455,6 @@ The OCI distribution mechanism that lists the artifacts, such as signatures, SBO
 
 The Open Cybersecurity Schema Framework, the format in which avirtauditd delivers audit events. Status: planned. See [audit events](./observability.md#audit-events).
 
-## Off-host rule
-
-The rule that avirtedgeproxyd is the only component that opens connections off the host, enforced below the daemons' configuration by a content filter on macOS and an nftables ruleset in the all-in-one server image. Status: planned. See [off-host enforcement](./networking.md#off-host-enforcement).
-
 ## OpenTelemetry
 
 The telemetry standard, with its OTLP protocol, in which avirt emits logs, metrics, and traces to avirtoteld. Status: planned. See [observability](./observability.md#overview).
@@ -485,15 +465,11 @@ Another avirt host, with its own trust domain, that this host has enrolled. A pe
 
 ## Peer host name
 
-`<host>`, a peer's own fully qualified DNS name, taken from its enrollment file at enrollment and fixed for the life of the enrollment, which its avirtedgeproxyd must present as a DNS SAN. It's distinct from the literal label `host` in local avirt names. Status: planned. See [peer host names](./peering.md#peer-host-names).
+`<host>`, a peer's own fully qualified DNS name, taken from its enrollment file at enrollment and fixed for the life of the enrollment, which its avirtedgeproxyd must present as a DNS SAN. It's distinct from the literal label `host` in local avirt hostnames. Status: planned. See [peer host names](./peering.md#peer-host-names).
 
 ## Peer listener
 
 avirtedgeproxyd's TCP listener on the host network, which accepts only enrolled peers' edge proxies over mutual TLS with federated bundles. Status: planned. See [peer listener](./peering.md#peer-listener).
-
-## Peered name
-
-An avirt name that ends in `<ns>.workload.<host>` or `<ns>.svc.<host>` for an active peer's host name, which specifies a workload or service on that peer and resolves locally to the peer's namespace. Status: planned. See [peer host names](./peering.md#peer-host-names).
 
 ## Placeholder
 
@@ -503,13 +479,9 @@ A string that avirtsecretsd issues per workload and binding, a client-acceptable
 
 avirtmediatord's rejection, with 403 `credential-misplaced` in both policy modes, of any issued placeholder found anywhere in a request except its bound header. Status: planned. See [placeholders](./egress-credentials.md#placeholders).
 
-## Policy invariant
-
-A condition, written in Cedar, that the prover checks every candidate policy set against before avirtpolicyd builds any policy snapshot from it. The condition can impose a permissions boundary that the set may not exceed. It can also be a required-allow invariant that the set must permit or a guardrail that it must deny. Status: planned. See [policy invariants](./egress-policies.md#policy-invariants).
-
 ## Policy mode
 
-The `audit` or `enforce` setting in every policy snapshot, chosen per namespace. In audit mode the enforcement point allows a decision with no permit and logs it as `would-deny`, except for the non-policy checks and the decisions that apply in both modes. Status: planned. See [modes](./egress-policies.md#modes).
+The `audit` or `enforce` setting in every policy snapshot, chosen per namespace. In audit mode the enforcement point allows a decision with no permit and logs it as `would-deny`, except for the checks that apply in both policy modes and the decisions that apply in both modes. Status: planned. See [modes](./egress-policies.md#modes).
 
 ## Policy reference
 
@@ -537,7 +509,7 @@ The first `git` or `github` source of a workspace config, or the one marked `pri
 
 ## Private-address block
 
-The non-policy check that refuses every resolved address in a non-global range or assigned to one of the host's own interfaces, with 403 `private-dest`, as SSRF protection. It runs in the CONNECT app, and in the planned design at avirtedgeproxyd. See [private-address block](./egress.md#private-address-block-private-dest).
+The check, applied in both policy modes, that refuses every resolved address in a non-global range or assigned to one of the host's own interfaces, with 403 `private-dest`, as SSRF protection. It runs in the CONNECT app, and in the planned design at avirtedgeproxyd. See [private-address block](./egress.md#private-address-block-private-dest).
 
 ## Producer
 
@@ -545,7 +517,7 @@ The authenticated origin of a workspace image in avirtregistryd's index, `builde
 
 ## Prover
 
-The Cedar policy prover in avirtpolicyd. Before avirtpolicyd builds any snapshot, the prover checks every candidate policy set against the schema, the `@id` and `like` rules, and the policy invariants. It also derives each MITM CA's name constraints. Status: planned. See [the prover](./egress-policies.md#the-prover).
+The Cedar policy prover in avirtpolicyd. Before avirtpolicyd builds any snapshot, the prover checks every candidate policy set against the schema, the `@id` and `like` rules, and the conditions on policy sets. It also derives each MITM CA's name constraints. Status: planned. See [the prover](./egress-policies.md#the-prover).
 
 ## Provider
 
@@ -633,11 +605,11 @@ avirtmediatord accepting the agent's TLS connection with a leaf certificate from
 
 ## TLS passthrough
 
-avirtmediatord relaying a connection to avirtedgeproxyd byte for byte without decrypting TLS. It neither inspects requests nor injects credentials. Every avirt name takes this path, as does an external connection when `passthrough` permits it. Status: planned. See [how avirtmediatord handles egress](./egress.md#how-avirtmediatord-handles-egress).
+avirtmediatord relaying a connection to avirtedgeproxyd byte for byte without decrypting TLS. It neither inspects requests nor injects credentials. Every avirt hostname takes this path, as does an external connection when `passthrough` permits it. Status: planned. See [how avirtmediatord handles egress](./egress.md#how-avirtmediatord-handles-egress).
 
 ## Trust bundle
 
-The set of root certificates that verifies SVIDs of one trust domain, also called the SPIFFE bundle. avirthostd pushes it to every SVID holder, and peers fetch each other's from the bundle endpoint. Status: planned. See [federation](./identity.md#federation).
+The set of root certificates that verifies SVIDs of one trust domain. avirthostd pushes it to every SVID holder, and peers fetch each other's from the bundle endpoint. Status: planned. See [federation](./identity.md#federation).
 
 ## Trust domain
 

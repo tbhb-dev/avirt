@@ -1,7 +1,7 @@
 ---
 type: Architecture Overview
 title: Networking
-description: avirt's whole network model in one place, with the topology, avirt names and IDs, each connection type end to end with its hops, enforcement points and identities, the transports on each runtime, the supported protocols, the listener inventory, how the off-host rule is enforced on the host, and failure behavior and observability, linking out to the documents that specify each part.
+description: avirt's whole network model in one place, with the topology, avirt hostnames and IDs, each connection type end to end with its hops, enforcement points and identities, the transports on each runtime, the supported protocols, the listener inventory, how the rule that only avirtedgeproxyd opens connections off the host is enforced on the host, and failure behavior and observability, linking out to the documents that specify each part.
 tags: [avirt, networking, topology, egress, ingress, dns, mtls]
 implementation: partial
 generated: { by: codex/gpt-6, at: 2026-10-18T05:21:55Z }
@@ -105,9 +105,9 @@ avirtedgeproxyd runs on the host for both runtimes. Each placement is in [compon
 
 ### Zones and name forms
 
-avirtdnsd answers the avirt DNS zone and is the only component that does. A local name ends in `<ns>.workload.host.avirt.internal` or `<ns>.svc.host.avirt.internal`, with a short form for the `default` namespace, and a peered name ends in `<ns>.workload.<host>` or `<ns>.svc.<host>` for an enrolled peer `<host>`. The name forms, the label syntax and the length caps are in [DNS](./dns.md#avirt-names).
+avirtdnsd answers the avirt DNS zone and is the only component that does. A local name ends in `<ns>.workload.host.avirt.internal` or `<ns>.svc.host.avirt.internal`, with a short form for the `default` namespace, and an internal name under a peer's host name ends in `<ns>.workload.<host>` or `<ns>.svc.<host>` for an enrolled peer `<host>`. The name forms, the label syntax and the length caps are in [DNS](./dns.md#avirt-hostnames).
 
-avirt's host services use SNI names `<name>.svc.<td>` in the trust domain (see [SNI routing](./workload-topology.md#sni-routing)), never avirt names, and the mediator refuses an agent CONNECT to one of those names with 403.
+avirt's host services use SNI names `<name>.svc.<td>` in the trust domain (see [SNI routing](./workload-topology.md#sni-routing)), never avirt hostnames, and the mediator refuses an agent CONNECT to one of those names with 403.
 
 ### IDs
 
@@ -121,14 +121,14 @@ avirt's host services use SNI names `<name>.svc.<td>` in the trust domain (see [
 
 ### Namespaces
 
-Each workload is in exactly one namespace, fixed at creation, and the namespace scopes service names and aliases. A namespace is local to its host. References to anything on another host must use fully qualified identifiers: its peered name and an identity in that host's trust domain, along with a Cedar entity qualified by that host (see [namespaces and labels](./components.md#namespaces-and-labels)).
+Each workload is in exactly one namespace, fixed at creation, and the namespace scopes service names and aliases. A namespace is local to its host. References to anything on another host must use fully qualified identifiers: its internal name under its host name and an identity in that host's trust domain, along with a Cedar entity qualified by that host (see [namespaces and labels](./components.md#namespaces-and-labels)).
 
 ### Name resolution results
 
 | Name | Asked from | DNS answer | Where a connection to it goes |
 | --- | --- | --- | --- |
-| A local avirt name | A workload, through avirtnetd's stub, the `/dns` stream and avirtmediatord's `resolve` check, then [avirtdnsd](./dns.md#the-avirtdnsd-zone) | This host's avirtedgeproxyd address | avirtmediatord sends the CONNECT to this host's avirtedgeproxyd, which resolves the name to its canonical entity and routes to the destination workload's avirtmediatord |
-| A peered avirt name | The same | The peer's avirtedgeproxyd address, from its enrollment record | avirtmediatord still sends the CONNECT to this host's avirtedgeproxyd, which forwards it to the peer's avirtedgeproxyd (see [peering](./peering.md#workload-traffic)) |
+| A local avirt hostname | A workload, through avirtnetd's stub, the `/dns` stream and avirtmediatord's `resolve` check, then [avirtdnsd](./dns.md#the-avirtdnsd-zone) | This host's avirtedgeproxyd address | avirtmediatord sends the CONNECT to this host's avirtedgeproxyd, which resolves the name to its canonical entity and routes to the destination workload's avirtmediatord |
+| A peered avirt hostname | The same | The peer's avirtedgeproxyd address, from its enrollment record | avirtmediatord still sends the CONNECT to this host's avirtedgeproxyd, which forwards it to the peer's avirtedgeproxyd (see [peering](./peering.md#workload-traffic)) |
 | A public name | A workload, through the same stub and `resolve` check, then avirtedgeproxyd's DNS proxy | The real answer, with `resolve` evaluated for each name in a CNAME chain | The CONNECT includes the name. avirtedgeproxyd resolves it again when it dials, and the private-address block applies. |
 | A denied name | A workload | `NXDOMAIN`, in audit mode too | Nothing |
 | Any name, asked of another address | A workload | No resolver on this query path | Nothing |
@@ -234,7 +234,7 @@ On every runtime, the `AF_VSOCK` denial applies to every workload process. Only 
 | Extended CONNECT | `/ingress` uses RFC 8441 with `:protocol: connect-tcp` and a single-use ingress ID (see [ingress](./workload-topology.md#ingress)). |
 | CONNECT over h2 | Each hop after avirtnetd uses one HTTP/2 stream per agent connection. Each connection from avirtmediatord, a gateway, or a host service to avirtedgeproxyd also uses one stream. `x-avirt-caller` is a header on the outer stream, never in the tunnelled bytes. |
 | TLS on port 443 | Under TLS interception, when policy permits `intercept`, avirtmediatord is the agent's TLS endpoint using a MITM CA leaf, with agent-facing ALPN `http/1.1`, and opens its own TLS connection to the upstream with ALPN `h2` and `http/1.1`. Otherwise TLS passthrough, when policy permits `passthrough` (see [how avirtmediatord handles egress](./egress.md#how-avirtmediatord-handles-egress)). |
-| TLS passthrough | avirtmediatord reads the first bytes before forwarding any. They must be a ClientHello whose SNI equals the canonical CONNECT host. An allowed host on a shared address can't supply another name. The proxy closes a connection that doesn't start with TLS unless the `passthrough` permit has `context.plaintext` true. Credential injection remains off for these connections. Each avirt name takes TLS passthrough, authorized at avirtedgeproxyd. |
+| TLS passthrough | avirtmediatord reads the first bytes before forwarding any. They must be a ClientHello whose SNI equals the canonical CONNECT host. An allowed host on a shared address can't supply another name. The proxy closes a connection that doesn't start with TLS unless the `passthrough` permit has `context.plaintext` true. Credential injection remains off for these connections. Each avirt hostname takes TLS passthrough, authorized at avirtedgeproxyd. |
 | gRPC | Under TLS passthrough, as bytes. Under TLS interception, the proxy offers agent-facing h2 only for a destination that one of the workload's gRPC bindings specifies (see [gRPC credentials](./egress-credentials.md#grpc)). |
 | Websockets | An `Upgrade` request forces h1 upstream. The upgrade request passes the request checks and the placeholder misuse check, and the proxy relays frames without scanning after `101` (see [websockets](./egress.md#websockets)). |
 | DNS | UDP and TCP on `127.0.0.53:53` inside the workload container, sent as one `POST /dns` HTTP/2 stream per query with `application/dns-message` bodies and their 16-stream limit (see [workload DNS](./egress.md#workload-dns)) |
@@ -266,7 +266,7 @@ Each listener's caller identity and allowed operations are in [trust boundaries]
 
 The peer listener is the only avirt listener on a non-loopback host address.
 
-## Off-host enforcement
+## Restrictions on off-host connections
 
 avirtedgeproxyd is the only host service that opens connections off the host. The host enforces this below the daemons' configuration, so a compromised or misconfigured daemon still can't reach the network directly. Workload traffic enters the host through the mediator's sockets.
 
@@ -306,13 +306,13 @@ In the all-in-one server image, avirtinitd in server mode installs an nftables r
 | A policy snapshot change or expiry | Each proxy process re-evaluates its open flows | [revocation of open flows](./egress-policies.md#revocation-of-open-flows) |
 | A workload's event ring is full | Its proxy process refuses that workload's new connections, requests and DNS queries with 503 until the ring drains | [events](./egress.md#events-1) |
 | Publication revocation or expiry | Its open ingress streams close | [ingress](./workload-topology.md#ingress) |
-| The off-host filter isn't active | avirthostd refuses new launches with 503 | [off-host enforcement](#off-host-enforcement) |
+| The off-host filter isn't active | avirthostd refuses new launches with 503 | [Restrictions on off-host connections](#restrictions-on-off-host-connections) |
 
 ## Observability
 
 | Signal | Producer | Specified in |
 | --- | --- | --- |
-| `conn`, `http` and `dns` events in the workload log, with `src` `mediator`, `edgeproxy` or `gateway` | avirtmediatord, avirtedgeproxyd, the gateways | [events](./egress.md#events-1), [event provenance](./trust-boundaries.md#event-provenance) |
+| `conn`, `http` and `dns` events in the workload log, with `src` `mediator`, `edgeproxy` or `gateway` | avirtmediatord, avirtedgeproxyd, the gateways | [events](./egress.md#events-1), [the `src` field](./trust-boundaries.md#the-src-field) |
 | `CONNECT` and per-request spans | avirtmediatord, avirtedgeproxyd, the gateways | [egress spans](./observability.md#egress-spans) |
 | Trace context across hops, never to external endpoints and only `traceparent` to peers | Each hop | [propagation](./observability.md#propagation), [external endpoints](./observability.md#external-endpoints) |
 | Connection and egress metrics | avirtnetd, the mediator, the proxies | [workload connection](./performance.md#workload-connection-to-the-mediator), [egress](./performance.md#egress), and [metrics from avirtmediatord and avirtedgeproxyd](./observability.md#metrics-from-avirtmediatord-and-avirtedgeproxyd) |
@@ -322,6 +322,6 @@ The bypass checks that prove the workload has no other way out are in the [regre
 
 # Open questions
 
-1. **Development builds on macOS.** An ad-hoc signed development build can't have the content filter entitlement. How development enforces the off-host rule remains open.
+1. **Development builds on macOS.** An ad-hoc signed development build can't have the content filter entitlement. How development enforces the rule that only avirtedgeproxyd opens connections off the host remains open.
 2. **Host-local backends and avirt's own listeners.** Service records need a rule for ports that avirt components listen on, such as zot's loopback port.
 3. **Content filter prototype.** Verify that the rule based on the signature and signing identifier of the executable allows avirtedgeproxyd and drops non-loopback flows from every other avirt-signed process, including one running under the same UID. Its signing identifier must remain stable across updates.

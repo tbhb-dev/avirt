@@ -251,3 +251,6 @@ missing_crate_level_docs = "deny"
 private_intra_doc_links = "deny"
 redundant_explicit_links = "deny"
 unescaped_backticks = "deny"
+
+[profile.dev.package.sha2]
+opt-level = 3

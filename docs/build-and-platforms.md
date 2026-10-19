@@ -15,7 +15,9 @@ The root workspace includes `avirt-connect` for CONNECT authority parsing and de
 
 ## Prose checks
 
-For a human review of candidate terms in added prose, run `mise run lint-jargon` on demand. The report exits 0 whatever it finds, except that a usage error such as a bad `--base` exits 1. It runs outside lint and pre-commit, and its tests run in `mise run check`. Judge the prose in context: preserve its meaning and grammar, and reserve glossary entries for real terms.
+Vale's banned-term rules block `mise run lint`. Judge the prose in context: preserve its meaning and grammar, and reserve glossary entries for real terms.
+
+To review candidate terms in added prose by hand, run `mise run lint-jargon`. It exits 0 whatever it finds. A bad `--base` exits 1. It runs outside lint and pre-commit, and `mise run check` runs its tests.
 
 # Status: planned
 
@@ -140,4 +142,4 @@ Both move together with the Containerization package version. Docker Desktop sup
 
 # Open questions
 
-1. **Windows off-host enforcement.** The host rule that restricts new off-host connections to avirtedgeproxyd on Windows remains unspecified.
+1. **Windows restrictions on connections off the host.** The host rule that restricts new off-host connections to avirtedgeproxyd on Windows remains unspecified.

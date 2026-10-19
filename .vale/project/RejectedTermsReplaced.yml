@@ -1,0 +1,24 @@
+---
+# A term goes on this list only when the maintainer rejects it. Each entry maps a rejected
+# term to its plain replacement. Terms with no replacement live in RejectedTerms.yml.
+extends: substitution
+message: "'%[2]s' is a rejected term. Instead: %[1]s."
+level: error
+swap:
+  (?i)control keys?: the private key of avirtmediatord's SVID
+  (?i)broker lease: lease
+  (?i)mediator-bound credentials?: mediator-injected credentials
+  (?i)admission budget: stream limit
+  (?i)native host listener: avirtedgeproxyd's local client listener
+  (?i)peered names?: an internal name under a peer's host name
+  (?i)local provenance: an image built from local sources
+  (?i)event provenance: the event's `src` field
+  (?i)guest root: root inside the workload container
+  (?i)off-host rules?: state the rule
+  (?i)non-policy checks?: the checks that apply in both policy modes
+  (?i)required-\w+ invariants?: describe the condition
+  (?i)permissions boundar(?:y|ies): describe the condition
+  (?i)broker streams?: describe what the stream holds
+  (?i)local client sockets?: edgeproxy.sock
+  (?i)native host process(?:es)?: host process
+  (?i)native host binar(?:y|ies): host binary

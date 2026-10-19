@@ -83,7 +83,7 @@ jobs:
       matrix:
         os:
           - ubuntu-24.04
-          - macos-15
+          - macos-26
     steps:
       - name: Harden the runner
         if: runner.os == 'Linux'
@@ -108,7 +108,7 @@ jobs:
           NEXTEST_PROFILE: ci
         run: mise run check
 
-  # The matrix job reports as `test (ubuntu-24.04)` and `test (macos-15)`.
+  # The matrix job reports as `test (ubuntu-24.04)` and `test (macos-26)`.
   # This job owns the plain name `test`, so the required-check list names
   # one check and stays stable when the matrix changes. `if: always()` keeps
   # it running after a failed slot, and anything but `success` -- failure,
