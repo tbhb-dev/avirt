@@ -83,7 +83,9 @@ The runtime directory, `$TMPDIR/avirt-<uid>/` (0700), contains avirthostd's stat
 | `images/` | The imported images on the Containerization runtime. Startup cleanup removes only stale temporary blobs |
 | `lock` | Held with an exclusive flock for avirthostd's lifetime, so a second `avirthostd` refuses to start |
 
-Before it spawns avirtvmd, avirthostd writes `workloads/<id>/intent.json` with mode 0600 through a temporary file, `fsync`, rename over the old file, and directory `fsync`. The launch intent holds the 8-lowercase-hex-character workload ID, its random 16-byte incarnation, the spec digest, the helper's pid, and its `intended`, `starting`, or `running` state. The spec digest is the sha256 of the `StartWorkload` request with its environment cleared. The digest contains no secret. avirtvmd also holds `vmd.lock` in the workload directory.
+Before it spawns avirtvmd, avirthostd writes `workloads/<id>/intent.json` with mode 0600 through a temporary file, `fsync`, rename over the old file, and directory `fsync`. The launch intent holds the 8-lowercase-hex-character workload ID, its random 16-byte incarnation, the spec digest, the helper's pid, and its `intended`, `starting`, or `running` state. The spec digest is the sha256 of the `StartWorkload` request with its environment and `spec_digest` fields empty, so it contains no secret. avirtvmd also holds `vmd.lock` in the workload directory.
+
+A launch fails unless the paths of `proxy.sock`, `mediator.sock`, and `v.sock` in the new workload directory are each under 104 bytes. avirthostd checks them before it creates the directory.
 
 ## Crash cleanup
 
@@ -96,7 +98,7 @@ When SIGKILL stops avirthostd:
 The next `avirthostd` sweeps before it listens:
 
 1. On the command-line runtime, it stops and deletes every container labelled `avirt=1` (the label goes on every `container run`). On Containerization, it lists the helpers and stops each one still running. It then removes the `containers/<id>/` and `workloads/<id>/` directories of each workload whose helper has exited, and any `containers/<id>/` directory with no `workloads/<id>/` beside it. A workload whose helper still runs after the stop stays on disk for the next startup.
-2. It restores permissions and then empties `workloads/`, `scratch/`, and `hostd/`, without following links, because the agent can `chmod 0000` its own mounted files.
+2. It restores permissions and then empties `scratch/`, `hostd/`, and `workloads/` apart from the directories that step 1 keeps, without following links, because the agent can `chmod 0000` its own mounted files.
 3. It skips host write-back and logs what it removed.
 
 Startup matches each helper to its launch intent by workload ID and incarnation. A failed check counts as unknown, not absent, and that helper also gets a stop. If the helper listing fails, every workload with a launch intent stays on disk.
@@ -165,4 +167,4 @@ avirthostd keeps the kernel, initfs, and image caches in the runtime directory.
 
 ## Path length
 
-Constraint: host Unix socket paths must be under 104 bytes. On the Containerization runtime, `proxy.sock`, `mediator.sock`, and avirtvmd's `v.sock` are in the workload directory. On Docker, `$TMPDIR/avirt-<uid>/workloads/<id8>/c.sock` and `s.sock` come to about 90 bytes under macOS's `/var/folders/…/T/`. `avirthostd` computes the longest per-workload host socket path for its runtime at startup, and refuses to start beyond 100 bytes with a message suggesting a shorter `TMPDIR`.
+Constraint: host Unix socket paths must be under 104 bytes. On Docker, `$TMPDIR/avirt-<uid>/workloads/<id8>/c.sock` and `s.sock` come to about 90 bytes under macOS's `/var/folders/…/T/`. `avirthostd` computes the longest per-workload host socket path for its runtime at startup, and refuses to start beyond 100 bytes with a message suggesting a shorter `TMPDIR`.
