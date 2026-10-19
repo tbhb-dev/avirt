@@ -42,7 +42,7 @@ codex-acp reads `INITIAL_AGENT_MODE` at startup. avirthostd passes it through fr
 | --- | --- |
 | `read-only` | Codex's read-only sandbox. Codex requests permission for writes, and avirtinitd approves them. |
 | `workspace-write` | Writes inside the workspace, no network for tool commands |
-| `agent` | Codex's workspace-write sandbox by default, approvals on request |
+| `agent` | The default: workspace-write sandbox, approvals on request |
 | `agent-full-access` | Codex runs without its sandbox |
 
 Codex's sandbox blocks the network for tool commands in `workspace-write` and `agent`, and makes `/tmp` read-only in `read-only`, so bypass and positive egress checks for Codex need `agent-full-access`. The sandbox container is the security boundary, not Codex's sandbox (see [workload hardening](./workload-hardening.md)).

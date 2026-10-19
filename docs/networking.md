@@ -30,7 +30,7 @@ The current code runs on the Apple container CLI runtime (see [compute runtimes]
 
 # Status: planned
 
-The sandbox VM has no network device. avirtinitd configures a TUN and nftables REDIRECT rules inside it. The guest kernel handles TCP. avirtnetd forwards each flow over a mutually authenticated HTTP/2 connection to the workload's mediator. avirtmediatord enforces the workload policy snapshot, and avirtedgeproxyd enforces the host policy snapshot and opens upstream sockets. Only avirtedgeproxyd opens connections off the host.
+On Containerization, the sandbox VM has no network device. avirtinitd configures a TUN and nftables REDIRECT rules inside it. The guest kernel handles TCP. avirtnetd forwards each flow over a mutually authenticated HTTP/2 connection to the workload's mediator. avirtmediatord enforces the workload policy snapshot, and avirtedgeproxyd enforces the host policy snapshot and opens upstream sockets. Only avirtedgeproxyd opens connections off the host.
 
 ## Overview
 
@@ -136,7 +136,7 @@ avirtedgeproxyd accepts CONNECT, CONNECT-UDP and `icmp` streams, and forwarded H
 
 TCP half-close maps to HTTP/2 `END_STREAM`. Every tunnel explicitly shuts down its sending side and drains the peer with a deadline. It logs the result. Resetting or dropping an h2 stream discards queued data, and a dropped stream doesn't establish that the peer received its bytes.
 
-UDP uses connected upstream sockets. Its flow key includes the source address and source port as well as the destination. The receiver checks capsule length before allocation, with a limit of 65,535 bytes for UDP. An oversize capsule resets the stream. Receivers release HTTP/2 flow-control capacity on read before dropping a datagram. Without capacity, a sender drops the whole datagram before writing its first byte. Queues have bounds, and scheduling provides fair progress when peers read and write within their limits. Stalled readers and writers require tests in both directions. A separate HTTP/2 connection for bulk traffic remains an option to assess.
+UDP uses connected upstream sockets. Its flow key includes the source address and source port as well as the destination. The receiver checks capsule length before allocation, with a limit of 65,535 bytes for UDP. An oversize capsule resets the stream. Receivers release HTTP/2 flow-control capacity on read before dropping a datagram. Without capacity, a sender drops the whole datagram before writing its first byte. Queues have bounds, and scheduling provides fair progress when peers read and write within their limits. Stalled readers and writers require tests in both directions. UDP streams expire after 60 s idle. A separate HTTP/2 connection for bulk traffic remains an option to assess.
 
 ## Addressing and naming
 
@@ -174,7 +174,7 @@ The mediator gets a flow's name from its synthetic address table or an explicit 
 
 ## Names and DNS
 
-avirtmediatord maintains a bounded synthetic address table for each workload. It never reassigns an address to a different name during that workload's lifetime, including across mediator restarts. Allocation fails when the table is full. Entries remain valid while flows are active and until their leases expire after the DNS answer's TTL. The mediator never reuses a live address. Synthetic answers use `198.18.0.0/15` and a ULA `/64`. Selecting the exact IPv6 range remains open.
+avirtmediatord maintains a bounded synthetic address table for each workload. It never reassigns an address to a different name during that workload's lifetime, including across mediator restarts. Allocation fails when the table is full. Entries remain valid while flows are active and until the DNS answer's TTL expires. An expired entry's address stays bound to its name. Synthetic answers use `198.18.0.0/15` and a ULA `/64`. Selecting the exact IPv6 range remains open.
 
 avirtmediatord canonicalizes IPv4-mapped IPv6 addresses to IPv4 before table lookup.
 
@@ -224,7 +224,7 @@ QUIC uses passthrough after bounded Initial inspection on any port. A datagram w
 
 Initial inspection supports QUIC v1 and v2 salts and reassembles CRYPTO from offset 0 into contiguous data, across at most 4 datagrams, 4 KiB, and 2 s. Inspection refuses contradictory retransmissions. Valid Initials split across datagrams must pass. Coalesced packets, Retry, and Version Negotiation require explicit handling. No 0-RTT data leaves before authorization. Real-client tests must include out-of-order CRYPTO, Retry, and 0-RTT.
 
-avirt supplies the long-header and frame parser. rustls QUIC key derivation alone doesn't parse these structures. For passthrough, avirt uses quinn with its bounded Initial parser. The interception stack remains undecided, and QUIC interception isn't planned. Intercepted names omit `h3` in DNS and `Alt-Svc` in HTTP responses. avirtmediatord refuses QUIC to those names so clients fall back to TCP.
+avirt supplies the long-header and frame parser. rustls QUIC key derivation alone doesn't parse these structures. For passthrough, avirt uses quinn with its bounded Initial parser. avirt doesn't intercept QUIC. Intercepted names omit `h3` in DNS and `Alt-Svc` in HTTP responses. avirtmediatord refuses QUIC to those names so clients fall back to TCP.
 
 ## SSH and git
 
@@ -244,7 +244,7 @@ By default, avirtmediatord supports only exec of `git-upload-pack`, `git-receive
 
 The `icmp` stream supports ping only. Traceroute remains deferred. Opening the stream fixes and checks the destination, with 403 for a target outside the permitted scope. Messages contain `{type, id, seq, payload}` and no destination. Both the mediator and edge check type, length, and rate. Echo payloads are at most 512 bytes. The workload rate is 5 requests/s with burst 10, and each destination has a 1 request/s limit. Outstanding requests have a cap.
 
-avirtedgeproxyd uses unprivileged ICMP datagram sockets and avirtnetd constructs reply packets. Linux rewrites the ICMP identifier, so Linux reply matching can't depend on it. Unrelated errors and information about private intermediate hops aren't returned to the workload. ICMP streams expire after 10 s idle. UDP streams expire after 60 s idle.
+avirtedgeproxyd uses unprivileged ICMP datagram sockets and avirtnetd constructs reply packets. Linux rewrites the ICMP identifier, so Linux reply matching can't depend on it. Unrelated errors and information about private intermediate hops aren't returned to the workload. ICMP streams expire after 10 s idle.
 
 ## Ingress and peers
 

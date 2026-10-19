@@ -465,7 +465,7 @@ The Model Context Protocol, which the agent speaks only to avirtmcp, and which a
 
 ## Mediator
 
-The component of a workload through which every byte the agent sends out passes. In the implemented system it's the avirtmediatord host process, which handles egress only. In the planned design it's a container with no network that runs avirtinitd and avirtmediatord. See [architecture](./architecture.md#topology).
+The component of a workload through which every byte the agent sends out passes. In the implemented system it's the avirtmediatord host process. It handles the agent's egress and connects `mediator.sock` to avirthostd's `hostd.sock` for the workload's HTTP/2 connection and log envelopes. In the planned design it's a container with no network that runs avirtinitd and avirtmediatord. See [architecture](./architecture.md#topology).
 
 ## Mediator secret
 
@@ -633,7 +633,7 @@ The Rust SSH library used for mediator interception, including the per-workload 
 
 ## Sandbox container
 
-The container in which avirtinitd and the agent or another main workload process run. Today it runs with `--network none` and leaves only through `proxy.sock`. Status: planned. On the Containerization runtime it has its own VM with no network device, and its TUN and nftables REDIRECT send each flow through avirtnetd and the workload's HTTP/2 connection to its mediator. See [sandbox container](./components.md#sandbox-container) and [connection to the mediator](./workload-topology.md#http2-streams).
+The container in which avirtinitd and the agent or another main workload process run. Today it runs with `--network none`, and the agent's traffic leaves only through `proxy.sock`. Status: planned. On the Containerization runtime it has its own VM with no network device, and its TUN and nftables REDIRECT send each flow through avirtnetd and the workload's HTTP/2 connection to its mediator. See [sandbox container](./components.md#sandbox-container) and [connection to the mediator](./workload-topology.md#http2-streams).
 
 ## Sandbox image
 
@@ -657,7 +657,7 @@ A named record in avirtsecretsd, `<scope>/<name>`, that says which provider hold
 
 ## Secret reference
 
-`secret:<scope>/<name>`, the form in which every other record specifies a secret record. Status: planned. See [secrets and references](./secrets.md#secrets-and-references).
+`secret:<scope>/<name>`, the form in which another record refers to a secret record. Status: planned. See [secrets and references](./secrets.md#secrets-and-references).
 
 ## Security context
 

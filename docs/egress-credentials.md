@@ -309,7 +309,7 @@ These changes leave open connections intact. Credential injectors check each req
 
 | The workload can see | The workload never sees |
 | --- | --- |
-| Its placeholders in its environment and placeholder files | A credential stored at any credential injector |
+| Its placeholders in its environment and placeholder files | A credential stored at any credential injector, except one that an upstream returns in a response |
 | The real JWT header and payload of the Codex id and access tokens, including the account's email and plan | The Codex refresh token, real or encoded, and any JWT signature |
 | The names of the variables and files the configuration layer wires | Any MCP credential, in any form |
 | The MITM CA certificate | The MITM CA key |

@@ -215,7 +215,7 @@ Peered hosts trust each other's identities explicitly and narrowly: a peer authe
 1. **Secrets at rest.** Whether to encrypt durable secrets at rest, such as the SPIFFE root key in the macOS Keychain, remains open. Storage for avirtsecretsd's cached provider values is also open.
 2. **Base image pinning.** Whether the avirt base, the harness bases and the mediator image pin their own base images by digest and their downloads by checksum is open.
 3. **Extension callouts.** Request and response inspection, external authorization, their access under TLS passthrough, and their failure behavior remain unspecified.
-4. **Restrictions on host connections.** The Network Extension content filter covers TCP and UDP. Every avirt daemon on the host other than avirtedgeproxyd also needs a macOS Seatbelt profile denying non-loopback inet sockets, including ICMP. Runtime tests must verify both restrictions (see [networking](./networking.md#restrictions-on-host-connections)).
+4. **Restrictions on host connections.** The Network Extension content filter covers TCP and UDP. Every avirt daemon on the host other than avirtedgeproxyd also needs a macOS Seatbelt profile denying non-loopback inet sockets, including ICMP. The runtime tests that verify both restrictions remain unspecified (see [networking](./networking.md#restrictions-on-host-connections)).
 
 # Threat model
 

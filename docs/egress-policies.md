@@ -515,7 +515,7 @@ The parser canonicalizes each external host once. Later checks always use the ca
 
 A real IP literal becomes a `Destination` with `ip` and no `host`, so no hostname rule and no `like` pattern can match it: it's permitted only by a policy that compares `resource.ip`, by equality or with `isInRange`.
 
-The parser canonicalizes the SNI under TLS passthrough and the `Host` header under TLS interception the same way. On a named flow both must equal the flow's hostname (`Host` may omit a default port), and avirtmediatord refuses `encrypted_client_hello`. Names come only from the mediator's synthetic address table or a CONNECT authority. avirtmediatord logs SNI and Host on a flow to an address supplied directly outside the ranges used for synthetic addresses without assigning it a name.
+The parser canonicalizes the SNI under TLS passthrough and the `Host` header under TLS interception the same way. On a named flow both must equal the flow's hostname (`Host` may omit a default port), and avirtmediatord refuses `encrypted_client_hello`. Names come only from the mediator's synthetic address table or a CONNECT authority. For a flow to an address supplied directly (outside the ranges used for synthetic addresses), avirtmediatord assigns no name. It logs SNI and Host.
 
 ### Request path canonicalization
 
