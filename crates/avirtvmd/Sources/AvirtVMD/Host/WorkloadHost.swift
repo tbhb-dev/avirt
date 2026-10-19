@@ -16,10 +16,11 @@ struct LaunchSpec: Sendable {
 }
 
 extension LaunchSpec {
-  /// Removes what a start that failed left behind: the container directory and the stdio log.
+  /// Removes the container directory a start that failed left behind and renames the stdio log to
+  /// `<stdioPath>.failed`, which keeps the boot console and frees the path for the next start.
   func discard() {
     try? FileManager.default.removeItem(atPath: containerDir)
-    Sys.removeFile(at: stdioPath)
+    Sys.moveFile(from: stdioPath, to: stdioPath + ".failed")
   }
 }
 
