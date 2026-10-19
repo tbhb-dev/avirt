@@ -2,7 +2,6 @@
 (?:PID|pid)
 (?:UID|uid)
 AAAA
-AliasMode
 [Aa]llowlist
 [Aa]nycast
 [Aa]rgs
@@ -130,7 +129,6 @@ SVCB
 [Ss]yscall
 [Ss]yscalls
 [Tt]ailnet
-TargetName
 [Tt]eardown
 [Tt]emporality
 [Tt]oolchain
