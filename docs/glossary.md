@@ -805,7 +805,7 @@ The policy snapshot scoped to one workload, which that workload's avirtmediatord
 
 ## Workload stdio log
 
-The host-written NDJSON file `logs/<workload-id>.stdio.ndjson` of a sandbox container's stdout, stderr and console, which avirtlogd tails. Status: planned. See [workload stdio logs](./components.md#workload-stdio-logs).
+The NDJSON file `logs/<workload-id>.stdio.ndjson` of a sandbox container's stdout, stderr and console, written by avirtvmd on the Containerization runtime. Status: implemented. avirtlogd tails the file. Status: planned. See [workload stdio logs](./components.md#workload-stdio-logs).
 
 ## Workload SVID
 

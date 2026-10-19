@@ -64,13 +64,16 @@ Without `cwd`, the agent works in the image's empty `/workspace`. With `cwd`, av
 
 ## Log files
 
-avirthostd creates the logs directory with mode 0700 and each file in it with mode 0600. Logs contain prompts, tool output, and possibly credentials. The planned workload log is in [observability](./observability.md#workload-log-1).
+avirthostd creates the logs directory with mode 0700. Every file in it has mode 0600. Logs contain prompts, tool output, and possibly credentials. The planned workload log is in [observability](./observability.md#workload-log-1).
 
 | File | Contents |
 | --- | --- |
 | `logs/<workload-id>.ndjson` | One envelope per line, as below |
-| `logs/<workload-id>.container.log` | The sandbox container's stdout and stderr |
+| `logs/<workload-id>.container.log` | The sandbox container's stdout and stderr on the Apple container CLI runtime only |
 | `logs/<workload-id>.mediator.log` | The mediator's diagnostics |
+| `logs/<workload-id>.stdio.ndjson` | The sandbox container's stdout, stderr, and console on the Containerization runtime |
+| `logs/<workload-id>.avirtvmd.log` | avirtvmd's stderr on the Containerization runtime |
+| `logs/<workload-id>.stdio.ndjson.failed` | The stdio log of a start that failed, renamed, on the Containerization runtime |
 
 ## Envelope
 
