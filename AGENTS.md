@@ -73,7 +73,7 @@ Any lint in the `all` and `pedantic` groups fails the build, and so does each nu
 mise run lint-rust       # clippy, all targets, warnings denied
 mise run lint-rustdoc    # rustdoc over private items, warnings denied
 mise run lint-shear      # cargo-shear: unused dependencies
-mise run deny            # cargo-deny: advisories, bans, sources
+mise run deny            # cargo-deny: advisories, licenses, bans, sources
 mise run test            # nextest, then the doc tests
 mise run coverage        # cargo-llvm-cov with the line and region floors
 mise run mutants         # cargo-mutants baseline; no gate
