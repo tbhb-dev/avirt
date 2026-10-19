@@ -31,7 +31,7 @@ Every crate lives directly under `crates/`, and each directory uses its package 
 | `avirtwebd` | Binary | Host | The backend for the avirt web UI (not implemented) |
 | `avirtapid` | Binary | Host | The API server: the gRPC and REST API in front of the local avirthostd and peers' API servers, reached through the edge proxy (not implemented) |
 | `avirtedgeproxyd` | Binary | Host | The edge proxy: host policy evaluation, external resolution, private-address checks and upstream connections (not implemented) |
-| `avirtdnsd` | Binary | Host | The DNS resolver for `<name>.<ns>.svc.host.avirt.internal` and `<name>.<ns>.workload.host.avirt.internal`, which answers with the local avirtedgeproxyd or, for internal names under a peer's host name, their host's avirtedgeproxyd (not implemented) |
+| `avirtdnsd` | Binary | Host | The DNS resolver for `<name>.<ns>.svc.host.avirt.internal` and `<name>.<ns>.workload.host.avirt.internal`, which answers with the local avirtedgeproxyd or, for avirt hostnames under a peer's host name, their host's avirtedgeproxyd (not implemented) |
 | `avirtmcpgwd` | Binary | Host | The MCP gateway (not implemented) |
 | `avirtmodelgwd` | Binary | Host | The model gateway, which injects model credentials (not implemented) |
 | `avirtbuilderd` | Binary | Host | The builder, which watches VCS and builds repository OCI artifacts for fast workload startup (not implemented) |
@@ -51,7 +51,7 @@ Every crate lives directly under `crates/`, and each directory uses its package 
 
 `avirt-connect` is part of the root workspace.
 
-`workloads/claude/` and `workloads/codex/` contain only the workload image build directories.
+`workloads/claude/` and `workloads/codex/` contain only the sandbox image build directories.
 
 ## Commands
 
@@ -59,7 +59,7 @@ Every crate lives directly under `crates/`, and each directory uses its package 
 mise run bootstrap                                               # first step in a fresh clone or worktree: vendir sync, toolchain, Vale styles, git hooks
 mise install                                                      # pins Rust
 mise run check                                                    # fmt --check, clippy, rustdoc, shear, deny, nextest, doc tests, docs checks
-mise run build-images                                             # both workload images and their OCI archives (needs Apple container)
+mise run build-images                                             # both sandbox images and their OCI archives (needs Apple container)
 mise run serve                                                    # avirthostd on the Containerization runtime (builds avirtvmd too)
 mise run launch claude "Reply with the word pong" -- --follow     # avirt launch, in a second terminal
 ```
