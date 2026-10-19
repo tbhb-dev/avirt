@@ -21,6 +21,19 @@ Vale's banned-term rules block `mise run lint`. Judge the prose in context: pres
 
 To review candidate terms in added prose by hand, run `mise run lint-jargon`. It exits 0 whatever it finds. A bad `--base` exits 1. It runs outside lint and pre-commit, and `mise run check` runs its tests.
 
+## Guest artifacts
+
+Kernel and initfs pins belong to each runtime. The Containerization runtime pins:
+
+- the Kata Containers 3.32.0 arm64 `vmlinux` by URL and tarball sha256 `8736c054d9223974735394f822000823baef509e1c33405ec798240fa9b6e4b5`, and the extracted `vmlinux` by sha256 `fb2cfb79eb1ae19447a85d75682d7fa5cfec97e24beb2609a492b806e8072c8d`.
+- the initfs `ghcr.io/apple/containerization/vminit:0.47.0`.
+
+Both move together with the Containerization package version. Status: planned. Docker Desktop supplies its own kernel.
+
+## Sandbox image archives
+
+The `mise run build-image` task uses `container image save` to write sandbox images as OCI image layout archives for avirthostd. avirthostd imports each archive into `images/` and verifies the sha256 of every blob before storing it. `container build` builds the images. The Containerization runtime runs workloads without the `container` command.
+
 # Status: planned
 
 ## Targets
@@ -78,7 +91,7 @@ Apple doesn't publish a prebuilt Containerization artifact. SwiftPM builds the l
 ## Signing
 
 - **Development.** The avirtvmd build signs the helper with the `com.apple.security.virtualization` entitlement. avirthostd and its tests don't need it.
-- **Distribution.** Distribution builds sign `avirthostd` and `avirtvmd` with Developer ID and notarize them.
+- **Distribution.** Distribution builds sign `avirthostd` and `avirtvmd` with Developer ID, each with its own stable signing identifier, and notarize them.
 - **Secrets broker.** Distribution builds sign `avirtsecretsd` and `avirtsecrets-1password` with Developer ID and notarize them. Each has a stable signing identifier that keeps its designated requirements unchanged across releases (see [macOS Keychain](./secrets-keychain.md#code-signing-and-entitlements)).
 
 ## CI matrix
@@ -103,15 +116,6 @@ mise pins Rust and defines the tasks on every OS: `serve` runs `avirthostd`, and
 | macOS | Docker Desktop | Docker Desktop running for the user |
 | Linux | KVM microVM (planned) | Access to `/dev/kvm` |
 | Windows | Hyper-V through HCS (planned) | Membership in Hyper-V Administrators |
-
-## Guest artifacts
-
-Kernel and initfs pins belong to each runtime. The Containerization runtime pins:
-
-- the Kata Containers 3.32.0 arm64 `vmlinux` by URL and tarball sha256 `8736c054d9223974735394f822000823baef509e1c33405ec798240fa9b6e4b5`, and the extracted `vmlinux` by sha256 `fb2cfb79eb1ae19447a85d75682d7fa5cfec97e24beb2609a492b806e8072c8d`.
-- the initfs `ghcr.io/apple/containerization/vminit:0.47.0`.
-
-Both move together with the Containerization package version. Docker Desktop supplies its own kernel.
 
 # Open questions
 

@@ -415,6 +415,10 @@ avirtregistryd's index entry for one workspace image: its repository, tags, dige
 
 The tag `build-<build id>` that every promoted workspace image gets, which no other build reuses. Status: planned. See [tags](./workspace-build.md#tags).
 
+## Incarnation
+
+The random 16-byte value avirthostd generates for each avirtvmd start, which the helper presents in its hello so a leftover helper of the same workload can't pass for the current one. Status: implemented. See [avirtvmd](./compute-runtimes.md#avirtvmd).
+
 ## Ingress listener
 
 avirtmediatord's listener on `/run/avirt/ingress.sock`, on which avirtedgeproxyd, through avirthostd's SNI routing, reaches that workload's published ports. Status: planned. See [runtime-provided sockets](./workload-topology.md#runtime-provided-sockets).
@@ -434,6 +438,10 @@ The Linux security module that confines a process's filesystem access, TCP ports
 ## Launch handshake
 
 The sequence on the workload's HTTP/2 connection to its mediator, from the mutual TLS handshake through `attach`, the first SVID rotation and the accepted `/envelopes` stream to `confirm`, before which no agent process exists. Status: planned. See [launch handshake](./workload-topology.md#launch-handshake).
+
+## Launch intent
+
+The mode-0600 `intent.json` record that avirthostd writes in a Containerization workload directory before it spawns avirtvmd. It identifies the workload and incarnation, records the spec digest, helper pid, and launch state, and lets startup match a helper to the intended launch. Status: implemented. See [runtime directory](./lifecycle.md#runtime-directory).
 
 ## Layer stack
 
@@ -797,7 +805,7 @@ The policy snapshot scoped to one workload, which that workload's avirtmediatord
 
 ## Workload stdio log
 
-The host-written NDJSON file `logs/<workload-id>.stdio.ndjson` of a sandbox container's stdout, stderr and console, which avirtlogd tails. Status: planned. See [workload stdio logs](./components.md#workload-stdio-logs).
+The NDJSON file `logs/<workload-id>.stdio.ndjson` of a sandbox container's stdout, stderr and console, written by avirtvmd on the Containerization runtime. Status: implemented. avirtlogd tails the file. Status: planned. See [workload stdio logs](./components.md#workload-stdio-logs).
 
 ## Workload SVID
 

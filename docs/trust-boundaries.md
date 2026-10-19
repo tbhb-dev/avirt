@@ -1,11 +1,19 @@
 ---
 type: Security Design
 title: Trust boundaries and reachability
-description: Each planned avirt listener with its transport, caller identity and allowed operations, the local listeners exempt from mutual TLS, what a compromised agent, root in the sandbox container, mediator or peer can reach, and the `src` field of each logged event.
+description: The implemented avirtvmd control socket, each planned avirt listener with its transport, caller identity and allowed operations, the local listeners exempt from mutual TLS, what a compromised agent, root in the sandbox container, mediator or peer can reach, and the `src` field of each logged event.
 tags: [avirt, security, trust, reachability, threat-model]
-implementation: planned
+implementation: partial
 generated: { by: codex/gpt-6, at: 2026-10-18T05:14:22Z }
 ---
+
+# Status: implemented
+
+## avirtvmd control socket
+
+avirtvmd listens without mutual TLS on the Unix socket `workloads/<id>/v.sock`, which has mode 0600 and is in a workload directory with mode 0700. Both sides require the peer to have the same user ID. Each connection has a fixed workload and incarnation. Development builds rely on exactly these checks. avirtvmd runs unconfined as the host user and can reach anything that user can reach.
+
+Status: planned. [Phase 1b](./roadmap.md#phases) adds a Developer ID check on this socket.
 
 # Status: planned
 
@@ -43,7 +51,7 @@ Each listener that a caller reaches across a container or host boundary requires
 | SNI routing for inbound connections (`services/ingress-relay.sock`) | Host, avirthostd | Unix socket, checked with `LOCAL_PEERCRED` on macOS and `SO_PEERCRED` on Linux, TLS forwarded unchanged | avirtedgeproxyd only | Forwarding the bytes unchanged to avirtmediatord's ingress listener of the workload named by SNI `<uuid>.ingress.<td>`, at its current generation |
 | avirtedgeproxyd egress listener | Host, avirtedgeproxyd | Reached through SNI routing on a mediator's outbound socket, or directly by host services, mutual TLS 1.3, h2 | avirtmediatord processes of live workloads and current generations, host services | CONNECT, CONNECT-UDP and `icmp`, after resolving avirt hostnames to entities and evaluating the host policy snapshot, to same-host workloads' published ports, services, authorized host-local services, peered-host workloads and external endpoints, and the `guest-cli` stream to avirtapid |
 | Peer listener | Host, avirtedgeproxyd | TCP on the host network, on the addresses in `peering.listen` (default port 8788, no listener while it's empty), mutual TLS 1.3 with federated bundles. Peers authenticate by SVID, never by source address. | `spiffe://<peer td>/service/avirtedgeproxyd` of active enrolled peers, with an `x-avirt-caller` in that peer's trust domain | CONNECT, CONNECT-UDP or `icmp` to local published ports and services that the host policy snapshot allows for the originating peer identity, and routes to avirtapid (see [peering](./peering.md#peer-listener)) |
-| Workload stdio logs (`logs/<workload-id>.stdio.ndjson`) | Host, written by avirtvmd on the Containerization runtime | Files, 0640, group readable only by avirtlogd's and avirtauditd's UIDs | avirtlogd and avirtauditd, read-only | Tailing with persisted offsets. Only avirtvmd writes the files, making their identity fields trustworthy. Log text is untrusted. |
+| Workload stdio logs (`logs/<workload-id>.stdio.ndjson`) | Host, written by avirtvmd on the Containerization runtime | Files, mode 0600. Status: planned. Mode 0640, group readable only by avirtlogd's and avirtauditd's UIDs | avirtlogd and avirtauditd, read-only | Tailing with persisted offsets. Only avirtvmd writes the files, making their identity fields trustworthy. Log text is untrusted. |
 
 ## Local exceptions
 
@@ -59,6 +67,7 @@ On the host, these local listeners don't use mutual TLS either, and authenticate
 
 - avirtedgeproxyd's `edgeproxy.sock`, a user-owned 0600 socket in the runtime directory.
 - the web UI port, a host loopback port, where avirtwebd authenticates web UI users.
+- avirtvmd's `v.sock`, a 0600 socket in the 0700 workload directory, which admits only avirthostd's UID and, from phase 1b, the expected Developer ID.
 - avirthostd's `admin.sock`, which admits only avirthostd's own UID or root by peer credentials (see [admin CLI](./admin-cli.md)).
 
 uid 1000 never holds an SVID or its key, the trust bundle, a CA key, or a credential from avirt. A trusted upstream can return an injected credential in its response.
@@ -72,6 +81,7 @@ Destination checks occur outside the VM. Only a workload's own mediator accepts 
 | Agent (uid 1000) | TCP, UDP, ICMP and DNS through avirtnetd, subject to the workload's policy in avirtmediatord and the host policy snapshot and `private-dest` check in avirtedgeproxyd. DNS as an exfiltration path, bounded by `resolve` policy and logged. The agent sockets, as `guest-cli` and as the workload's MCP client. Through `guest-cli`, the workload management operations its policy grants, within the constraints in [workload management](./components.md#workload-management). Authority remains limited to the workload's own. Reserved labels and host administration remain forbidden. Its own files and the workspace. The placeholders and the MITM CA certificate, which aren't secrets. | Any SVID or key, the sockets owned by avirtnetd, avirtacp, avirtagent, avirtexec, and avirtguestd, the memory of other UIDs, any host socket (seccomp denies `AF_VSOCK`, and the sandbox VM's only host vsock listener is the one behind `/run/avirt/mediator.sock`, used by the runtime's in-guest socket forwarder), any network path outside mediation, any real credential except one returned by a trusted recipient, other workloads except through avirtedgeproxyd's policy. The filesystem limits are in [Landlock](./landlock.md#guarantees-by-layer). |
 | Root in the sandbox container | Everything in the sandbox container, including the workload SVID in avirtnetd. Each HTTP/2 stream on the workload's connection to its mediator, as the workload and as each process in the container. The workload management operations the workload's policy grants, within the same constraints as for the agent. | The mediator's keys, the workload's MITM CA key, real credentials except those returned by trusted recipients. Direct host service access: the workload's HTTP/2 connection to its mediator is its only connection out and ends at avirtmediatord. A mediator SVID: avirthostd issues only `/ns/<ns>/workload/<uuid>` to a workload-authenticated request. Another namespace's identity. Other workloads except through avirtedgeproxyd's policy |
 | Mediator (avirtmediatord) | A parser bug exposes the private key of avirtmediatord's SVID and mediator-injected credentials inside its mediator VM with no network device. Bypassing its own workload's policy and `credential-misplaced` check. The workload's MITM CA key permits interception of the agent's TLS connections to hosts within the CA's name constraints. This includes hosts the policy routes through TLS passthrough and applies to this and each later workload generation. A workload lacks a MITM CA unless its policy permits interception. The workload's placeholders and mediator-injected short-lived credentials. Host services through avirthostd's SNI routing, as that workload only. External endpoints, other workloads, services and host-local services that the host policy snapshot allows for its own identity, all through avirtedgeproxyd. Forging its own workload's mediator-reported events. | Model and MCP credentials: they never leave the gateways. Other workloads' credentials: the broker authorizes by workload and generation. Private and host addresses: avirtedgeproxyd checks each resolved address. Also inaccessible are a workload SVID for its own key (rotation requires the current workload key) and the SPIFFE CA. Direct access to another mediator: SNI routing never connects two mediators.  |
+| avirtvmd (same host user as avirthostd) | Its workload's VM, including guest memory, the relayed sockets, and the identity fields of the stdio log. Everything that user can read or open (including sibling workload directories and host sockets). | Anything that user can't reach (see [open questions](#open-questions)). |
 | avirtedgeproxyd | Each workload-to-workload, service, host-local service and external connection on the host, as their policy enforcement point. The host's network and its own addresses, bypassing avirtedgeproxyd's private-address check. Asserting any caller identity in `x-avirt-caller` to destination mediators, avirtapid, and peers. Authorized host-local backends. Its own SVID and its stored peer bundles. | The SPIFFE CA. Model and MCP credentials (which stay at the gateways and avirtsecretsd). Any mediator's or workload's keys. Plaintext from a mediator's upstream TLS connections or from workload-to-workload bytes. avirt's host services except through their own authorization |
 | Build job (root in the sandbox container in the build VM) | Its own inputs and staging repository. Its cache scope and anything its workload policy snapshot allows through avirtedgeproxyd. Writing anything into its staging output. | Any workspace repository, tag or annotation (only avirtbuilderd promotes), another build's inputs or staging, real credentials, avirtapid (avirthostd refuses a build job's `guest-cli` stream), avirthostd's control API, any signing key |
 | avirtregistryd | Each stored workspace image, and the registry credentials it obtains from avirtsecretsd. Serving a forged index or forged content to avirthostd. | Running content. avirthostd verifies each digest it pulls against the resolved manifest, so forged content fails at launch. `launch_workspace` on the returned image record limits a forged resolution |
@@ -100,3 +110,7 @@ Each event in a workload log includes `workload`, `gen` and `seq`, and a `src` l
 | `workload` | avirtnetd, avirtinitd and the main workload process, on the `/envelopes` stream | Workload-reported and relayed by the mediator: trustworthy only while both root in the sandbox container and the mediator remain free of compromise |
 
 avirtauditd keeps `src` in each OCSF record it produces.
+
+# Open questions
+
+1. **Confining avirtvmd.** How to confine avirtvmd below its host user's access remains unspecified.

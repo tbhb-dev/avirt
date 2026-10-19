@@ -103,7 +103,8 @@ flowchart LR
 | `mem.workload` | Sandbox container memory: guest `memory.current` for a VM, the container's cgroup on Docker | MiB | avirtinitd, avirthostd | Gauge for peak and steady values | All | diag |
 | `mem.mediator` | Mediator memory, measured the same way | MiB | Mediator, avirthostd | Gauge | All | diag |
 | `cpu.workload`, `cpu.mediator` | CPU seconds consumed per workload, per container | s | avirthostd | Counter | All | diag |
-| `mem.hostd`, `cpu.hostd` | avirthostd RSS and CPU, including the host-side cost of in-process VMs on Containerization | MiB, s | avirthostd | Gauge, counter | All | diag |
+| `mem.hostd`, `cpu.hostd` | avirthostd RSS and CPU | MiB, s | avirthostd | Gauge, counter | All | diag |
+| `mem.avirtvmd`, `cpu.avirtvmd` | RSS and CPU seconds of each workload's avirtvmd process (separate from guest memory and CPU) | MiB, s | avirtvmd | Gauge, counter | Containerization | diag |
 | `disk.workload` | Bytes on disk per workload: writable root filesystem, `containers/<id>/`, `workloads/<id>/` and its logs | MiB | avirthostd | Gauge | All | diag |
 | `disk.caches` | Sizes of the kernel cache, the initfs and the content-addressed cache | MiB | avirthostd | Gauge | Containerization | diag |
 | `concurrency.max_workloads` | The largest number of simultaneous workloads for which `launch.agent_started`, `acp.first_update`, `egress.connect_setup` and `envelopes.latency` stay within their objectives | count | Bench harness | External benchmark | All | SLO |
