@@ -69,6 +69,7 @@ cafile
 CAINFO
 canonicalization
 canonicalized
+capsys
 CAs
 cdecl
 CDN
@@ -178,6 +179,7 @@ GOAWAY
 Grafana
 gshadow
 guestd
+hardbreak
 hashbrown
 hchan
 HCS
@@ -193,6 +195,7 @@ hvsock
 idents
 IETF
 ifaddrs
+iniconfig
 initfs
 inodes
 interceptable
@@ -234,6 +237,7 @@ MCP
 mctl
 MDM
 mdns
+mdurl
 mediatord
 medproxy
 medproxyd
@@ -258,6 +262,7 @@ networkless
 NEWUSER
 nextest
 nftables
+ngrams
 NIC
 NIOBSD
 NLGRP
@@ -304,6 +309,7 @@ pipefail
 PIDs
 Pingora
 plaintext
+pluggy
 policyd
 POSIX
 pport
@@ -322,7 +328,9 @@ psock
 ptmx
 ptrace
 pullable
+pygments
 pypirc
+pytest
 pyyaml
 qtype
 QUIC
@@ -396,12 +404,15 @@ SNI
 sockaddr
 sockaddr_un
 socketpair
+softbreak
 SPIFFE
 ssock
 SSRF
 stderr
 stdin
 stdout
+stopword
+stopwords
 subcommand
 subcommands
 subprocess
@@ -468,6 +479,7 @@ UTC
 Vale
 VCS
 vendir
+venv
 virtio
 virtiofs
 Vite
