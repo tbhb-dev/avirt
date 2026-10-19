@@ -53,7 +53,7 @@ avirthostd doesn't check the envelopes in that request. The sandbox container ma
 
 On the Containerization runtime, avirtvmd creates `logs/<workload-id>.stdio.ndjson` with mode 0600 and exclusive creation, so it fails if the file already exists. It writes the sandbox container's stdout and stderr and the VM console from Containerization's `bootLog` into that file, with `stream` set to `stdout`, `stderr` or `console`.
 
-avirtvmd copies chunks into a ring with a 4 MiB limit and records the byte count of each chunk that doesn't fit in a `dropped_bytes` record for its stream. Its writer thread splits each line into pieces of at most 64 KiB and writes a record for each piece. It sets `partial: true` on every record except the last record of a line and flushes unfinished lines as partial after 200 ms without new output. The thread writes invalid UTF-8 as base64 in `b64`.
+avirtvmd copies chunks into a ring with a 4 MiB limit and adds the byte count of each chunk that doesn't fit to its stream's dropped count. On each drain pass, the writer thread writes one `dropped_bytes` record for each stream with dropped bytes. Each line goes out in pieces of at most 64 KiB, one record per piece. Every record except the last of a line has `partial: true`, and unfinished lines go out as partial after 200 ms without new output. The thread writes invalid UTF-8 as base64 in `b64`.
 
 Each record contains `{ts, workload, ns, short_id, stream, partial, text|b64}`. On receipt of the chunk, avirtvmd stamps `ts` as an RFC 3339 time in milliseconds. Both `workload` and `short_id` contain the workload ID. The `ns` field contains `default`. A `dropped_bytes` record has `ts` (the time the writer recorded the drop), the identity fields, `stream` and `dropped_bytes`, with no `partial`, `text` or `b64`.
 
@@ -110,7 +110,7 @@ avirtlogd turns each stdio record into one OpenTelemetry log record:
 
 | Log record field | Source |
 | --- | --- |
-| `Timestamp` | The record's `ts`, the receive time avirtvmd stamped |
+| `Timestamp` | The record's `ts`, the receive time avirtvmd stamped on Containerization |
 | `ObservedTimestamp` | When avirtlogd read the record |
 | `Body` | `text` as a string, or `b64` decoded to bytes |
 | `SeverityNumber` | Unset. avirtlogd never parses a severity out of workload output. |
