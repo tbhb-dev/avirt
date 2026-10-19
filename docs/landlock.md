@@ -137,7 +137,7 @@ Each ruleset handles each filesystem right of the target ABI and denies access u
 
 Never grant `MAKE_CHAR` or `MAKE_BLOCK` to any process. Grant `IOCTL_DEV` only in `pty`.
 
-**The paths each daemon needs** to run are: `ro` on `/usr/lib` and `/proc`, `file-r` on `/etc/ld.so.cache`, `ro` on `/sys/fs/cgroup`, `file-rw` on `/dev/null`, `file-r` on `/dev/urandom`, and `exec` on its own binary and on `/usr/lib/ld-linux-aarch64.so.1`. `/bin`, `/sbin` and `/lib` are symlinks into `/usr` in the avirt base, and resolving a symlink doesn't need a right. Mount `/proc` with `hidepid=invisible` to limit each process to its own UID's entries.
+**The paths each helper needs** to run are: `ro` on `/usr/lib` and `/proc`, `file-r` on `/etc/ld.so.cache`, `ro` on `/sys/fs/cgroup`, `file-rw` on `/dev/null`, `file-r` on `/dev/urandom`, and `exec` on its own binary and on `/usr/lib/ld-linux-aarch64.so.1`. `/bin`, `/sbin` and `/lib` are symlinks into `/usr` in the avirt base, and resolving a symlink doesn't need a right. Mount `/proc` with `hidepid=invisible` to limit each process to its own UID's entries.
 
 ## Per-process rulesets
 
@@ -208,7 +208,7 @@ avirtacp, avirtagent or avirtexec, as `avirt-run`. The runner doesn't execute an
 
 | Path | Rights |
 | --- | --- |
-| The paths each daemon needs | Same as the preceding table |
+| The paths each helper needs | Same as the preceding table |
 | `/etc/avirt/launch.toml` | `file-r` |
 | `/run/avirt/streams/run.sock`, `/run/avirt/init/run.sock` | `unix` |
 
@@ -218,7 +218,7 @@ As `avirt-net`.
 
 | Path | Rights |
 | --- | --- |
-| The paths each daemon needs | Same as the preceding table |
+| The paths each helper needs | Same as the preceding table |
 | `/run/avirt/streams` | `sock-dir` |
 | `/run/avirt/agent` | `sock-dir` |
 | `/run/avirt/mediator.sock`, `/run/avirt/init/net.sock` | `unix` |
@@ -231,13 +231,13 @@ As `avirt-guest`, in the `avirt-ws` group.
 
 | Path | Rights |
 | --- | --- |
-| The paths each daemon needs | Same as the preceding table |
+| The paths each helper needs | Same as the preceding table |
 | Each workspace root from the workspace image's `roots` (`/workspace` and each directory destination under `/home/agent`) | `rw`, without `EXECUTE`, `MAKE_SOCK` or `MAKE_FIFO` |
 | Its workspace snapshot directory | `rw` |
 | `/run/avirt/streams` | `sock-dir`, for its listener `/run/avirt/streams/guestd.sock` |
 | `/run/avirt/init/guestd.sock` | `unix` |
 
-avirtguestd resolves paths beneath a root without following symlinks out of it. The ruleset enforces the same boundary in the kernel. A symlink inside a root that points elsewhere can't open anything outside the roots or workspace snapshot directory, except the paths each daemon needs.
+avirtguestd resolves paths beneath a root without following symlinks out of it. The ruleset enforces the same boundary in the kernel. A symlink inside a root that points elsewhere can't open anything outside the roots or workspace snapshot directory, except the paths each helper needs.
 
 ### Build jobs
 
@@ -311,7 +311,7 @@ flowchart LR
 
 | Input | Source | Contributes |
 | --- | --- | --- |
-| Built-in rules | avirtinitd, compiled in | Each daemon's ruleset, and the agent's built-in rows |
+| Built-in rules | avirtinitd, compiled in | Each helper's ruleset, and the agent's built-in rows |
 | `harness.toml` | `/opt/agent/harness.toml` | The adapter path, `sandbox.pty`, `sandbox.read`, `sandbox.write`, and the managed configuration paths, which stay `ro` |
 | Workspace roots | The workspace image config's `roots` (see [workspace image format](./workspaces.md#workspace-image-format)) | avirtguestd's `rw` rules. Each root is under `/workspace` or `/home/agent`, within the agent's existing rules. |
 | Workspace destinations | The config blob's `layers[].destinations` (see [destinations](./workspaces.md#destinations)) | `rx` rules for the agent on destinations outside the agent's built-in rules, such as a directory a `pre-source` hook installs under `/var/lib`. A destination never adds a write. |
@@ -401,8 +401,8 @@ The `start` meta event includes the digest of `sandbox.toml`. To reproduce a lau
 | The agent writes only under `/workspace`, `/home/agent`, `/tmp`, `/dev/shm`, the listed device nodes, and approved extra paths | Landlock. File ownership and modes add a second check for root-owned paths. Writes never affect layers 1 to 4 (see [layer stack](./workload-lifecycle.md#layer-stack)). |
 | The agent can't open sockets owned by avirtnetd, avirtacp, avirtagent, avirtexec, and avirtguestd | Socket file modes and per-process ownership, `SO_PEERCRED` checks at each listener, and Landlock `RESOLVE_UNIX` at ABI 9 |
 | The agent can't access an abstract Unix socket outside its domain | Landlock's abstract socket scope only |
-| The agent can't signal these daemons or trace their processes | UID separation, Landlock's signal scope, Landlock's ptrace rule, the seccomp denylist for `ptrace`, `process_vm_*` and `pidfd_*`, and `hidepid=invisible` |
-| The agent can't read one of these daemons' memory or descriptors | UID separation, `hidepid=invisible` and the seccomp denylist. Landlock doesn't restrict reopening pipes and sockets through `/proc/<pid>/fd`. These layers alone provide that guarantee. |
+| The agent can't signal these helpers or trace their processes | UID separation, Landlock's signal scope, Landlock's ptrace rule, the seccomp denylist for `ptrace`, `process_vm_*` and `pidfd_*`, and `hidepid=invisible` |
+| The agent can't read one of these helpers' memory or descriptors | UID separation, `hidepid=invisible` and the seccomp denylist. Landlock doesn't restrict reopening pipes and sockets through `/proc/<pid>/fd`. These layers alone provide that guarantee. |
 | No workload process gains privilege | `no_new_privs`, zero capabilities, and no setuid, setgid or file capability in any layer (see [content rules](./workspaces.md#content-rules)). Landlock requires `no_new_privs` for an unprivileged domain. |
 | Processes can't change the filesystem topology around their rules | Landlock denies `mount` and `pivot_root` in a domain. The seccomp denylist blocks the mount family, `setns` and new user namespaces, and no process holds `CAP_SYS_ADMIN` or `CAP_SYS_CHROOT`. |
 | Workload processes can't access a host Unix socket or bypass network mediation | The VM has no network device. Only avirtnetd reads the TUN or opens the workload's HTTP/2 connection to its mediator. Seccomp denies `AF_VSOCK`. Landlock port rules constrain process access, while the mediator and edge enforce the policy for each destination. |
@@ -474,7 +474,7 @@ These checks join the [regression suite](./roadmap.md#regression-suite) in phase
 | `unshare -U`, `memfd_create`, `ptrace` | `EPERM` |
 | On Containerization, after the `/var/tmp` check | A `landlock_denial` event with `blockers` `fs.make_reg` and the path, before `container_exit` |
 | On Docker Desktop | No `landlock_denial` event, and the agent's `sandbox` event has `logging: false` |
-| Each `sandbox` event | `abi` 7 on Containerization and 8 on Docker Desktop, the agent's `self_test` is `pass`, and each daemon's security context lists the rules in this document |
+| Each `sandbox` event | `abi` 7 on Containerization and 8 on Docker Desktop, the agent's `self_test` is `pass`, and each helper's security context lists the rules in this document |
 | Codex workspace-write tool commands, Node, npm, and git | Still pass, on both runtimes |
 
 Lifecycle checks:
@@ -488,5 +488,5 @@ Lifecycle checks:
 2. **Docker Desktop kernel audit.** Whether LinuxKit 7.0.14 has `CONFIG_AUDIT` matters only to the host's console. Check whether the Docker Desktop VM's kernel log receives denial records from containers at a rate that matters.
 3. **Codex's sandbox.** Whether Codex's workspace-write sandbox stacks its own Landlock domain cleanly inside the agent's, and whether it needs user namespaces (see [roadmap](./roadmap.md#open-questions)).
 4. **avirtguestd's paths.** The workspace snapshot directory has no fixed path, and the design assigns `/run/avirt/streams/guestd.sock` to both avirtguestd's listener and one of avirtnetd's local service sockets. Each needs one owner and one path before avirtguestd's ruleset can name them.
-5. **Statically linked daemons.** If avirt uses static binaries, the paths each daemon needs lose `/usr/lib`, `/etc/ld.so.cache` and the ELF interpreter, which narrows each daemon's read set.
+5. **Statically linked helpers.** If avirt uses static binaries, the paths each helper needs lose `/usr/lib`, `/etc/ld.so.cache` and the ELF interpreter, which narrows each helper's read set.
 6. **Agent read access to `/var`.** The agent's security context doesn't grant access under `/var`, so tools that read `/var/lib` or `/var/cache` from the avirt base fail unless a workspace destination specifies the path. Check the positive checks and common toolchains against that.
