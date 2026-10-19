@@ -53,7 +53,10 @@ sequenceDiagram
   5. write the cleanup outcome and `container_exit`.
   6. remove the workload directory.
 - If the mediator exits while the sandbox container runs, avirthostd logs a `container_error` ("the workload mediator exited unexpectedly") and stops the sandbox container.
+- On Containerization, if avirtvmd exits or its control connection closes, avirthostd ends the workload with a `container_error`.
 - avirthostd drops a workload's state once it writes the cleanup outcome and the `POST /workloads/<id>/stream` request has drained. A later `POST /workloads/<id>/stream` for an exited workload gets 410.
+
+On Containerization, `release` removes `containers/<id>/`, which holds the root filesystem clone, and the workload directory only after avirthostd confirms that avirtvmd stopped. Without that confirmation, both remain for the next startup.
 
 ## avirthostd shutdown
 
@@ -72,13 +75,15 @@ The runtime directory, `$TMPDIR/avirt-<uid>/` (0700), contains avirthostd's stat
 
 | Path | Holds |
 | --- | --- |
-| `workloads/` | Each workload's private directory with its sockets |
+| `workloads/` | Each workload's private directory with its sockets. On Containerization, each workload directory also holds `intent.json`, `v.sock`, and `vmd.lock` |
 | `scratch/` | Codex temp homes with their `auth.json` copies |
 | `hostd/` | The socket mediators dial |
 | `containers/<id>/` | Each VM's state on the Containerization runtime, which the helper creates and teardown removes |
 | `cache/` | The guest kernel (the Kata Containers 3.32.0 arm64 `vmlinux`, verified against its pinned sha256), the init filesystem, and the composed root filesystems on the Containerization runtime. Startup cleanup removes only stale temporary entries |
 | `images/` | The imported images on the Containerization runtime. Startup cleanup removes only stale temporary blobs |
 | `lock` | Held with an exclusive flock for avirthostd's lifetime, so a second `avirthostd` refuses to start |
+
+Before it spawns avirtvmd, avirthostd writes `workloads/<id>/intent.json` with mode 0600 through a temporary file, `fsync`, rename over the old file, and directory `fsync`. The launch intent holds the 8-lowercase-hex-character workload ID, its random 16-byte incarnation, the spec digest, the helper's pid, and its `intended`, `starting`, or `running` state. The spec digest is the sha256 of the `StartWorkload` request with its environment cleared. The digest contains no secret. avirtvmd also holds `vmd.lock` in the workload directory.
 
 ## Crash cleanup
 
@@ -93,6 +98,10 @@ The next `avirthostd` sweeps before it listens:
 1. On the command-line runtime, it stops and deletes every container labelled `avirt=1` (the label goes on every `container run`). On Containerization, it lists the helpers and stops each one still running. It then removes the `containers/<id>/` and `workloads/<id>/` directories of each workload whose helper has exited, and any `containers/<id>/` directory with no `workloads/<id>/` beside it. A workload whose helper still runs after the stop stays on disk for the next startup.
 2. It restores permissions and then empties `workloads/`, `scratch/`, and `hostd/`, without following links, because the agent can `chmod 0000` its own mounted files.
 3. It skips host write-back and logs what it removed.
+
+Startup matches each helper to its launch intent by workload ID and incarnation. A failed check counts as unknown, not absent, and that helper also gets a stop. If the helper listing fails, every workload with a launch intent stays on disk.
+
+The closure of a control socket doesn't confirm that the VM stopped. avirthostd confirms a stop only when it can take the exclusive flock on `vmd.lock` or the lock file doesn't exist, and it sends `SIGKILL` to the helper pid only while the lock remains held after the grace period plus 5 s.
 
 avirthostd logs any directory it can't remove and continues. The lock and the ownership check of the runtime directory are fatal. avirthostd doesn't track mediators by pid, since they exit on stdin EOF.
 
@@ -127,7 +136,7 @@ The startup cleanup never touches the state directory.
 1. For a launch with a workspace, resolve the reference through avirtregistryd and check permission for `launch_workspace` for the resolved image (see [workspaces](./workspaces.md#resolution)). When another workload is the caller, apply the constraints in [workload management](./components.md#workload-management) and record its delegation chain. Check the workload's alias and namespace name against the DNS label syntax and length caps, rejecting rather than truncating (see [components](./dns.md#avirt-hostnames)). Assign the workload's canonical UUIDv7 and its short ID, unique on the host, regenerating on a clash (see [components](./components.md#workload-ids)), and a generated `<adverb>-<adjective>-<noun>` name unique in the namespace among live workloads. Use the host's Cedar policy snapshot to check permission for the workload's creation in its namespace, each label key it contains, each credential binding it attaches (`attach_binding`), and each port it publishes (`publish_port`). Admit the workload against the host's resource budgets. A refused launch gets 403 or 503.
 2. Prepare the workload: id, the bootstrap SVIDs (sandbox container and mediator/1), the MITM CA, the configuration layer (see [workload lifecycle](./workload-lifecycle.md#configuration-layer)), the workload directory, the workload's configuration with its policy and binding references, the listeners for the mediator's connection to avirthostd and its outbound socket to avirthostd, and the workload's registration with avirtsecretsd (namespace, generation, binding ids and credential injectors) and avirtpolicyd.
 3. Run the sandbox container (`runtime.run_workload`).
-4. Wait for the runtime to ready the sandbox container's socket for its connection to the mediator. On the Containerization runtime, wait for the workload guest's vsock-to-Unix-socket forwarder to answer. On Docker, the Docker named volume already exists.
+4. Wait for the runtime to ready the sandbox container's socket for its connection to the mediator. On the Containerization runtime, wait for avirtvmd's vsock-to-Unix-socket forwarder to answer. On Docker, the Docker named volume already exists.
 5. `runtime.run_mediator`: run the mediator with `gen=1` and its Unix sockets. It has no network.
 6. The workload's HTTP/2 connection to its mediator opens. avirtnetd dials with a 50 ms to 1 s backoff, because early dials fail, for up to the 30 s budget of step 7. On the Containerization runtime avirthostd forwards the connection's bytes unchanged to the mediator's `workload.sock`.
 7. The workload is live once avirthostd accepts the `/envelopes` stream. With no `/envelopes` stream within 30 s of step 3, avirthostd tears it down.
@@ -156,4 +165,4 @@ avirthostd keeps the kernel, initfs, and image caches in the runtime directory.
 
 ## Path length
 
-Constraint: host Unix socket paths must be under 104 bytes. The Containerization runtime operates without host socket files. On Docker, `$TMPDIR/avirt-<uid>/workloads/<id8>/c.sock` and `s.sock` come to about 90 bytes under macOS's `/var/folders/…/T/`. `avirthostd` computes the longest per-workload host socket path for its runtime at startup, and refuses to start beyond 100 bytes with a message suggesting a shorter `TMPDIR`.
+Constraint: host Unix socket paths must be under 104 bytes. On the Containerization runtime, `proxy.sock`, `mediator.sock`, and avirtvmd's `v.sock` are in the workload directory. On Docker, `$TMPDIR/avirt-<uid>/workloads/<id8>/c.sock` and `s.sock` come to about 90 bytes under macOS's `/var/folders/…/T/`. `avirthostd` computes the longest per-workload host socket path for its runtime at startup, and refuses to start beyond 100 bytes with a message suggesting a shorter `TMPDIR`.

@@ -1,11 +1,19 @@
 ---
 type: Security Design
 title: Trust boundaries and reachability
-description: Each planned avirt listener with its transport, caller identity and allowed operations, the local listeners exempt from mutual TLS, what a compromised agent, root in the sandbox container, mediator or peer can reach, and the `src` field of each logged event.
+description: The implemented avirtvmd control socket, each planned avirt listener with its transport, caller identity and allowed operations, the local listeners exempt from mutual TLS, what a compromised agent, root in the sandbox container, mediator or peer can reach, and the `src` field of each logged event.
 tags: [avirt, security, trust, reachability, threat-model]
-implementation: planned
+implementation: partial
 generated: { by: codex/gpt-6, at: 2026-10-18T05:14:22Z }
 ---
+
+# Status: implemented
+
+## avirtvmd control socket
+
+avirtvmd listens without mutual TLS on the Unix socket `workloads/<id>/v.sock`, which has mode 0600 and is in a workload directory with mode 0700. Both sides require the peer to have the same user ID. Each connection has a fixed workload and incarnation. Development builds rely on exactly these checks. avirtvmd runs unconfined as the host user and can reach anything that user can reach.
+
+Status: planned. [Phase 1b](./roadmap.md#phases) adds a Developer ID check on this socket.
 
 # Status: planned
 
@@ -59,6 +67,7 @@ On the host, these local listeners don't use mutual TLS either, and authenticate
 
 - avirtedgeproxyd's `edgeproxy.sock`, a user-owned 0600 socket in the runtime directory.
 - the web UI port, a host loopback port, where avirtwebd authenticates web UI users.
+- avirtvmd's `v.sock`, a 0600 socket in the 0700 workload directory, which admits only avirthostd's UID and, from phase 1b, the expected Developer ID.
 - avirthostd's `admin.sock`, which admits only avirthostd's own UID or root by peer credentials (see [admin CLI](./admin-cli.md)).
 
 uid 1000 never holds an SVID or its key, the trust bundle, a CA key, or a credential from avirt. A trusted upstream can return an injected credential in its response.

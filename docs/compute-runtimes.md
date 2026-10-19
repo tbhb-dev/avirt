@@ -71,12 +71,25 @@ Status: implemented.
 - The `avirtvmd` binary holds the `com.apple.security.virtualization` entitlement with an ad-hoc signature for development, and the `build-vmd` task builds and signs it. avirthostd links no Swift and doesn't need the entitlement.
 - The runtime pins Containerization 0.47.0. The kernel, the vminit image, and the package version move together.
 
+## avirtvmd
+
+Status: implemented.
+
+- **Control socket.** avirtvmd binds `workloads/<id>/v.sock` in the workload directory with mode 0600. avirthostd retries the connection every 50 ms for up to 10 s and stops retrying if the helper exits.
+- **Protocol.** Each frame is a 4-byte big-endian length followed by one Protocol Buffers message, with a 1 MiB limit. The helper sends a hello with its workload ID, incarnation, and supported protocol version range. avirthostd answers with protocol version 1 or a refusal. A range that excludes version 1 gets `REFUSAL_CODE_UNSUPPORTED_VERSION`, and startup reconciliation counts the helper as incompatible. Requests, responses, and events use the same connection.
+- **Incarnation.** avirthostd writes a random 16-byte incarnation into the launch intent before spawning the helper and sends it as 32 lowercase hexadecimal characters on the first line of the helper's stdin. The hello must match the workload ID and incarnation. Each side refuses a peer owned by another user, and avirthostd also refuses another workload or a stale incarnation.
+- **Process.** avirtvmd runs as avirthostd's user, as a child process in its own process group, with only `PATH`, `HOME`, and `TMPDIR` in its environment. It exits when avirthostd's end of stdin closes. Its `WorkloadExited` event reports the container's exit code, or error text when there is no code.
+- **Supervision.** `ChildSupervisor` handles helper listing, start, and stop. A repeated start for the same workload and incarnation returns the same handle, while `ChildSupervisor` refuses another incarnation for that workload. Stop is idempotent and returns success only after the helper exits.
+- **Guest process and sockets.** The container configuration takes the workload process from the OCI image configuration and appends the request environment to the image environment. It provides `proxy.sock` and `mediator.sock` as `.into` sockets with mode 0600.
+
 ## Guest artifacts
 
 Status: implemented.
 
 - **Kernel.** The Kata Containers 3.32.0 arm64 `vmlinux`, pinned by URL and by the release tarball's sha256 `8736c054d9223974735394f822000823baef509e1c33405ec798240fa9b6e4b5`. avirthostd has avirtvmd's prepare step extract it once and caches it in its runtime directory, checking the extracted file against the sha256 `fb2cfb79eb1ae19447a85d75682d7fa5cfec97e24beb2609a492b806e8072c8d` before caching and on every launch.
 - **Init filesystem.** avirtvmd's prepare step pulls `ghcr.io/apple/containerization/vminit:0.47.0` and writes its root filesystem, and avirthostd checks the image digest against the pin before it stores the result in its runtime directory.
+- **Root filesystem.** The VM boots from an APFS `clonefile` clone of the cached ext4 root filesystem at `containers/<id>/rootfs.ext4`, in a directory with mode 0700. A failed clone fails the launch, with no fallback to a full copy.
+- **Preparation.** avirthostd decides what to prepare. It checks the kernel's digest on every use, and the other entries' digests when it writes them and once per avirthostd process. `avirtvmd prepare` writes only the paths avirthostd provides. It fetches and extracts the kernel. It initializes the init filesystem and prepares the root filesystem. The cache has no garbage collection.
 
 Status: planned. Guest kernels need TUN, nftables REDIRECT and connection tracking, including IPv6 original-destination lookup, which avirtinitd configures before it starts the other guest processes. The avirt base, harness base, and mediator images live in avirthostd's own content-addressed cache in the runtime directory. Every sandbox container's writable root block device is an APFS `clonefile` copy of its composed root filesystem with the configuration layer unpacked into it (see [workload lifecycle](./workload-lifecycle.md#layer-stack)).
 
@@ -117,7 +130,7 @@ Constraints:
 - The sandbox VM's vsock device has exactly one host listener, for the workload's connection to its mediator. Every other host vsock listener is on a mediator VM's device.
 - Every host vsock listener is reachable by any process in its mediator VM. The listener for the mediator's connection to avirthostd runs the mutual TLS handshake before reading any application data, and SNI routing reads only the TLS ClientHello before forwarding the connection unchanged to a destination that does.
 - Containerization's default launch omits OCI seccomp, so avirtinitd applies the sandbox container's filters itself, including the `AF_VSOCK` denial for every process it launches.
-- This runtime operates without host socket files, so `host_socket_paths` is 0.
+- avirtvmd binds its control socket, `v.sock`, in the workload directory.
 - The guest kernel provides Landlock ABI 7 (see [Landlock](./landlock.md#workload-kernels)).
 
 ```mermaid
