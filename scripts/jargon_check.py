@@ -517,7 +517,7 @@ def added_lines(base: str, head: str | None, staged: bool) -> dict[str, set[int]
 
 def run(base: str, head: str | None, staged: bool) -> tuple[list[Finding], list[str]]:
     target = head or "HEAD"
-    base_commit = git("merge-base", base, target).strip() or git("rev-parse", base).strip()
+    base_commit = git("merge-base", base, target).strip()
     changed = added_lines(base_commit, head, staged)
     blob_ref, from_index = (head, False) if head else (None, staged)
     deployed = deployed_paths(read_blob(blob_ref, LOCK_FILE, from_index))
