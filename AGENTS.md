@@ -93,7 +93,7 @@ Pre-commit hooks run rustfmt, cargo-shear and cargo-deny on the files they cover
 - **Docs content.** Docs and code comments describe what the system is and does. Don't include history or decision rationale. State facts that constrain behavior as constraints. Mark planned work with a `Status: planned` section, never with version names.
 - **Markdown.** Diagrams are Mermaid. Each paragraph is one line, with no hard wrapping. Run `guard-markdown <file>` on every Markdown file you edit.
 - **Invented terms.** Don't coin terms. Write for the reader in ordinary words, or use terms established by the glossary or a standard. Vale's banned-term rules block lint. Don't add a term to the Vale lists yourself.
-- **Invented terms.** `scripts/jargon_check.py` (`mise run lint-jargon`) is an optional report for human review, outside lint and pre-commit. It prints candidate terms from added prose and exits 0 whatever it finds. A usage error such as a bad `--base` exits 1. Judge each candidate in context. Preserve correct grammar and reserve glossary entries for real terms. Its tests are part of `mise run check`. Set `JARGON_BASE` to the parent branch when checking a stacked branch. An explicit `--base` takes precedence. The report skips a term that a glossary heading, a line of `.vale/config/vocabularies/project/accept.txt`, or a line of `jargon-accept.txt` at the repository root names. Each `jargon-accept.txt` line is a term, then `#` and the reason, and the report flags a line with no reason.
+- **Jargon report.** `scripts/jargon_check.py` (`mise run lint-jargon`) is an optional report for human review, outside lint and pre-commit. It prints candidate terms from added prose and exits 0 whatever it finds. A usage error such as a bad `--base` exits 1. Judge each candidate in context. Preserve correct grammar and reserve glossary entries for real terms. Its tests are part of `mise run check`. Set `JARGON_BASE` to the parent branch when checking a stacked branch. An explicit `--base` takes precedence. The report skips a term that a glossary heading, a line of `.vale/config/vocabularies/project/accept.txt`, or a line of `jargon-accept.txt` at the repository root names. Each `jargon-accept.txt` line is a term, then `#` and the reason, and the report flags a line with no reason.
 
 ## Secrets
 
@@ -108,7 +108,7 @@ An end-to-end run launches a real workload:
 
 1. Start avirthostd with `mise run serve`.
 2. Launch with `mise run launch <agent> "<prompt>" -- --follow`.
-3. Read `logs/<workload-id>.ndjson`. It ends with a `container_exit` meta event, and the `dir: "egress"` lines record every proxied connection. On the Containerization runtime, `logs/<workload-id>.stdio.ndjson` holds the container's stdout, stderr, and console, and `logs/<workload-id>.avirtvmd.log` holds the helper's stderr.
+3. Read `logs/<workload-id>.ndjson`. It ends with a `container_exit` meta event, and the `dir: "egress"` lines record every proxied connection. On the Containerization runtime, `logs/<workload-id>.stdio.ndjson` holds the container's stdout, stderr, and console, and `logs/<workload-id>.avirtvmd.log` holds the helper's stderr. If the VM fails to start after its stdio log opens, avirtvmd renames the log to `logs/<workload-id>.stdio.ndjson.failed`, which keeps the boot log.
 
 `AVIRT_RUNTIME` picks the runtime: `containerization` (the default) or `container`, which drives Apple's `container` command. The Containerization runtime runs without a `container` binary.
 
