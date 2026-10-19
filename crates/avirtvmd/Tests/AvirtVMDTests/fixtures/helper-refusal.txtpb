@@ -1,0 +1,1 @@
+refusal { code: REFUSAL_CODE_UNSUPPORTED_VERSION message: "protocol version 3 isn't supported" }

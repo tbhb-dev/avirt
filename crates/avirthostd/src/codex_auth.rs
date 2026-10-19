@@ -19,7 +19,7 @@ use std::path::{Path, PathBuf};
 
 use anyhow::{Context as _, Result};
 use avirt_core::console;
-use avirt_core::hostd::profile::{Cleanup, Prepared, Refused};
+use avirt_core::hostd::profile::{Cleanup, EnvVar, Prepared, Refused, Share};
 use avirt_core::state::remove_tree;
 use base64::Engine as _;
 use base64::engine::general_purpose::URL_SAFE_NO_PAD;
@@ -112,7 +112,7 @@ impl HostAuth {
         };
         let home =
             Builder::new().prefix("avirt-codex-").permissions(Permissions::from_mode(0o700)).tempdir_in(scratch)?;
-        let mount = format!("{}:/codex-home", home.path().display());
+        let share = Share { host: home.path().to_path_buf(), guest: "/codex-home" };
         let workload_file = home.path().join("auth.json");
         let mut file = OpenOptions::new().write(true).create_new(true).mode(0o600).open(&workload_file)?;
         file.write_all(&seed)?;
@@ -122,9 +122,9 @@ impl HostAuth {
         let host = self.path.clone();
         let cleanup = Cleanup::new(move || Some(finish(&host, home, &workload_file, &seed)));
         Ok(Prepared {
-            args: ["-v", &mount, "-e", "INITIAL_AGENT_MODE", "-e", "CODEX_HOME=/codex-home"].map(Into::into).to_vec(),
-            inherit: vec!["INITIAL_AGENT_MODE"],
             cleanup,
+            env: vec![EnvVar::Inherit("INITIAL_AGENT_MODE"), EnvVar::Set("CODEX_HOME", "/codex-home".to_owned())],
+            shares: vec![share],
         })
     }
 }

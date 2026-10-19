@@ -164,6 +164,7 @@ avirtoteld
 avirtpolicyd
 avirtregistryd
 avirtsecretsd
+avirtvmd
 avirtwebd
 bindgen
 biome
