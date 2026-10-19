@@ -16,7 +16,7 @@ scope: raw
 script: |
   text := import("text")
   matches := []
-  code := text.re_find("(?s)```.*?```|~~~.*?~~~|`[^`\\n]*`", scope, -1)
+  code := text.re_find("(?s)```.*?```|~~~.*?~~~|``[^\\n]*?``|`[^`\\n]*`", scope, -1)
   for m in text.re_find("(?i)\\b(?:avirt names?|SPIFFE bundles?|control SVIDs?)\\b", scope, -1) {
     quoted := false
     if is_array(code) {
@@ -27,7 +27,7 @@ script: |
       }
     }
     spec := text.has_prefix(text.to_lower(m[0].text), "spiffe bundle") &&
-      text.re_match("(?i)^ (?:format|endpoint)\\b", scope[m[0].end:])
+      text.re_match("(?i)^ (?:formats?|endpoints?)\\b", scope[m[0].end:])
     if !quoted && !spec {
       matches = append(matches, {begin: m[0].begin, end: m[0].end})
     }
