@@ -280,6 +280,16 @@ def test_deployed_skill_directory_is_ignored(tmp_path, monkeypatch):
     assert findings == []
 
 
+def test_files_deployed_by_the_lock_are_ignored(tmp_path, monkeypatch):
+    path = ".agents/skills/example/SKILL.md"
+    lock = {"apm.lock.yaml": f"deployed_files:\n  - {path}\n"}
+    findings, _ = terms(tmp_path, monkeypatch, {path: TWICE}, base={**BASE, **lock})
+    assert findings == []
+    (tmp_path / "unlocked").mkdir()
+    findings, _ = terms(tmp_path / "unlocked", monkeypatch, {path: TWICE})
+    assert names(findings) == ["drift budget"]
+
+
 def test_exit_status(tmp_path, monkeypatch, capsys):
     make_repo(tmp_path, monkeypatch, BASE)
     assert jc.main(["--base", "main"]) == 0
