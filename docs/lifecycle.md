@@ -83,7 +83,7 @@ The runtime directory, `$TMPDIR/avirt-<uid>/` (0700), contains avirthostd's stat
 | `images/` | The imported images on the Containerization runtime. Startup cleanup removes only stale temporary blobs |
 | `lock` | Held with an exclusive flock for avirthostd's lifetime, so a second `avirthostd` refuses to start |
 
-Before it spawns avirtvmd, avirthostd writes `workloads/<id>/intent.json` with mode 0600 through a temporary file, `fsync`, rename over the old file, and directory `fsync`. The launch intent holds the 8-lowercase-hex-character workload ID, its random 16-byte incarnation, the spec digest, the helper's pid, and its `intended`, `starting`, or `running` state. The spec digest is the sha256 of the `StartWorkload` request with its environment cleared. The digest contains no secret. avirtvmd also holds `vmd.lock` in the workload directory.
+Before it spawns avirtvmd, avirthostd writes `workloads/<id>/intent.json` with mode 0600 through a temporary file, `fsync`, rename over the old file, and directory `fsync`. The launch intent holds the 8-lowercase-hex-character workload ID, its random 16-byte incarnation, the spec digest, the helper's pid, and its state: `intended`, `starting`, `running`, `stopping`, or `ended`, where `stopping` precedes the stop request and `ended` follows the confirmed exit and clears the pid. The spec digest is the sha256 of the `StartWorkload` request with its environment cleared. The digest contains no secret. avirtvmd also holds `vmd.lock` in the workload directory.
 
 ## Crash cleanup
 
@@ -99,7 +99,7 @@ The next `avirthostd` sweeps before it listens:
 2. It restores permissions and then empties `workloads/`, `scratch/`, and `hostd/`, without following links, because the agent can `chmod 0000` its own mounted files.
 3. It skips host write-back and logs what it removed.
 
-Startup matches each helper to its launch intent by workload ID and incarnation. A failed check counts as unknown, not absent, and that helper also gets a stop. If the helper listing fails, every workload with a launch intent stays on disk.
+Startup matches each helper to its launch intent by workload ID and incarnation. A failed check counts as unknown, not absent, and that helper also gets a stop. When the intent records `ended`, the helper has exited, and startup removes the workload's directories without a connection even if the lock check fails. If a helper still holds the lock despite that record, startup keeps the directories, reports the workload as unknown, and doesn't signal anything. Startup logs the recorded state of each workload it can't remove. If the helper listing fails, every workload with a launch intent stays on disk.
 
 The closure of a control socket doesn't confirm that the VM stopped. avirthostd confirms a stop only when it can take the exclusive flock on `vmd.lock` or the lock file doesn't exist, and it sends `SIGKILL` to the helper pid only while the lock remains held after the grace period plus 5 s.
 
