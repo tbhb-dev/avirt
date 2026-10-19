@@ -261,7 +261,7 @@ The RFC 9298 identifier in a CONNECT-UDP `DATAGRAM` capsule. Status: planned. Se
 
 ## Control plane
 
-avirthostd plus the host services that configure and decide. These services include avirtpolicyd and avirtsecretsd. avirtedgeproxyd and avirtmediatord form the data plane and forward traffic. See [components](./components.md#overview).
+avirthostd plus the host services that configure and decide. These services include avirtpolicyd and avirtsecretsd. A control-plane action is one that avirthostd authorizes, such as `create_workload`. avirtedgeproxyd and avirtmediatord form the data plane and forward traffic. See [components](./components.md#overview).
 
 ## Credential injector
 
@@ -423,10 +423,6 @@ avirtmediatord's listener on `/run/avirt/ingress.sock`, on which avirtedgeproxyd
 
 The in-memory intermediate SPIFFE CA, valid for 7 days and signed by the root, that signs every SVID. Status: planned. See [issuer](./identity.md#issuer).
 
-## Keepalive
-
-The `Workloads/KeepAlive` call that a creator's host makes every 60 s to a peer for each workload created there, without which the peer stops that workload after 5 minutes. Status: planned. See [workload management across hosts](./peering.md#workload-management-across-hosts).
-
 ## Label
 
 A free-form key and value on a workload or a service, used for selection and visible to Cedar as an entity tag. Only avirthostd sets keys under `avirt.internal/`. A label isn't a trust boundary by itself. Status: planned. See [namespaces and labels](./components.md#namespaces-and-labels).
@@ -446,10 +442,6 @@ The layers of a sandbox container's root filesystem, with five levels. The avirt
 ## Lease
 
 A time-bounded grant of one secret value from avirtsecretsd to one caller, for one workload, binding and generation, in the sense of a Vault lease, that expires no later than the secret's cache lifetime. Status: planned. See [scoping](./secrets.md#scoping).
-
-## Local client listener
-
-avirtedgeproxyd's user-owned Unix socket `edgeproxy.sock` in the runtime directory, with mode 0600. avirt and local clients access avirtapid through it. Status: planned. See [listeners](./trust-boundaries.md#listeners).
 
 ## Main workload process
 
@@ -527,21 +519,17 @@ The telemetry standard, with its OTLP protocol, in which avirt emits logs, metri
 
 Another avirt host, with its own trust domain, that this host has enrolled. A peering is active once both hosts have enrolled each other. Status: planned. See [peering](./peering.md#enrollment).
 
-## Peer host name
-
-`<host>`, a peer's own fully qualified DNS name, taken from its enrollment file at enrollment and fixed for the life of the enrollment, which its avirtedgeproxyd must present as a DNS SAN. It's distinct from the literal label `host` in local avirt hostnames. Status: planned. See [peer host names](./peering.md#peers-host-names).
-
 ## Peer listener
 
 avirtedgeproxyd's TCP listener on the host network, which accepts only enrolled peers' edge proxies over mutual TLS with federated bundles. Status: planned. See [peer listener](./peering.md#peer-listener).
 
+## Peer's host name
+
+`<host>`, a peer's own fully qualified DNS name, taken from its enrollment file at enrollment and fixed for the life of the enrollment, which its avirtedgeproxyd must present as a DNS SAN. It's distinct from the literal label `host` in local avirt hostnames. Status: planned. See [peers' host names](./peering.md#peers-host-names).
+
 ## Placeholder
 
 A string that avirtsecretsd issues per workload and binding, a client-acceptable prefix then `avirtph` then 32 random characters, which the sandbox container contains in place of a real credential and which grants nothing by itself. Status: planned. See [placeholders](./egress-credentials.md#placeholders).
-
-## Placeholder misuse check
-
-avirtmediatord's rejection, with 403 `credential-misplaced` in both policy modes, of any issued placeholder found anywhere in a request except its bound header. Status: planned. See [placeholders](./egress-credentials.md#placeholders).
 
 ## Policy mode
 
@@ -570,10 +558,6 @@ An operator-registered TOML file that tells avirtbuilderd which refs of one repo
 ## `primary` key
 
 The Boolean key that selects which workspace source supplies the image's remote and revision annotations. Without an explicit selection, avirt uses the first `git` or `github` source. Status: planned. See [top-level keys](./workspaces.md#top-level-keys).
-
-## Primary source
-
-The first `git` or `github` source of a workspace config, or the one marked `primary`, whose remote and revision become the image's source annotations. Status: planned. See [top-level keys](./workspaces.md#top-level-keys).
 
 ## Private-address block
 
