@@ -89,7 +89,7 @@ Status: planned.
 - A launchd supervisor starts one explicit job per workload. avirthostd writes a property list for the job into the workload directory. It picks the `gui/<uid>` domain when `launchctl` reports an Aqua session, and the `user/<uid>` domain otherwise, for a background session. The property list sets `LimitLoadToSessionType` to `["Aqua", "Background"]` and `KeepAlive` to false, and the job starts explicitly with `RunAtLoad` or `launchctl kickstart`.
 - The launchd job has no socket activation: avirtvmd binds `v.sock` itself.
 - A launchd job gets its incarnation from a 0600 file in the 0700 workload directory instead of from stdin.
-- Startup reconciliation stops the avirtvmd jobs that launchd manages, and they can exist between an avirthostd crash and that reconciliation. A job removed through `launchctl`, or a missing job, doesn't prove that the VMs stopped: avirthostd waits until the identified process has exited.
+- Startup reconciliation stops each avirtvmd job that launchd still runs after an avirthostd crash. Neither removing a job through `launchctl` nor a missing job proves that the VM stopped: avirthostd waits until the identified process has exited.
 
 ## Guest artifacts
 
@@ -112,7 +112,7 @@ The sandbox container runs with `terminal = false`, and avirtvmd supplies separa
 
 Status: implemented.
 
-Each VM uses `containers/<id>/` within avirthostd's runtime directory. On startup avirthostd's sweep removes every stale `containers/<id>/` directory and stops any VM it still owns (see [lifecycle](./lifecycle.md)).
+Each VM uses `containers/<id>/` within avirthostd's runtime directory. On startup avirthostd stops each helper still running and removes a workload's `containers/<id>/` only after its `vmd.lock` is free or missing, or its launch intent records `ended`. It also removes each `containers/<id>/` with no workload directory. If listing the helpers fails, it removes neither (see [lifecycle](./lifecycle.md#crash-cleanup)).
 
 ## Networking
 
@@ -139,7 +139,6 @@ Constraints:
 - The sandbox VM's vsock device has exactly one host listener, for the workload's connection to its mediator. Every other host vsock listener is on a mediator VM's device.
 - Every host vsock listener is reachable by any process in its mediator VM. The listener for the mediator's connection to avirthostd runs the mutual TLS handshake before reading any application data, and SNI routing reads only the TLS ClientHello before forwarding the connection unchanged to a destination that does.
 - Containerization's default launch omits OCI seccomp, so avirtinitd applies the sandbox container's filters itself, including the `AF_VSOCK` denial for every process it launches.
-- avirtvmd binds its control socket, `v.sock`, in the workload directory.
 - The guest kernel provides Landlock ABI 7 (see [Landlock](./landlock.md#workload-kernels)).
 
 ```mermaid
