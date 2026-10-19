@@ -6,7 +6,7 @@ use std::env;
 use std::path::Path;
 
 use anyhow::Result;
-use avirt_core::hostd::profile::{Cleanup, Prepared, Profile, Refused};
+use avirt_core::hostd::profile::{Cleanup, EnvVar, Prepared, Profile, Refused};
 
 use crate::codex_auth::HostAuth;
 
@@ -28,12 +28,10 @@ impl Profile for Claude {
             )
             .into());
         }
-        // `-e NAME` with no value: the `container` command inherits the token from avirthostd's
-        // environment, so it never appears on argv.
         Ok(Prepared {
-            args: vec!["-e".into(), "CLAUDE_CODE_OAUTH_TOKEN".into()],
-            inherit: vec!["CLAUDE_CODE_OAUTH_TOKEN"],
             cleanup: Cleanup::none(),
+            env: vec![EnvVar::Inherit("CLAUDE_CODE_OAUTH_TOKEN")],
+            shares: Vec::new(),
         })
     }
 }

@@ -117,11 +117,10 @@ fn auth(mode: &str, refresh: &str) -> Vec<u8> {
 ///
 /// # Errors
 ///
-/// Fails when the arguments lack the mount.
+/// Fails when `prepared` has no share at `/codex-home`.
 fn home_dir(prepared: &Prepared) -> Result<PathBuf> {
-    let mount = prepared.args.get(1).and_then(|arg| arg.to_str()).context("the mount argument is missing")?;
-    let dir = mount.strip_suffix(":/codex-home").context("the mount has no Codex home target")?;
-    Ok(PathBuf::from(dir))
+    let share = prepared.shares.iter().find(|share| share.guest == "/codex-home");
+    Ok(share.context("no directory is shared at /codex-home")?.host.clone())
 }
 
 /// The cleanup removes a subdirectory the agent made unreadable.

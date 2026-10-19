@@ -878,7 +878,7 @@ permit (principal in Namespace::"team-a", action in [Action::"resolve", Action::
 
 ### Limits on permitted requests
 
-The boundary set of an invariant scoped to `connect` from a `Workload` to a `Workload` or `Service` permits connections within `team-a` only. Before avirtpolicyd builds any policy snapshot, the prover checks every candidate set against this boundary. It omits policies annotated `@exempt` with the invariant's id, such as `xns-team-a-to-shared` below. The boundary set defines the check, and avirtpolicyd never distributes it.
+The limiting set of a condition scoped to `connect` from a `Workload` to a `Workload` or `Service` permits connections within `team-a` only. Before avirtpolicyd builds any policy snapshot, the prover checks every candidate set against this limit. It omits policies annotated `@exempt` with the condition's id, such as `xns-team-a-to-shared` below. The limiting set defines the check, and avirtpolicyd never distributes it.
 
 ```cedar
 @id("boundary-same-namespace")

@@ -1,0 +1,1 @@
+event { workload_exited { exit { code: 0 signal: 9 error: "killed" } } }

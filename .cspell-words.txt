@@ -18,6 +18,7 @@ args
 argv
 ASCII
 async
+attoseconds
 auditd
 AUDITSYSCALL
 AUTOUPDATER
@@ -52,6 +53,7 @@ avirtpolicyd
 avirtregistryd
 avirtsecrets
 avirtsecretsd
+avirtvmd
 avirtwebd
 backoff
 backpressure
@@ -123,6 +125,7 @@ EACCES
 EAFNOSUPPORT
 ECDSA
 edgeproxy
+EINTR
 EISDIR
 ELF
 ELOOP
@@ -136,7 +139,9 @@ EOF
 EOPNOTSUPP
 EPERM
 errno
+esac
 ESRCH
+EWOULDBLOCK
 EXDEV
 execve
 execveat
@@ -177,6 +182,7 @@ hashbrown
 hchan
 HCS
 HEXDIG
+hexdigit
 hidepid
 hostauth
 hostd
@@ -253,10 +259,12 @@ NEWUSER
 nextest
 nftables
 NIC
+NIOBSD
 NLGRP
 nocapture
 NONBLOCK
 nonblocking
+nonisolated
 nullglob
 noproxy
 nossl
@@ -307,6 +315,7 @@ prek
 prettyplease
 privs
 proptest
+prost
 proxied
 proxyd
 psock
@@ -320,6 +329,7 @@ QUIC
 quiesces
 rcgen
 rcode
+RDWR
 reachability
 READLOG
 READMEs
@@ -395,6 +405,7 @@ stdout
 subcommand
 subcommands
 subprocess
+subsec
 subtree
 subtrees
 SVID
@@ -402,6 +413,7 @@ SVIDs
 SWIFTSHIM
 syscall
 syscalls
+sysexits
 sysread
 systemd
 taiki
@@ -423,6 +435,7 @@ TSYNC
 TTL
 TUI
 TXT
+txtpb
 UCUM
 UDP
 UEFI
@@ -480,6 +493,7 @@ xattr
 Xcode
 xcrun
 XPC
+xucred
 xwin
 zerocopy
 zeroizes

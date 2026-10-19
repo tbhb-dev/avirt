@@ -1,0 +1,18 @@
+request {
+  id: 7
+  start_workload {
+    spec_digest: "3a7bd3e2360a3d29eea436fcfb7e44c735d117c42d1c1835420b6b9942dd4f1b"
+    kernel_path: "/cache/kernel/vmlinux"
+    initfs_path: "/cache/initfs/initfs.ext4"
+    rootfs_base_path: "/cache/rootfs/rootfs.ext4"
+    container_dir: "/state/containers/1a2b3c4d"
+    image_config_path: "/images/blobs/sha256/config"
+    env: "AVIRT_WORKLOAD_ID=1a2b3c4d"
+    env: "AVIRT_PROMPT=pong"
+    shares { host_path: "/home/work" guest_path: "/workspace" }
+    shares { host_path: "/state/scratch/codex" guest_path: "/codex-home" }
+    sockets { host_path: "/state/workloads/1a2b3c4d/proxy.sock" guest_path: "/run/avirt/proxy.sock" mode: 384 }
+    sockets { host_path: "/state/workloads/1a2b3c4d/mediator.sock" guest_path: "/run/avirt/mediator.sock" mode: 384 }
+    stdio_log_path: "/logs/1a2b3c4d.stdio.ndjson"
+  }
+}

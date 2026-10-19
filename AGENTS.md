@@ -23,6 +23,7 @@ Every crate lives directly under `crates/`, and each directory uses its package 
 | `avirthostd` | Binary | Host | The host daemon: control API, workload launch and teardown, logs, Codex `auth.json` write-back |
 | `avirt` | Binary `avirt` | Host | The operator CLI: `avirt launch` |
 | `avirtmediatord` | Binary | Host (one per workload) | The implemented host mediator. Planned: one process for workload traffic and lifecycle. Holds its SVID and handles rotation. |
+| `avirtvmd` | Binary (Swift) | Host (one per workload) | The per-workload VM host helper, a Swift package built on Containerization. It hosts the workload VM and prepares the guest artifacts |
 | `avirtinitd` | Binary | Linux guest only (the workload) | The ACP client spawns the adapter and taps JSON-RPC. It drops to uid 1000 under seccomp |
 | `avirt-connect` | Library | Both | CONNECT authority parsing and destination checks for the Pingora CONNECT app |
 | `avirt-core` | Library | Both | Shared code for the `api` module and the `avirthostd` server. Includes the `avirtinitd` harness and the client for the workload's HTTP/2 connection to its mediator. Also includes the log envelope and runtime directory |
@@ -43,14 +44,14 @@ Every crate lives directly under `crates/`, and each directory uses its package 
 | `avirtacp` | Binary | Workload guest | The workload process that runs an agent through the Agent Client Protocol (not implemented) |
 | `avirtagent` | Binary | Workload guest | The workload process that runs an agent through its native harness (not implemented) |
 | `avirtexec` | Binary | Workload guest | The workload process for generic execution (not implemented) |
-| `avirtnetd` | Binary | Workload guest | The guest networking daemon provides the client end of the workload's HTTP/2 connection to its mediator. It also provides the TUN, transparent TCP listeners, optional forward proxy, reverse proxy, DNS stub resolver, and guest control API (not implemented) |
+| `avirtnetd` | Binary | Workload guest | The guest networking daemon provides the client end of the workload's HTTP/2 connection to its mediator. It also provides the forward and reverse proxies, the stub DNS resolver, and the guest control API (not implemented) |
 | `avirtguestd` | Binary | Workload guest | The workload services daemon provides a file server and snapshots, plus the guest MCP tool surface (not implemented) |
 | `avirtmcp` | Binary | Workload guest | The MCP stdio proxy to avirtmcpgwd, launched on demand by the agent (not implemented) |
 | `avirtguest` | Binary | Workload guest | The guest CLI that's in the image and connects to avirtapid through the mediator (not implemented) |
 
 `avirt-connect` is part of the root workspace.
 
-`workloads/claude/` and `workloads/codex/` contain only the sandbox image build directories.
+`workloads/claude/` and `workloads/codex/` contain only the workload image build directories.
 
 ## Commands
 
@@ -58,8 +59,8 @@ Every crate lives directly under `crates/`, and each directory uses its package 
 mise run bootstrap                                               # first step in a fresh clone or worktree: vendir sync, toolchain, Vale styles, git hooks
 mise install                                                      # pins Rust
 mise run check                                                    # fmt --check, clippy, rustdoc, shear, deny, nextest, doc tests, docs checks
-mise run build-images                                             # both sandbox images (needs Apple container)
-mise run serve                                                    # avirthostd
+mise run build-images                                             # both workload images and their OCI archives (needs Apple container)
+mise run serve                                                    # avirthostd on the Containerization runtime (builds avirtvmd too)
 mise run launch claude "Reply with the word pong" -- --follow     # avirt launch, in a second terminal
 ```
 
@@ -84,14 +85,14 @@ Pre-commit hooks run rustfmt, cargo-shear and cargo-deny on the files they cover
 
 ## Conventions
 
-- **Terms.** Use the project's terms consistently. The project name is always lowercase **avirt**. **avirthostd** is the host daemon. The **control plane** is avirthostd plus the host services that configure and decide, and the **data plane** is **avirtmediatord** (the mediator) and **avirtedgeproxyd** (the edge proxy), which forward traffic. A **workload** is the whole unit avirthostd launches. It consists of the **sandbox container**, which runs the agent, plus its **mediator**. The mediator is the per-workload container that contains avirtinitd and avirtmediatord. All the workload's traffic passes through it. Today the mediator is the avirtmediatord host process. **avirtinitd** is the root process in each container. **avirtapid** is the API server. The **sandbox VM** runs the sandbox container from its **sandbox image**. Landlock and seccomp restrict processes. For a harness, write **Codex's sandbox** or **Claude Code's tool sandbox**. An ACP session stays an ACP session. See [docs/glossary.md](docs/glossary.md) for every other term.
+- **Terms.** Use the project's terms consistently. The project name is always lowercase **avirt**. **avirthostd** is the host daemon. The **control plane** is avirthostd plus the host services that configure and decide, and the **data plane** is **avirtmediatord** (the mediator) and **avirtedgeproxyd** (the edge proxy), which forward traffic. A **workload** is the whole unit avirthostd launches. It consists of the **workload container**, which runs the agent, plus its **mediator**. The mediator is the per-workload container that contains avirtinitd and avirtmediatord. All the workload's traffic passes through it. Today the mediator is the avirtmediatord host process. **avirtinitd** is the root process in each container. **avirtapid** is the API server. An ACP session stays an ACP session. See [docs/glossary.md](docs/glossary.md) for every other term.
 - **Docs format.** Every Markdown file in the repository has OKF v0.2 frontmatter, and `docs/` is an OKF v0.2 bundle:
   - every document has YAML frontmatter with a non-empty `type`, plus `title`, `description`, `tags` and `generated`, and `implementation` where it applies (every document in `docs/`, and crate READMEs).
   - `docs/index.md` lists every document under `docs/`, and Markdown files outside `docs/` don't need an index entry.
   - after editing, run `mise run check-docs`, which runs `scripts/okf-check.py docs` and `scripts/okf-check.py --repo .`.
 - **Docs content.** Docs and code comments describe what the system is and does. Don't include history or decision rationale. State facts that constrain behavior as constraints. Mark planned work with a `Status: planned` section, never with version names.
 - **Markdown.** Diagrams are Mermaid. Each paragraph is one line, with no hard wrapping. Run `guard-markdown <file>` on every Markdown file you edit.
-- **Invented terms.** Don't coin terms. Write for the reader in ordinary words, or use terms established by the glossary or a standard. Vale's banned-term rules remain blocking in lint. Don't add a term to the Vale lists yourself. `scripts/jargon_check.py` (`mise run lint-jargon`) is an optional report for human review, outside lint and pre-commit. It prints candidate terms from added prose and exits 0 whatever it finds. A usage error such as a bad `--base` exits 1. Judge each candidate in context. Preserve correct grammar and reserve glossary entries for real terms. Its tests remain in `mise run check`. Set `JARGON_BASE` to the parent branch when checking a stacked branch. An explicit `--base` takes precedence.
+- **Invented terms.** Don't coin terms. Write for the reader in ordinary words, or use terms established by the glossary or a standard. Vale's banned-term rules block lint. Don't add a term to the Vale lists yourself.
 
 ## Secrets
 
@@ -106,7 +107,9 @@ An end-to-end run launches a real workload:
 
 1. Start avirthostd with `mise run serve`.
 2. Launch with `mise run launch <agent> "<prompt>" -- --follow`.
-3. Read `logs/<workload-id>.ndjson`. It ends with a `container_exit` meta event, and the `dir: "egress"` lines record every proxied connection.
+3. Read `logs/<workload-id>.ndjson`. It ends with a `container_exit` meta event, and the `dir: "egress"` lines record every proxied connection. On the Containerization runtime, `logs/<workload-id>.stdio.ndjson` holds the container's stdout, stderr, and console, and `logs/<workload-id>.avirtvmd.log` holds the helper's stderr.
+
+`AVIRT_RUNTIME` picks the runtime: `containerization` (the default) or `container`, which drives Apple's `container` command. The Containerization runtime runs without a `container` binary.
 
 The regression suite, with its bypass, positive and lifecycle checks, is in [docs/roadmap.md](docs/roadmap.md#regression-suite). Run bypass checks inside the agent's own process tree, by prompting the agent to run the script. A process started from outside the agent's tree isn't under its restrictions, and checking from there doesn't prove the restrictions apply.
 

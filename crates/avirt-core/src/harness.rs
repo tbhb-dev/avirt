@@ -58,6 +58,12 @@ const PROXY_SOCKET: &str = "/run/avirt/proxy.sock";
 const RELAY_CONNECTIONS: usize = 128;
 /// How long the downstream direction may remain idle once the client has finished sending. Before
 /// that there is no limit, because model API streams are long-lived and quiet.
+///
+/// The limit replaces relaying the client's end-of-stream. Virtualization.framework drops a
+/// guest `shutdown(SHUT_WR)` that follows the last write by about a millisecond on a vsock
+/// connection that the host accepted, and it truncates a guest `close()` after a large write. The
+/// guest side dials the host through the mounted sockets on both runtimes, so the relay never
+/// forwards the end-of-stream.
 const RELAY_IDLE_AFTER_CLIENT_DONE: Duration = Duration::from_secs(30);
 /// The x32 ABI reaches the same syscalls under numbers with this bit set, which a filter keyed on
 /// the plain numbers would not see. It doesn't exist on the aarch64 images.
@@ -321,7 +327,7 @@ async fn open_connection(spec: &Spec<'_>, env: &Env) -> Result<LogStream, ExitCo
 pub async fn run<F, Fut>(spec: Spec<'_>, workload: F) -> ExitCode
 where
     F: FnOnce(Workload) -> Fut,
-    Fut: Future<Output = Result<String, Error>>,
+    Fut: Future<Output = Result<String, Box<Error>>>,
 {
     let env = match read_env() {
         Ok(env) => env,
@@ -373,23 +379,25 @@ async fn start_agent(spec: &Spec<'_>, env: &Env) -> Result<(LogStream, AcpAgent)
 ///
 /// Returns the workload's error, or an internal error when avirthostd refuses the stream, SIGTERM
 /// arrives, or the process can't register a SIGTERM handler.
-async fn race<Fut>(work: Fut, connection: &LogStream) -> Result<String, Error>
+async fn race<Fut>(work: Fut, connection: &LogStream) -> Result<String, Box<Error>>
 where
-    Fut: Future<Output = Result<String, Error>>,
+    Fut: Future<Output = Result<String, Box<Error>>>,
 {
     let mut sigterm = match signal(SignalKind::terminate()) {
         Ok(handler) => handler,
-        Err(err) => return Err(Error::new(INTERNAL_ERROR, format!("cannot register a SIGTERM handler: {err}"))),
+        Err(err) => {
+            return Err(Box::new(Error::new(INTERNAL_ERROR, format!("cannot register a SIGTERM handler: {err}"))));
+        }
     };
     tokio::select! {
         outcome = work => outcome,
-        reason = connection.rejected() => Err(Error::new(INTERNAL_ERROR, reason)),
-        _ = sigterm.recv() => Err(Error::new(INTERNAL_ERROR, "terminated by SIGTERM")),
+        reason = connection.rejected() => Err(Box::new(Error::new(INTERNAL_ERROR, reason))),
+        _ = sigterm.recv() => Err(Box::new(Error::new(INTERNAL_ERROR, "terminated by SIGTERM"))),
     }
 }
 
 /// Writes the workload's outcome to avirthostd and returns the exit code.
-fn report(connection: &LogStream, result: Result<String, Error>) -> u8 {
+fn report(connection: &LogStream, result: Result<String, Box<Error>>) -> u8 {
     match result {
         Ok(stop_reason) => {
             console::out_line(format_args!(""));

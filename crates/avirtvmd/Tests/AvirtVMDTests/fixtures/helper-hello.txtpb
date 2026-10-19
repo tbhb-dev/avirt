@@ -1,0 +1,6 @@
+hello {
+  min_version: 1
+  max_version: 2
+  workload_id: "1a2b3c4d"
+  incarnation: "\xa0\xa1\xa2\xa3\xa4\xa5\xa6\xa7\xa8\xa9\xaa\xab\xac\xad\xae\xaf"
+}
