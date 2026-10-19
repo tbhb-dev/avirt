@@ -7,6 +7,7 @@ AGENTDESC
 agentr
 AGPL
 ahash
+AliasMode
 allowlist
 ALPN
 anycast
@@ -108,6 +109,8 @@ cspell
 CSR
 darwin
 dashmap
+datagram
+datagrams
 deduplicated
 deduplication
 denylist
@@ -116,10 +119,12 @@ DER
 deregistered
 deregistration
 DFP
+DGRAM
 distroless
 dlopen
 dns_filter
 dNSName
+DNSSEC
 Docker
 dylib
 EACCES
@@ -186,6 +191,7 @@ HCS
 HEXDIG
 hexdigit
 hidepid
+hopf
 hostauth
 hostd
 hostname
@@ -201,6 +207,7 @@ inodes
 interceptable
 IORING
 IPC
+IPPROTO
 JWKS
 JWT
 JWTs
@@ -248,6 +255,7 @@ MFA
 MITM
 mkfifo
 modelgwd
+MPTCP
 msvc
 multicast
 multithreaded
@@ -267,6 +275,8 @@ NIC
 NIOBSD
 NLGRP
 nocapture
+NODAD
+NOFILE
 NONBLOCK
 nonblocking
 nonisolated
@@ -299,6 +309,7 @@ peekable
 PEM
 PEP
 perf
+permessage
 petname
 pgid
 PGP
@@ -335,6 +346,7 @@ pyyaml
 qtype
 QUIC
 quiesces
+quinn
 rcgen
 rcode
 RDWR
@@ -351,6 +363,7 @@ resyncs
 retryable
 reuid
 RFC
+RLIMIT
 rootfs
 rootful
 rpath
@@ -365,6 +378,7 @@ rulesets
 rumdl
 runtime
 runtimes
+russh
 RUSTDOCFLAGS
 rustix
 rustls
@@ -397,6 +411,7 @@ shopt
 shfmt
 SIDs
 SIEM
+skimasque
 skuid
 SLO
 snake_case
@@ -419,6 +434,7 @@ subprocess
 subsec
 subtree
 subtrees
+SVCB
 SVID
 SVIDs
 SWIFTSHIM
@@ -430,6 +446,7 @@ systemd
 taiki
 tailnet
 Tailscale
+TargetName
 Tauri
 tbhb
 teardown
@@ -441,6 +458,7 @@ TOML
 toolchain
 toolchains
 TOTP
+traceroute
 tracestate
 TSYNC
 TTL
@@ -457,6 +475,7 @@ ULIDs
 unicast
 unistd
 unlinks
+unnegotiated
 unparseable
 unpushed
 unscanned
@@ -512,22 +531,3 @@ zeroizes
 zmij
 zot
 zstd
-NODAD
-MPTCP
-IPPROTO
-DGRAM
-datagram
-datagrams
-SVCB
-DNSSEC
-permessage
-russh
-traceroute
-RLIMIT
-NOFILE
-quinn
-AliasMode
-TargetName
-unnegotiated
-skimasque
-hopf

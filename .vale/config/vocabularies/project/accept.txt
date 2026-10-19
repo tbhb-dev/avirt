@@ -282,7 +282,7 @@ SSE
 SFTP
 RTP
 ECH
-[Dd][Aa][Tt][Aa][Gg][Rr][Aa][Mm][Ss]?
+(?:[Dd]atagrams?|DATAGRAMS?)
 httparse
 quinn
 russh
@@ -296,4 +296,3 @@ AAAA
 [Mm]ultipath
 maximum transmission unit
 [Tt]railers-only
-[Tt]railers-only HTTP
