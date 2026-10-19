@@ -11,7 +11,7 @@ mod tests;
 use super::control::{self, Client, Expected, HELLO_TIMEOUT, HandshakeError};
 use super::intent::{Intent, State};
 use super::proto::{Event, RequestOp, ResponseResult, Stop};
-use anyhow::{Context as _, Result, bail};
+use anyhow::{Context as _, Result, anyhow, bail};
 use async_trait::async_trait;
 use core::fmt;
 use core::time::Duration;
@@ -412,22 +412,63 @@ impl HelperSupervisor for ChildSupervisor {
             Err(err) if err.kind() == io::ErrorKind::NotFound => None,
             Err(err) => return Err(err).with_context(|| format!("read the launch intent of workload {workload}")),
         };
+        let ended = intent.as_ref().is_some_and(|launch| launch.state == State::Ended);
+        if ended && lock_state(&dir) != LockState::Held {
+            return Ok(());
+        }
+        // A failed write doesn't hold up the stop: stopping the VM is a safety action, and a restart
+        // stops a `running` workload the same way.
+        let marked = if intent.is_some() && !ended {
+            rewrite_intent(&dir, |launch| launch.state = State::Stopping).await
+        } else {
+            Ok(())
+        };
         if let Some(client) = self.stop_connection(record.as_ref(), intent.as_ref(), &dir).await {
             request_stop(&client, grace).await;
         }
         wait_for_exit(record.as_mut(), &dir, grace.saturating_add(EXIT_SLACK)).await;
         force_exit(record.as_ref(), intent.as_ref(), &dir).await;
-        match lock_state(&dir) {
-            LockState::Free | LockState::Missing => Ok(()),
+        let outcome = match lock_state(&dir) {
+            LockState::Free | LockState::Missing => {
+                if intent.is_some() {
+                    rewrite_intent(&dir, |launch| {
+                        launch.state = State::Ended;
+                        launch.pid = None;
+                    })
+                    .await
+                    .with_context(|| format!("record that the helper of workload {workload} ended"))?;
+                }
+                return Ok(());
+            }
             LockState::Held => {
                 if let Some(held) = record {
                     self.records().insert(workload.to_owned(), held);
                 }
-                bail!("avirtvmd for workload {workload} is still running")
+                anyhow!("avirtvmd for workload {workload} is still running")
             }
-            LockState::Failed(why) => bail!("cannot tell whether avirtvmd for workload {workload} is gone: {why}"),
+            LockState::Failed(why) => anyhow!("cannot tell whether avirtvmd for workload {workload} is gone: {why}"),
+        };
+        match marked {
+            Ok(()) => Err(outcome),
+            Err(err) => Err(outcome.context(format!("the launch intent was not rewritten to stopping: {err}"))),
         }
     }
+}
+
+/// Rewrites the intent in `dir` with `change`.
+///
+/// # Errors
+///
+/// Returns an error if reading or writing the intent fails.
+async fn rewrite_intent(dir: &Path, change: impl FnOnce(&mut Intent) + Send + 'static) -> io::Result<()> {
+    let path = dir.to_path_buf();
+    task::spawn_blocking(move || {
+        let mut intent = Intent::read(&path)?;
+        change(&mut intent);
+        intent.write(&path)
+    })
+    .await
+    .map_err(io::Error::other)?
 }
 
 /// Asks the helper to stop its VM and exit.

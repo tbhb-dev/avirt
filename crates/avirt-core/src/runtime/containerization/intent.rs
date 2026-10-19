@@ -21,12 +21,16 @@ const TEMP: &str = "intent.json.tmp";
 #[derive(Clone, Copy, Debug, Deserialize, Eq, PartialEq, Serialize)]
 #[serde(rename_all = "lowercase")]
 pub enum State {
+    /// avirthostd confirmed that the helper exited, and the intent no longer records a pid.
+    Ended,
     /// Written before the helper starts.
     Intended,
     /// The helper answered `StartWorkload` with `Started`.
     Running,
     /// The helper has started, and the intent records its pid.
     Starting,
+    /// avirthostd has begun to stop the helper.
+    Stopping,
 }
 
 /// What avirthostd means to launch.

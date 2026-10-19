@@ -296,7 +296,50 @@ async fn stopping_a_helper_that_is_already_gone_succeeds() -> Result<()> {
     drop(hold_lock(&exited)?);
     let supervised = supervisor(root.path());
     supervised.stop("5e6f7a8b", Duration::ZERO).await?;
+    ensure!(Intent::read(&exited)?.state == State::Ended, "the intent doesn't record the end");
     supervised.stop("00000000", Duration::ZERO).await
+}
+
+/// Stopping a helper whose lock is free records that it ended and clears its pid.
+///
+/// # Errors
+///
+/// Fails when the stop fails or the intent differs from the expected one.
+///
+/// # Panics
+///
+/// Panics if the async runtime fails to start.
+#[tokio::test]
+async fn stopping_a_helper_that_is_already_gone_records_that_it_ended() -> Result<()> {
+    let root = tempfile::tempdir()?;
+    let exited = workload_dir(root.path(), "5e6f7a8b", State::Running)?;
+    let mut intent = Intent::read(&exited)?;
+    intent.pid = Some(4242);
+    intent.write(&exited)?;
+    drop(hold_lock(&exited)?);
+    supervisor(root.path()).stop("5e6f7a8b", Duration::ZERO).await?;
+    let after = Intent::read(&exited)?;
+    ensure!(after.state == State::Ended && after.pid.is_none(), "the intent is {after:?}");
+    Ok(())
+}
+
+/// A second stop of a helper that ended changes nothing.
+///
+/// # Errors
+///
+/// Fails when the stop fails or rewrites the intent.
+///
+/// # Panics
+///
+/// Panics if the async runtime fails to start.
+#[tokio::test]
+async fn a_second_stop_of_an_ended_helper_does_nothing() -> Result<()> {
+    let root = tempfile::tempdir()?;
+    let dir = workload_dir(root.path(), "5e6f7a8b", State::Ended)?;
+    let before = fs::read(dir.join("intent.json"))?;
+    supervisor(root.path()).stop("5e6f7a8b", Duration::ZERO).await?;
+    ensure!(fs::read(dir.join("intent.json"))? == before, "the intent changed");
+    Ok(())
 }
 
 /// A helper that exits before it binds its socket fails the start.
