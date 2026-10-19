@@ -10,6 +10,7 @@ vendir = "0.46.2"
 apm = "0.33.0"
 shfmt = "3.14.1"
 jq = "1.8.2"
+rush = "0.11.0"
 protoc = "36.2"
 "github:EmbarkStudios/cargo-deny" = "0.20.2"
 "aqua:nextest-rs/nextest/cargo-nextest" = "0.9.148"
@@ -111,7 +112,7 @@ uv run --no-project --with pyyaml python scripts/okf-check.py --repo .
 
 [tasks.test-skills]
 description = "Run the bats suites of the repository-local agent skills"
-run = "bats .agents/skills/agent-commit/tests .agents/skills/agent-pr/tests .agents/skills/agent-merge-pr/tests"
+run = "bats --jobs 4 --parallel-binary-name rush .agents/skills/agent-commit/tests .agents/skills/agent-pr/tests .agents/skills/agent-merge-pr/tests"
 
 [tasks.test-jargon]
 description = "Unit tests for the new-term check"
