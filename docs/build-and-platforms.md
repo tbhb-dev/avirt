@@ -140,4 +140,4 @@ Both move together with the Containerization package version. Docker Desktop sup
 
 # Open questions
 
-1. **Windows restrictions on host connections.** The host rule that restricts new off-host connections to avirtedgeproxyd on Windows remains unspecified.
+1. **Restricting off-host connections on Windows.** The host rule that restricts new off-host connections to avirtedgeproxyd on Windows remains unspecified.
