@@ -703,7 +703,7 @@ The constraints remain fixed for the workload's life, because the CA serves ever
 - A Cedar evaluation error is a deny, in both modes.
 - An avirt hostname that resolves to no entity is a deny, in both modes, before evaluation.
 - In audit mode, the enforcement point allows a decision with no permit or with a forbid and logs it as `would-deny`, except for the exemptions in [modes](#modes). In enforce mode it denies the decision.
-- The checks that apply in both policy modes in [modes](#modes) apply in both modes.
+- The checks listed in [modes](#modes) apply in both modes.
 - avirtedgeproxyd applies the same rules to the host policy snapshot.
 
 ## Worked examples
@@ -896,6 +896,6 @@ permit (principal in Namespace::"team-a", action == Action::"connect", resource 
 # Open questions
 
 1. **Internal names under a peer's host name below the namespace.** An internal name under a peer's host name resolves locally to the peer's namespace, so local policy can't distinguish one peer workload from another. It remains open whether avirtedgeproxyd should look up the name at the peer to resolve it to the peer's entities (see [peering](./peering.md#evaluation-on-each-side)).
-2. **Limits on permitted requests over every namespace.** A set limiting permitted requests is a Cedar policy set. Cedar lacks a variable that binds the principal's namespace to the resource's, which requires the example to name `team-a`. avirtpolicyd could generate one limiting set per namespace from the entity revision. Or the prover could gain a built-in namespace isolation invariant. The choice remains open.
+2. **Namespace isolation condition over every namespace.** A set limiting permitted requests is a Cedar policy set. Cedar lacks a variable that binds the principal's namespace to the resource's, which requires the example to name `team-a`. avirtpolicyd could generate one limiting set per namespace from the entity revision. Or the prover could gain a built-in namespace isolation invariant. The choice remains open.
 3. **Per-namespace modes for host services.** A host service's off-host connection uses the host default mode. The choice remains open for a component acting for a workload, such as avirtmodelgwd: should it use the workload's namespace mode?
 4. **Policy authorship.** Policy writes are host administration through avirtadmin. It remains open whether namespace owners may write their own policy sets within limits on permitted requests.

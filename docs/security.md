@@ -180,7 +180,7 @@ avirt pins each image and workspace a workload runs by digest and verifies it at
 - **Future.** avirthostd verifies each artifact's digest when writing it and when creating a workload from it, and each workspace digest it pulls against the resolved manifest ([operational ownership](./components.md#operational-ownership), [workspace registry](./workspace-registry.md#trust-boundaries)).
 - **Future.** avirtbuilderd and avirthostd both check each workspace layer against the content rules, and a workspace composes only onto the base specified by its base image reference ([content rules](./workspaces.md#content-rules), [base image reference](./workspaces.md#base-image-reference)).
 - **Future.** Only avirtbuilderd promotes a build result, with annotations it computes itself, and a build job writes only to its staging repository ([build pipeline](./workspace-build.md#build-pipeline)).
-- **Future.** An image built from local sources never substitutes for a ref's image, and policy can forbid launching one ([Images built from local sources](./workspaces.md#images-built-from-local-sources)).
+- **Future.** An image built from local sources never substitutes for a ref's image, and policy can forbid launching one ([images built from local sources](./workspaces.md#images-built-from-local-sources)).
 - **Future.** Promoted workspace images include signatures, which `launch_workspace` can require. Whether and how to do this remain open ([workspace builds](./workspace-build.md#open-questions)).
 - **Out of Scope.** The trustworthiness of the packages, repositories, and images an agent or a build fetches. avirt mediates and records those fetches and doesn't vet their content.
 

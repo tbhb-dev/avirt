@@ -273,7 +273,7 @@ A component that evaluates policy and enforces the decision on traffic or a call
 
 ## Enrollment
 
-The act by which an operator adds a peer to this host from the peer's enrollment file, after comparing its fingerprint out of band. This makes the host trust the peer's trust bundle and internal names under a peer's host name. Status: planned. See [enrollment](./peering.md#enrollment).
+The act by which an operator adds a peer to this host from the peer's enrollment file, after comparing its fingerprint out of band. This makes the host trust the peer's trust bundle and internal names under the peer's host name. Status: planned. See [enrollment](./peering.md#enrollment).
 
 ## Enrollment file
 
@@ -609,7 +609,7 @@ avirtmediatord relaying a connection to avirtedgeproxyd byte for byte without de
 
 ## Trust bundle
 
-The set of root certificates that verifies SVIDs of one trust domain, which the SPIFFE bundle format serializes. avirthostd pushes it to every SVID holder, and peers fetch each other's from the bundle endpoint. Status: planned. See [federation](./identity.md#federation).
+The set of root certificates that verifies SVIDs of one trust domain. avirthostd pushes it to every SVID holder, and peers fetch each other's from the bundle endpoint. Status: planned. See [federation](./identity.md#federation).
 
 ## Trust domain
 

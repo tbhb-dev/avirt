@@ -312,7 +312,7 @@ In the all-in-one server image, avirtinitd in server mode installs an nftables r
 
 | Signal | Producer | Specified in |
 | --- | --- | --- |
-| `conn`, `http` and `dns` events in the workload log, with `src` `mediator`, `edgeproxy` or `gateway` | avirtmediatord, avirtedgeproxyd, the gateways | [events](./egress.md#events-1), [The `src` field](./trust-boundaries.md#the-src-field) |
+| `conn`, `http` and `dns` events in the workload log, with `src` `mediator`, `edgeproxy` or `gateway` | avirtmediatord, avirtedgeproxyd, the gateways | [events](./egress.md#events-1), [the `src` field](./trust-boundaries.md#the-src-field) |
 | `CONNECT` and per-request spans | avirtmediatord, avirtedgeproxyd, the gateways | [egress spans](./observability.md#egress-spans) |
 | Trace context across hops, never to external endpoints and only `traceparent` to peers | Each hop | [propagation](./observability.md#propagation), [external endpoints](./observability.md#external-endpoints) |
 | Connection and egress metrics | avirtnetd, the mediator, the proxies | [workload connection](./performance.md#workload-connection-to-the-mediator), [egress](./performance.md#egress), and [metrics from avirtmediatord and avirtedgeproxyd](./observability.md#metrics-from-avirtmediatord-and-avirtedgeproxyd) |

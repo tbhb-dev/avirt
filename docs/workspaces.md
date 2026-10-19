@@ -62,7 +62,7 @@ The config blob records:
 - `layers`: each layer's origin and destinations, plus the canonical remote URL, ref, and commit for version control sources.
 - `config_digest`: the digest of the resolved `.avirt-workspace.toml`, with every default filled in.
 - `lock`: every include digest and source commit the build resolved, in the form of the [lockfile](#lockfile).
-- `provenance`: `reproducible` or `local` (see [Images built from local sources](#images-built-from-local-sources)).
+- `provenance`: `reproducible` or `local` (see [images built from local sources](#images-built-from-local-sources)).
 - `secret_allows`: the denylist patterns that `secrets.allow` lifted for this build, when there are any.
 
 ### Base image reference

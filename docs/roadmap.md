@@ -90,7 +90,7 @@ Status: planned. These items split the workload images into the avirt base image
 # Unscheduled
 
 - **Linux host runtime.** A KVM microVM per workload and mediator with vhost-vsock, mapping to the workload's HTTP/2 connection to its mediator over vsock, whose bytes avirthostd forwards unchanged. It needs `/dev/kvm`.
-- **Windows host runtime.** Hyper-V through HCS with hvsock, mapping to the same connection. It needs Hyper-V Administrators membership. Restrictions on connections off the host on Windows is open (see [build and platforms](./build-and-platforms.md#open-questions)).
+- **Windows host runtime.** Hyper-V through HCS with hvsock, mapping to the same connection. It needs Hyper-V Administrators membership. How a Windows host restricts off-host connections remains open (see [build and platforms](./build-and-platforms.md#open-questions)).
 - **Pure-Rust Apple runtime (deferred).** VMs through `objc2-virtualization`, with a Rust guest init in place of vminitd, replacing the Swift shim.
 
 Status: planned. These items from [components](./components.md) have no phase or item yet:
