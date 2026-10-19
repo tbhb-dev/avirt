@@ -102,6 +102,18 @@ jobs:
           # renovate: datasource=github-releases depName=jdx/mise
           version: 2026.10.9
 
+      # Registry downloads and the compiled dependencies. `target/avirtvmd`
+      # holds the Swift build, which this cache leaves out.
+      - name: Cache the Rust build
+        uses: actions/cache@55cc8345863c7cc4c66a329aec7e433d2d1c52a9 # v6.1.0
+        with:
+          path: |
+            ~/.cargo/registry
+            ~/.cargo/git
+            target
+            !target/avirtvmd
+          key: rust-${{ runner.os }}-${{ hashFiles('Cargo.lock', 'mise.toml') }}
+
       # The ci profile in .config/nextest.toml: no retries, a flaky pass fails.
       - name: Check
         env:
