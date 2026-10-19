@@ -56,7 +56,7 @@ The root and issuing CA certificates constrain names. Their permitted URI subtre
 
 The startup cleanup still ends every workload that an earlier avirthostd process left, because workload state doesn't persist across an avirthostd restart. The SPIFFE root and bundle do persist, so host services and peers keep verifying the host's SVIDs across restarts.
 
-Verification on every side chains only to the SPIFFE bundle and authorizes the exact peer ID. A peer connection uses only the enrolled trust domain's bundle. No mediator or workload container has a Workload API endpoint (invariant 1 in [architecture](./architecture.md#design-invariants)).
+Verification on every side chains only to the trust bundle and authorizes the exact peer ID. A peer connection uses only the enrolled trust domain's bundle. No mediator or workload container has a Workload API endpoint (invariant 1 in [architecture](./architecture.md#design-invariants)).
 
 ## Attestation
 
@@ -133,7 +133,7 @@ sequenceDiagram
 
 Peered hosts federate explicitly, and never share a CA key (see [peering](./peering.md)).
 
-- **Enrollment.** Operators enroll each other's hosts out of band, from enrollment files compared by fingerprint (see [enrollment](./peering.md#enrollment) and [admin CLI](./admin-cli.md#peers-and-enrollment)). avirthostd stores the enrollment records, avirtedgeproxyd installs each peer's bundle in its verifier, and avirtdnsd answers an active peer's peered names.
+- **Enrollment.** Operators enroll each other's hosts out of band, from enrollment files compared by fingerprint (see [enrollment](./peering.md#enrollment) and [admin CLI](./admin-cli.md#peers-and-enrollment)). avirthostd stores the enrollment records, avirtedgeproxyd installs each peer's bundle in its verifier, and avirtdnsd answers an active peer's internal names.
 - **Bundle refresh.** avirtedgeproxyd serves the host's bundle, in the SPIFFE bundle format, on the mutual TLS peer listener, and avirthostd refreshes each enrolled peer's bundle from it (see [trust bundles](./peering.md#trust-bundles)). Constraint: the endpoint requires client authentication. This differs from the SPIFFE bundle endpoint specification, which forbids client authentication.
 - **Authorization after authentication.** A valid SVID from an enrolled trust domain authenticates its holder only. avirtedgeproxyd's peer listener (port 8788 by default, and absent unless configuration sets `peering.listen`) accepts only `spiffe://<peer td>/service/avirtedgeproxyd`, and evaluates the host policy snapshot for the peer identity in `x-avirt-caller`, accepting only identities in that peer's own trust domain. avirtapid accepts peer callers only for the routes their enrollment allows.
 
@@ -142,10 +142,10 @@ Peered hosts federate explicitly, and never share a CA key (see [peering](./peer
 | | SPIFFE CA | Workload MITM CA |
 | --- | --- | --- |
 | Key storage | avirthostd only: the root in the state directory, the issuing CA in memory | avirthostd, and in memory in the workload's avirtmediatord. The same CA serves every generation of the workload. It's name-constrained to the hosts the workload's policy can intercept, and a workload whose policy can intercept none has no MITM CA (see [egress](./egress.md#mitm-ca-and-leaf-certificates)). |
-| Trusted by | The SVID verifiers in avirtnetd, avirtmediatord and avirtedgeproxyd, avirthostd and the host services, each configured with the SPIFFE bundle alone and never with system or web roots | The agent's trust store and CA variables |
+| Trusted by | The SVID verifiers in avirtnetd, avirtmediatord and avirtedgeproxyd, avirthostd and the host services, each configured with the trust bundle alone and never with system or web roots | The agent's trust store and CA variables |
 | Signs | Issuing CAs and SVIDs (URI SAN, name-constrained to `<td>`) | Upstream leaf certificates (DNS SAN, `serverAuth` only) |
 
-avirt never writes the SPIFFE bundle to `/etc/ssl` or to any file in the workload container. Verifiers reject certificates signed by the other CA.
+avirt never writes the trust bundle to `/etc/ssl` or to any file in the workload container. Verifiers reject certificates signed by the other CA.
 
 ```mermaid
 flowchart LR

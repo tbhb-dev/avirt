@@ -336,7 +336,7 @@ pub struct Stop {
 #[derive(Clone, Copy, Debug, Default, Eq, PartialEq)]
 pub struct Stopped;
 
-/// The answer to a request that the helper couldn't carry out.
+/// The answer to a request that the helper couldn't complete.
 #[derive(Clone, Eq, PartialEq, prost::Message)]
 pub struct Failure {
     /// What went wrong, for the log.

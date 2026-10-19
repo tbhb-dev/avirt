@@ -1,7 +1,7 @@
 ---
 type: Component Design
 title: DNS
-description: The avirt DNS zone that avirtdnsd serves, the local and peered name forms for workloads and services, the label syntax and length caps, how avirtedgeproxyd receives connections to those names, and how the workload resolver and the DNS stream use them.
+description: The avirt DNS zone that avirtdnsd serves, the name forms for workloads and services on this host and under a peer's host name, the label syntax and length caps, how avirtedgeproxyd receives connections to those names, and how the workload resolver and the DNS stream use them.
 tags: [avirt, dns, avirtdnsd, names, hickory]
 implementation: planned
 generated: { by: codex/gpt-6, at: 2026-10-18T05:20:59Z }
@@ -22,9 +22,9 @@ avirtdnsd makes local and peered workloads and services addressable by name. It 
 
 ## The avirtdnsd zone
 
-The avirt DNS zone. It answers every name under `host.avirt.internal` with this host's avirtedgeproxyd address, and the peered name forms under the peer host name of an `active` peer with that peer's avirtedgeproxyd address (see [avirt names](#avirt-names)). Every other name resolves normally, including the peer host name itself and any other name under it (see [peer host names](./peering.md#peer-host-names)). avirtdnsd talks to avirtmediatord (through avirthostd's SNI routing), avirtedgeproxyd, and avirthostd (namespaces, workloads, services and enrolled peers).
+The avirt DNS zone. It answers every name under `host.avirt.internal` with this host's avirtedgeproxyd address, and the name forms under the peer host name of an `active` peer with that peer's avirtedgeproxyd address (see [avirt hostnames](#avirt-hostnames)). Every other name resolves normally, including the peer host name itself and any other name under it (see [peer host names](./peering.md#peer-host-names)). avirtdnsd talks to avirtmediatord (through avirthostd's SNI routing), avirtedgeproxyd, and avirthostd (namespaces, workloads, services and enrolled peers).
 
-## avirt names
+## avirt hostnames
 
 | Form | Names | Resolves to |
 | --- | --- | --- |
@@ -38,7 +38,7 @@ The avirt DNS zone. It answers every name under `host.avirt.internal` with this 
   - `<alias>-<id>` parses unambiguously, because `<id>` is always the last 8 characters.
   - `<generated>` is a hyphenated `<adverb>-<adjective>-<noun>` name, such as `quietly-brave-otter`, which avirthostd always generates at creation with the `petname` crate. The name uses only lowercase `a`-`z` and hyphens. It must be unique per host and namespace among live workloads: on a collision avirthostd generates another. The word lists limit the longest combination to 63 characters. The noun list excludes 8-character words made only of hex digits, so a generated name never parses as `<alias>-<id>`.
 - **Service name forms.** A service's first DNS label is its `<name>` or one of its aliases. These forms refer to the same service.
-- **DNS label syntax.** Every DNS label in an avirt name is lowercase: `a`-`z`, `0`-`9` and `-`, at most 63 characters. avirthostd validates aliases, service names, and namespace names against that form. `<host>` is a fully qualified name of at least two such labels, none starting or ending with `-`, with an internationalized name in its A-label (`xn--`) form and no trailing dot (see [peer host names](./peering.md#peer-host-names)).
+- **DNS label syntax.** Every DNS label in an avirt hostname is lowercase: `a`-`z`, `0`-`9` and `-`, at most 63 characters. avirthostd validates aliases, service names, and namespace names against that form. `<host>` is a fully qualified name of at least two such labels, none starting or ending with `-`, with an internationalized name in its A-label (`xn--`) form and no trailing dot (see [peer host names](./peering.md#peer-host-names)).
 - **Aliases grant nothing.** Name resolution maps every form of a name to the same entity (see [egress](./egress-policies.md#name-resolution)), and authorization uses the entity, keyed by the workload's ID or the service's name. Authorization uses the workload's ID and excludes both its alias and its generated name.
 
 DNS limits each label to 63 octets and a whole name to 253 characters in text form, without the trailing dot. These caps follow from them:
@@ -56,11 +56,11 @@ At creation, avirthostd validates each alias, service name, and namespace name. 
 
 `host` in the local forms is a literal label, in the way `host.docker.internal` is. Only avirtdnsd answers these names.
 
-avirtmediatord sends every connection to an avirt name, local or peered, to this host's avirtedgeproxyd through avirthostd's SNI routing, whatever address the name resolved to, so it never needs a peer's address. avirtedgeproxyd resolves the name to its canonical entity (see [egress](./egress-policies.md#name-resolution)). It routes a local one to the destination workload's avirtmediatord. For a peered one, it routes to the peer's avirtedgeproxyd at the address avirtdnsd returns for it. Connections to a workload name can use only the ports that workload publishes (see [workload topology](./workload-topology.md#ingress)).
+avirtmediatord sends every connection to an avirt hostname, local or peered, to this host's avirtedgeproxyd through avirthostd's SNI routing, whatever address the name resolved to, so it never needs a peer's address. avirtedgeproxyd resolves the name to its canonical entity (see [egress](./egress-policies.md#name-resolution)). It routes a local one to the destination workload's avirtmediatord. For a peered one, it routes to the peer's avirtedgeproxyd at the address avirtdnsd returns for it. Connections to a workload name can use only the ports that workload publishes (see [workload topology](./workload-topology.md#ingress)).
 
 ## Workload DNS policy and the DNS stream
 
-The workload's resolver, the `resolve` check on every query and the public-name path are in [egress](./egress.md#workload-dns). The Cedar `resolve` action and the resolution of an avirt name to its canonical entity are in [egress policies](./egress-policies.md#name-resolution). The per-query `/dns` HTTP/2 streams with `application/dns-message` bodies and their 16-stream limit are in [workload topology](./workload-topology.md#http2-streams). Workload IDs, including the short ID in `<id>`, are in [components](./components.md#workload-ids).
+The workload's resolver, the `resolve` check on every query and the public-name path are in [egress](./egress.md#workload-dns). The Cedar `resolve` action and the resolution of an avirt hostname to its canonical entity are in [egress policies](./egress-policies.md#name-resolution). The per-query `/dns` HTTP/2 streams with `application/dns-message` bodies and their 16-stream limit are in [workload topology](./workload-topology.md#http2-streams). Workload IDs, including the short ID in `<id>`, are in [components](./components.md#workload-ids).
 
 # Open questions
 

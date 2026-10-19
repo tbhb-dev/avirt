@@ -64,7 +64,7 @@ Metrics don't have code yet. [Performance metrics](./performance.md) describes t
 
 ### Workload log
 
-The workload log remains avirthostd's durable record of a workload. In the planned design each line also includes `workload` (the canonical UUIDv7), `gen`, `seq` and `src`, stamped by avirthostd from the authenticated connection the line arrived on (see [event provenance](./trust-boundaries.md#event-provenance) and [log resume](./workload-topology.md#resuming-after-reconnect)), and `trace` and `span` when the producer recorded the line inside a span. avirthostd stamps `ts` on receipt and keeps the producer's time as `ts_src`.
+The workload log remains avirthostd's durable record of a workload. In the planned design each line also includes `workload` (the canonical UUIDv7), `gen`, `seq` and `src`, stamped by avirthostd from the authenticated connection the line arrived on (see [the `src` field](./trust-boundaries.md#the-src-field) and [log resume](./workload-topology.md#resuming-after-reconnect)), and `trace` and `span` when the producer recorded the line inside a span. avirthostd stamps `ts` on receipt and keeps the producer's time as `ts_src`.
 
 avirthostd never sends the whole workload log to avirtoteld. After writing a `meta`, `conn`, `http` or `dns` event, avirthostd emits a copy as an OpenTelemetry log record with the event's fields, and never a copy of an ACP line. If avirthostd can't hand a copy to avirtoteld, it counts the copy in `avirt.telemetry.shed`. The record remains in the workload log.
 
@@ -190,7 +190,7 @@ Each component that makes audit events writes them to its own audit log (see [pe
 
 ### Audit events
 
-avirtauditd maps each audit event to an OCSF 1.9.0 class, keeps `src` (see [event provenance](./trust-boundaries.md#event-provenance)), and keeps the original event in `raw_data`.
+avirtauditd maps each audit event to an OCSF 1.9.0 class, keeps `src` (see [the `src` field](./trust-boundaries.md#the-src-field)), and keeps the original event in `raw_data`.
 
 | Events | OCSF class |
 | --- | --- |
@@ -220,7 +220,7 @@ ACP lines aren't audit events. avirtauditd maps the `start` event without its `p
 
 - Each audit log line and each workload log line includes `prev`, the SHA-256 of the previous line's bytes in the same file.
 - After every 1000 lines and every 60 s, the writer appends a `checkpoint` record with the `seq` and the hash of the chain's head, signed with its current SVID key and including the SVID chain.
-- avirtauditd verifies `seq` continuity, each `prev` and each checkpoint signature against the SPIFFE bundle, and delivers the checkpoints to each sink with the records they cover.
+- avirtauditd verifies `seq` continuity, each `prev` and each checkpoint signature against the trust bundle, and delivers the checkpoints to each sink with the records they cover.
 - A break is itself an audit event, at `ERROR`, naming the file, the `seq` and the expected and found hashes, and avirtauditd raises the `AuditChainBroken` alert.
 
 A compromised writer can rewrite what it hasn't yet delivered. The chain proves integrity only from the last checkpoint a sink stores. Delivery lag bounds that window.

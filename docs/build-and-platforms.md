@@ -13,6 +13,10 @@ generated: { by: codex/gpt-6, at: 2026-10-18T05:10:25Z }
 
 The root workspace includes `avirt-connect` for CONNECT authority parsing and destination checks. `mise run check` checks the root workspace. The implemented mediator uses the [Pingora CONNECT app](./egress.md#pingora-connect-app).
 
+## Prose checks
+
+Vale's banned-term rules block `mise run lint`. Judge the prose in context: preserve its meaning and grammar, and reserve glossary entries for real terms.
+
 # Status: planned
 
 ## Targets
@@ -136,4 +140,4 @@ Both move together with the Containerization package version. Docker Desktop sup
 
 # Open questions
 
-1. **Windows off-host enforcement.** The host rule that restricts new off-host connections to avirtedgeproxyd on Windows remains unspecified.
+1. **Windows restrictions on connections off the host.** The host rule that restricts new off-host connections to avirtedgeproxyd on Windows remains unspecified.

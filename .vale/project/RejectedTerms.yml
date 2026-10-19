@@ -1,0 +1,27 @@
+---
+# A term goes on this list only when the maintainer rejects it. Terms with a plain
+# replacement live in RejectedTermsReplaced.yml, which names the replacement in its message.
+extends: existence
+message: "'%s' is a rejected term. Say what it names in plain words."
+level: error
+tokens:
+  - (?i)peer card
+  - (?i)link splice
+  - (?i)uplink
+  - (?i)mediator instance number
+  - (?i)control routes
+  - (?i)control process
+  - (?i)data process
+  - (?i)binding lease
+  - (?i)native edge proxy
+  - (?i)native peer listener
+  - (?i)exact-ID verifier
+  - (?i)control heartbeat
+  - (?i)identity lifetime bound
+  - (?i)the usual workload writers
+  - (?i)avirtmediationd
+  - (?i)provenance labels?
+  - (?i)off-host enforcement
+  - (?i)policy invariants?
+  - (?i)guardrails?
+  - (?i)prebuild polic(?:y|ies)

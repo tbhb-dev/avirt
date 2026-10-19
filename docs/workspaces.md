@@ -1,7 +1,7 @@
 ---
 type: Component Design
 title: Workspaces
-description: Workspace images as OCI artifacts composed onto a harness base image, the image format with its base image reference and content rules, `.avirt-workspace.toml` with its sources, includes, lockfile, secret exclusion and zero-config defaults, local provenance, the dev.avirt annotation set, workspace references and resolution, root filesystem composition per runtime, the avirt workspace commands, and the Cedar entities and launch action.
+description: Workspace images as OCI artifacts composed onto a harness base image, the image format with its base image reference and content rules, `.avirt-workspace.toml` with its sources, includes, lockfile, secret exclusion and zero-config defaults, images built from local sources, the dev.avirt annotation set, workspace references and resolution, root filesystem composition per runtime, the avirt workspace commands, and the Cedar entities and launch action.
 tags: [avirt, workspaces, oci, cel, policy]
 implementation: planned
 generated: { by: codex/gpt-6, at: 2026-10-18T04:29:26Z }
@@ -62,7 +62,7 @@ The config blob records:
 - `layers`: each layer's origin and destinations, plus the canonical remote URL, ref, and commit for version control sources.
 - `config_digest`: the digest of the resolved `.avirt-workspace.toml`, with every default filled in.
 - `lock`: every include digest and source commit the build resolved, in the form of the [lockfile](#lockfile).
-- `provenance`: `reproducible` or `local` (see [local provenance](#local-provenance)).
+- `provenance`: `reproducible` or `local` (see [images built from local sources](#images-built-from-local-sources)).
 - `secret_allows`: the denylist patterns that `secrets.allow` lifted for this build, when there are any.
 
 ### Base image reference
@@ -215,11 +215,11 @@ Each source produces one layer. Every source takes `destination`, `primary`, `st
 - **Remote git.** The repository at `remote-url`, or at the URL of `remote` in the local repository, fetched at `revision`, or at the head of `branch` or `tag`. Remote sources never read the local working tree. A build whose revision isn't on the remote fails with `commit not on remote`. Fetches use the HTTPS form of SSH remotes for known hosts, such as `https://github.com/foo/bar.git` for `git@github.com:foo/bar.git`.
 - **`github`.** The repository `owner/name` on GitHub, fetched at `revision`, or at the head of `branch` or `tag`, else at the head of the default branch. It differs from a remote `git` source in authenticating with a GitHub installation token and in recording the `dev.avirt.image.github.*` annotations. A source specifies one ref. Which refs stay built is a [prebuild policy](./workspace-build.md#prebuild-policies)'s decision, and a prebuild replaces the primary source's ref with the ref it's building.
 
-Only builds that the command-line tool starts from a local config accept sources read on the host. Such sources give the build local provenance. A prebuild fails with `config not buildable by policy` when the config it reads names a `directory`, `file` or local `git` source.
+Only builds that the command-line tool starts from a local config accept sources read on the host. Such sources make the build produce an image built from local sources. A prebuild fails with `config not buildable by policy` when the config it reads names a `directory`, `file` or local `git` source.
 
-### Local provenance
+### Images built from local sources
 
-A build with any source read on the host has **local provenance**: its content came from one machine's files, and avirt can't rebuild it from inputs it can fetch. avirtbuilderd records it as `dev.avirt.build.provenance = local`, in the config blob, and as the image's `provenance` attribute for policy. Every other build is `reproducible`. A local build remains local unless the caller forces otherwise:
+A build with any source read on the host produces **an image built from local sources**: its content came from one machine's files, and avirt can't rebuild it from inputs it can fetch. avirtbuilderd records it as `dev.avirt.build.provenance = local`, in the config blob, and as the image's `provenance` attribute for policy. Every other build is `reproducible`. A local build remains local unless the caller forces otherwise:
 
 - `github:` and `git:` selectors never resolve to a local image, so a laptop build never replaces a ref's image in resolution. It's reachable by digest, by the tag `avirt workspace build` printed, or through `dir:`.
 - `avirt workspace export` refuses a local image.
@@ -358,7 +358,7 @@ A `github:` reference matches by `dev.avirt.image.github.repository-id` once avi
 avirthostd resolves a reference by calling avirtregistryd's `Resolve`, and records only the resolved digest in the workload configuration.
 
 1. avirtregistryd selects the candidates that match the reference.
-2. It drops candidates whose base image reference the launch's harness base image doesn't meet. It also drops images without a builder producer unless policy permits user-produced images (see [policy](#policy)), local provenance unless the caller passes `--allow-local`, and images the caller may not `pull_workspace`. Selection ignores mutable tags.
+2. It drops candidates whose base image reference the launch's harness base image doesn't meet. It also drops images without a builder producer unless policy permits user-produced images (see [policy](#policy)), any image built from local sources unless the caller passes `--allow-local`, and images the caller may not `pull_workspace`. Selection ignores mutable tags.
 3. For a branch, tag or pull request selector, it ranks the remaining candidates by whether their commit is the ref head avirtbuilderd last observed, then by commit time, then by build time. For a commit selector, it ranks by build time.
 4. It returns the first candidate together with its staleness: whether the ref head has moved past its commit.
 5. With `--fresh=require`, a stale or missing result makes avirthostd ask avirtbuilderd for a build of the head and wait for it. The default `--fresh=prefer` uses a stale result and reports its staleness. With `--fresh=any`, avirthostd ignores staleness.
@@ -411,6 +411,6 @@ when { context.namespace == Namespace::"prod" && resource.provenance == "local" 
 # Open questions
 
 1. **Snapshots to workspace images.** Whether to convert an avirtguestd workspace snapshot of a running workload container into a new workspace image remains open. The producer for such images also remains open.
-2. **Zero-config in a repository with a remote.** The zero-config git source fetches the local `HEAD` commit from `origin`, so unpushed commits fail with `commit not on remote` and the source never reads the working tree. Whether zero-config should use a local git source instead remains open. That choice would give the build local provenance.
+2. **Zero-config in a repository with a remote.** The zero-config git source fetches the local `HEAD` commit from `origin`, so unpushed commits fail with `commit not on remote` and the source never reads the working tree. Whether zero-config should use a local git source instead remains open. That choice would make the build produce an image built from local sources.
 3. **The guest CLI.** Whether `guest-cli` may search workspaces or start builds from inside a workload container is open (see [guest CLI](./guest-cli.md#open-questions)).
 4. **`github` and `git` sources.** With ref selection in prebuild policies, a `github` source is a remote `git` source with GitHub authentication and annotations. Whether to represent it as `git` with a provider key is open.
