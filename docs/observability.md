@@ -76,7 +76,7 @@ avirtlogd acquires the sandbox containers' output from files the host side write
 - **Docker Desktop.** avirthostd creates each container with the `json-file` log driver and a `max-size` and `max-file` cap. avirtlogd reads those files, and takes each record's identity from avirthostd's record of the container, never from the file (see [components](./components.md#open-questions) for how to access the files).
 - **The Apple container CLI runtime.** That runtime writes a merged raw `stdio.log` (without stream tags, timestamps, or rotation) and a `vminitd.log` under `~/Library/Application Support/com.apple.container/containers/<id>/`. avirtlogd doesn't read them. The implemented `container.log` is the only copy of that runtime's output.
 
-On the Containerization runtime, avirthostd's writer is on the read path of the sandbox container's output. Blocking would stall the sandbox container through vsock, vminitd, and pipe backpressure. A write that throws silently drops the output. The writer must never block:
+On the Containerization runtime, avirtvmd's writer is on the read path of the sandbox container's output. Blocking would stall the sandbox container through vsock, vminitd, and pipe backpressure. A write that throws silently drops the output. The writer must never block:
 
 1. It copies each chunk and enqueues it in a bounded per-workload ring with a byte cap. On overflow it drops the chunk and records a synthetic `dropped_bytes` record with the count.
 2. It stamps each chunk with its receive time and attaches the trusted identity: the workload's UUIDv7, namespace, short ID, and stream. Chunks are arbitrary page-sized reads with no timestamps of their own.

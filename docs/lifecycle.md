@@ -132,7 +132,7 @@ The startup cleanup never touches the state directory.
 6. The workload's HTTP/2 connection to its mediator opens. avirtnetd dials with a 50 ms to 1 s backoff, because early dials fail, for up to the 30 s budget of step 7. On the Containerization runtime avirthostd forwards the connection's bytes unchanged to the mediator's `workload.sock`.
 7. The workload is live once avirthostd accepts the `/envelopes` stream. With no `/envelopes` stream within 30 s of step 3, avirthostd tears it down.
 
-`avirtinitd` creates `/run/avirt` itself in each container. On the Containerization runtime, avirthostd writes the workload's stdout, stderr, and console to `logs/<workload-id>.stdio.ndjson` from the moment the sandbox container starts (see [observability](./observability.md#workload-stdout-and-stderr)).
+`avirtinitd` creates `/run/avirt` itself in each container. On the Containerization runtime, avirtvmd writes the workload's stdout, stderr, and console to `logs/<workload-id>.stdio.ndjson` from the moment the sandbox container starts (see [observability](./observability.md#workload-stdout-and-stderr)).
 
 ## Teardown
 
