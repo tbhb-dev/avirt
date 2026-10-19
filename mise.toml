@@ -19,8 +19,8 @@ protoc = "36.2"
 "cargo:cargo-mutants" = "27.1.0"
 "cargo:cargo-fuzz" = "0.13.2"
 "go:github.com/tbhb-dev/devtools/cmd/guard-markdown" = "v0.12.0"
-# The one source of truth for the Rust version: the crates' `rust-version` and the images'
-# builder stage (`rust:1.97.1-bookworm`) follow it.
+# The Rust toolchain pin. `rust-version` in Cargo.toml, `msrv` in clippy.toml and the Containerfiles'
+# builder stage (`rust:1.97.1-bookworm`) are 1.97.1.
 rust = { version = "1.99.0", profile = "minimal", components = "clippy,rustfmt,llvm-tools" }
 
 [env]
