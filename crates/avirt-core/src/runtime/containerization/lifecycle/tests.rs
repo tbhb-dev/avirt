@@ -418,6 +418,120 @@ async fn a_second_stop_of_an_ended_helper_does_nothing() -> Result<()> {
     Ok(())
 }
 
+/// Makes `dir` read-only, so a read of the intent works and a rewrite fails. Returns whether the
+/// directory is unwritable, which root can always write.
+///
+/// # Errors
+///
+/// Fails when changing the permissions fails.
+fn make_unwritable(dir: &Path) -> Result<bool> {
+    fs::set_permissions(dir, fs::Permissions::from_mode(0o500))?;
+    Ok(File::create(dir.join("probe")).is_err())
+}
+
+/// Makes `dir` writable again, so the temporary directory can clean up.
+///
+/// # Errors
+///
+/// Fails when changing the permissions fails.
+fn make_writable(dir: &Path) -> Result<()> {
+    Ok(fs::set_permissions(dir, fs::Permissions::from_mode(0o700))?)
+}
+
+/// A stop of a helper that keeps its lock leaves the intent at `stopping` with its pid.
+///
+/// # Errors
+///
+/// Fails when the stop succeeds or the intent differs from the expected one.
+///
+/// # Panics
+///
+/// Panics if the async runtime fails to start.
+#[tokio::test]
+async fn a_stop_that_cannot_confirm_the_exit_leaves_the_intent_stopping() -> Result<()> {
+    let root = tempfile::tempdir()?;
+    let dir = workload_dir(root.path(), "5e6f7a8b", State::Running)?;
+    let _lock = hold_lock(&dir)?;
+    let Err(err) = supervisor(root.path()).stop("5e6f7a8b", Duration::ZERO).await else {
+        bail!("the stop succeeded");
+    };
+    ensure!(err.to_string().contains("still running"), "the error is {err:#}");
+    let after = Intent::read(&dir)?;
+    ensure!(after.state == State::Stopping && after.pid.is_none(), "the intent is {after:?}");
+    Ok(())
+}
+
+/// Stops workload `5e6f7a8b` after making its directory read-only, and returns the error text.
+///
+/// Returns `None` for root, which writes to the directory anyway.
+///
+/// # Errors
+///
+/// Fails when preparing the directory fails or the stop succeeds.
+async fn stop_without_write_access(state: State, lock_held: bool) -> Result<Option<String>> {
+    let root = tempfile::tempdir()?;
+    let dir = workload_dir(root.path(), "5e6f7a8b", state)?;
+    let lock = hold_lock(&dir)?;
+    if !lock_held {
+        drop(lock);
+    }
+    if !make_unwritable(&dir)? {
+        return Ok(None);
+    }
+    let outcome = supervisor(root.path()).stop("5e6f7a8b", Duration::ZERO).await;
+    make_writable(&dir)?;
+    let Err(err) = outcome else { bail!("the stop succeeded") };
+    Ok(Some(format!("{err:#}")))
+}
+
+/// A failed write of the end fails the stop, and the error includes the workload.
+///
+/// # Errors
+///
+/// Fails when the stop succeeds or its error lacks the workload.
+///
+/// # Panics
+///
+/// Panics if the async runtime fails to start.
+#[tokio::test]
+async fn a_failed_write_of_the_end_fails_the_stop() -> Result<()> {
+    let Some(text) = stop_without_write_access(State::Running, false).await? else { return Ok(()) };
+    ensure!(text.contains("record that the helper of workload 5e6f7a8b ended"), "the error is {text}");
+    Ok(())
+}
+
+/// A failed write of `stopping`, then a failed stop, gives an error that includes both failures.
+///
+/// # Errors
+///
+/// Fails when the stop succeeds or its error lacks either failure.
+///
+/// # Panics
+///
+/// Panics if the async runtime fails to start.
+#[tokio::test]
+async fn a_failed_write_of_stopping_is_in_the_error_when_the_stop_fails() -> Result<()> {
+    let Some(text) = stop_without_write_access(State::Running, true).await? else { return Ok(()) };
+    ensure!(text.contains("still running") && text.contains("was not rewritten to stopping"), "the error is {text}");
+    Ok(())
+}
+
+/// A stop leaves an intent that already says `stopping` alone, so no write fails.
+///
+/// # Errors
+///
+/// Fails when the stop succeeds or its error includes a write.
+///
+/// # Panics
+///
+/// Panics if the async runtime fails to start.
+#[tokio::test]
+async fn a_stop_does_not_rewrite_an_intent_that_says_stopping() -> Result<()> {
+    let Some(text) = stop_without_write_access(State::Stopping, true).await? else { return Ok(()) };
+    ensure!(text.contains("still running") && !text.contains("rewritten"), "the error is {text}");
+    Ok(())
+}
+
 /// A helper that exits before it binds its socket fails the start.
 ///
 /// # Errors
