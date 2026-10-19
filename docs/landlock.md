@@ -1,7 +1,7 @@
 ---
 type: Security Design
 title: Landlock and seccomp
-description: How avirt uses Landlock inside the sandbox container and the mediator, covering the ABI each runtime's kernel provides, the mandatory and best-effort rights, the landlock crate and the launcher's pre-exec step, the ruleset of each security context with its paths, port rules and scopes, how rulesets are generated from `harness.toml`, workspace destinations, the configuration layer and policy, the limits on widening, how rulesets are recorded, logged and verified, which layer enforces each guarantee, denial reporting, and the regression checks.
+description: How avirt uses Landlock and seccomp inside the sandbox container and the mediator, covering the ABI each runtime's kernel provides, the mandatory and best-effort rights, the landlock crate and the launcher's pre-exec step, the ruleset of each security context with its paths, port rules and scopes, how rulesets are generated from `harness.toml`, workspace destinations, the configuration layer and policy, the limits on widening, how rulesets are recorded, logged and verified, which layer enforces each guarantee, denial reporting, and the regression checks.
 tags: [avirt, workload, landlock, seccomp, sandbox, security]
 implementation: partial
 generated: { by: codex/gpt-6, at: 2026-10-18T04:56:05Z }

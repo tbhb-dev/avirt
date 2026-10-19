@@ -705,7 +705,7 @@ avirthostd's directory for state that persists beyond the runtime directory. Sta
 
 ## SVCB
 
-A DNS service binding record. avirtmediatord handles its AliasMode, TargetName, port, address hints, and parameter consistency. Status: planned. See [synthetic answers](./dns.md#synthetic-answers).
+A DNS service binding record. avirtmediatord handles its `AliasMode`, `TargetName`, port, address hints, and parameter consistency. Status: planned. See [synthetic answers](./dns.md#synthetic-answers).
 
 ## SVID
 

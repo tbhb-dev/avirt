@@ -105,7 +105,7 @@ avirtedgeproxyd doesn't decrypt the upstream TLS opened by a mediator or gateway
 
 All TCP and UDP port 53 traffic reaches avirtnetd's DNS stub resolver, including queries sent to an arbitrary address and UDP port 53 read from the TUN. Each query opens a separate `POST /dns` stream with `application/dns-message` request and response bodies and a separate concurrency limit. `resolve` applies at both the mediator and edge, including every name in a CNAME chain.
 
-The mediator returns synthetic answers for both external and avirt hostnames. The synthetic address table has a size limit. Allocations fail when full. DNS rewrites include HTTPS and SVCB address hints, AliasMode, TargetName and port, with consistent `mandatory` and `no-default-alpn` fields. The synthesizer removes `ech` and omits `h3` for intercepted names. Guest DNSSEC validation fails on rewritten answers. [Names and DNS](./networking.md#names-and-dns) specifies the table and residual channels. [DNS](./dns.md) defines avirt hostnames.
+The mediator returns synthetic answers for both external and avirt hostnames. The synthetic address table has a size limit. Allocations fail when full. DNS rewrites include HTTPS and SVCB address hints, `AliasMode`, `TargetName` and port, with consistent `mandatory` and `no-default-alpn` fields. avirtmediatord removes `ech` and omits `h3` for intercepted names. Guest DNSSEC validation fails on rewritten answers. [Names and DNS](./networking.md#names-and-dns) specifies the table and residual channels. [DNS](./dns.md) defines avirt hostnames.
 
 ## Websockets
 

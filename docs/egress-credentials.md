@@ -93,7 +93,7 @@ bind: [{host: api.anthropic.com, port: 443, paths: ["/v1/*", "/api/*"]}]
 | `secret` | The secret reference that backs it, `secret:<scope>/<name>` (see [secrets](./secrets.md#secrets-and-references)). A binding backed by a namespace-scoped secret attaches only to workloads in that namespace. |
 | `workload` | The environment variable or path that receives the placeholder, plus its initial prefix (`placeholder_prefix`). The prefix lets the client accept the placeholder as a token of the right kind. A binding without `workload` omits the placeholder. Its injector adds the credential to matching requests instead of substituting it (see [HTTP injection](#http-injection)). |
 | `injector` | The one credential injector: `avirtmodelgwd`, `avirtmcpgwd` or `mediator`. |
-| `inject` | An SSH key or certificate (`ssh: {key|cert}`), or an HTTP header and its value template, where `{}` is the credential value. `encode: basic` with `user: <name>` makes `{}` the base64 of `<name>:<value>`. |
+| `inject` | An SSH key or certificate (`ssh: {key\|cert}`), or an HTTP header and its value template, where `{}` is the credential value. `encode: basic` with `user: <name>` makes `{}` the base64 of `<name>:<value>`. |
 | `bind` | Destinations with a canonical host and port plus path patterns. `*` matches any characters in the canonical request path (see [request path canonicalization](./egress-policies.md#request-path-canonicalization)). For a gRPC binding, `protocol: grpc`, and the paths name `/<package>.<Service>/<Method>`. |
 
 Constraints:

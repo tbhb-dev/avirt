@@ -62,9 +62,9 @@ avirtmediatord sends every connection to an avirt hostname, local or peered, to 
 
 avirtmediatord maintains a bounded synthetic address table for each workload, using `198.18.0.0/15` and a ULA `/64`. The mediator never reuses an address for another name during the workload's lifetime, including across mediator restarts. Allocation fails when the table is full. Entries remain valid while flows are active and until the DNS answer's TTL expires. An expired entry's address stays bound to its name. The mediator refuses unknown synthetic addresses and canonicalizes IPv4-mapped IPv6 addresses before lookup. Only the table or an explicit CONNECT authority supplies a flow's hostname. SNI and Host on flows to literal IP addresses outside the synthetic ranges remain observations. The edge resolves the name and checks the real upstream address with `private-dest`.
 
-TCP and UDP queries to port 53 at any address reach `/dns`, including UDP read from the TUN. Each query has its own stream and event. Both the mediator and edge enforce `resolve`, including CNAME names. For external queries, the edge parses requests rather than relaying arbitrary DNS bytes. Supported query types include A, AAAA, HTTPS, SVCB, and CNAME. Queries have size and rate limits. MX and TXT require permission.
+TCP and UDP queries to port 53 at any address reach `/dns`, including UDP read from the TUN. Each query has its own stream and event. Both the mediator and edge enforce `resolve`, including CNAME names. For external queries, the edge parses requests rather than relaying arbitrary DNS bytes. Supported query types are A, AAAA, HTTPS, SVCB, and CNAME. Queries have size and rate limits. MX and TXT require permission.
 
-HTTPS and SVCB rewriting handles AliasMode, TargetName, `port`, synthetic address hints, and the consistency of `mandatory` and `no-default-alpn`. avirtmediatord removes `ech` and, for intercepted names, `h3`. HTTP responses for intercepted names omit `Alt-Svc`. Rewritten answers prevent guest DNSSEC validation. Permitted encrypted DNS endpoints and encoded names remain possible channels under policy.
+HTTPS and SVCB rewriting handles `AliasMode`, `TargetName`, `port`, synthetic address hints, and the consistency of `mandatory` and `no-default-alpn`. avirtmediatord removes `ech` and, for intercepted names, `h3`. HTTP responses for intercepted names omit `Alt-Svc`. Rewritten answers prevent guest DNSSEC validation. Permitted encrypted DNS endpoints and encoded names remain possible channels under policy.
 
 ## Workload DNS policy and the DNS stream
 
@@ -73,4 +73,4 @@ The workload's resolver, the `resolve` check on every query and the public-name 
 # Open questions
 
 1. **Reuse of generated names.** Whether a new workload can reuse a generated name after its workload ends is open. Reuse risks confusion through DNS caches and old references. Prohibiting reuse slowly exhausts a namespace's name space.
-2. **IPv6 allocation.** The exact ULA `/64` for synthetic answers remains a configuration choice.
+2. **IPv6 allocation.** The exact ULA `/64` for synthetic answers remains open.

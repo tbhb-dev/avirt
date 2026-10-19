@@ -111,7 +111,7 @@ avirtinitd opens the TUN with `IFF_TUN | IFF_NO_PI` and assigns IPv4 and IPv6 ad
 
 The TUN belongs to avirtnetd, and no other workload process reads its packets.
 
-nftables redirects TCP to avirtnetd's transparent listeners, except loopback and the listeners' own ports. IPv4 uses `SO_ORIGINAL_DST`. A separate IPv6-only listener uses `IP6T_SO_ORIGINAL_DST`. Each listener refuses an original destination that's loopback, unspecified, multicast, link-local, or within the TUN's own prefixes. UDP and TCP port 53, regardless of destination address, reach the DNS stub resolver. The TUN reader also routes UDP port 53 to that resolver.
+nftables redirects TCP to avirtnetd's transparent listeners, except loopback and the listeners' own ports. IPv4 uses `SO_ORIGINAL_DST`. A separate IPv6-only listener uses `IP6T_SO_ORIGINAL_DST`. Each listener refuses an original destination that's loopback, unspecified, multicast, link-local, or within the prefixes of the TUN itself. UDP and TCP port 53, regardless of destination address, reach the DNS stub resolver. The TUN reader also routes UDP port 53 to that resolver.
 
 avirtnetd receives other UDP and ICMP packets through the TUN. TCP that reaches the TUN gets RST, so removing the REDIRECT rules breaks TCP rather than providing another route. avirtnetd silently drops multicast, broadcast, mDNS, and link-local packets. It maps upstream errors to the correct flow and drops errors with forged quotations. Refusals produce TCP RST or an appropriate ICMP administrative-prohibition or port-unreachable error.
 
@@ -186,7 +186,7 @@ A synthetic address obtains its destination name only through this table, with `
 
 For each query avirtmediatord evaluates `resolve`, including every name in a CNAME chain. avirtedgeproxyd parses external DNS requests and obtains real answers. It never forwards arbitrary DNS bytes. avirtdnsd resolves [avirt hostnames](./dns.md#avirt-hostnames). The workload receives synthetic answers for both external and avirt hostnames. DNS has its own concurrency and admission limits, a query-type allowlist, and size and rate limits. Supported query types are A, AAAA, HTTPS, SVCB, and CNAME. MX and TXT need permission.
 
-avirtmediatord rewrites address hints and removes `ech`. For intercepted names it also removes `h3`. It handles SVCB AliasMode, TargetName, `port`, and the consistency of `mandatory` and `no-default-alpn` after those removals. Intercepted HTTP responses omit `Alt-Svc`. Rewritten answers prevent guest DNSSEC validation. Encrypted DNS to a permitted endpoint is a possible channel under that endpoint's policy. Encoded data in permitted DNS names is another possible channel.
+avirtmediatord rewrites address hints and removes `ech`. For intercepted names it also removes `h3`. It handles SVCB `AliasMode`, `TargetName`, `port`, and the consistency of `mandatory` and `no-default-alpn` after those removals. Intercepted HTTP responses omit `Alt-Svc`. Rewritten answers prevent guest DNSSEC validation. Encrypted DNS to a permitted endpoint is a possible channel under that endpoint's policy. Encoded data in permitted DNS names is another possible channel.
 
 ## Policy and endpoint checks
 
@@ -238,7 +238,7 @@ The guest's `@cert-authority` entry in `/etc/ssh/ssh_known_hosts` helps cooperat
 
 The guest authenticates with a per-workload placeholder key, never `none`. A binding fixes the upstream username, host, port, pinned host key, and credential together. avirtmediatord connects upstream during authentication, so a host-key pin mismatch fails authentication. Upstream keys or certificates come from `binding_credential` and stay in mediator memory. Session and channel counts have per-workload caps.
 
-By default, avirtmediatord supports only exec of `git-upload-pack`, `git-receive-pack`, and `git-upload-archive`. The command must match a strict grammar: one command and one single-quoted path, with shell syntax rejected. With the canonical path and authorization checked, avirtmediatord constructs its own upstream exec string. Shell, `pty-req`, environment requests other than `GIT_PROTOCOL`, forwarding, and subsystems need explicit policy permission. A repository-bound binding never permits SFTP.
+By default, avirtmediatord supports only exec of `git-upload-pack`, `git-receive-pack`, and `git-upload-archive`. The command must match a strict grammar. It has one command and one single-quoted path, and the parser rejects shell syntax. With the canonical path and authorization checked, avirtmediatord constructs its own upstream exec string. Shell, `pty-req`, environment requests other than `GIT_PROTOCOL`, forwarding, and subsystems need explicit policy permission. A repository-bound binding never permits SFTP.
 
 ## ICMP echo
 
