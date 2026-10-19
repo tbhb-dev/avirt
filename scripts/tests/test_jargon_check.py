@@ -67,6 +67,11 @@ def test_markdown_parser_pin_matches_in_script_and_requirements():
     assert re.search(rf"^{re.escape(pin)} ", (tests / "requirements.txt").read_text(), re.M)
 
 
+@pytest.mark.parametrize("word", ["size", "sizes", "realize", "recognize"])
+def test_folded_common_words_stay_common(word):
+    assert jc.is_common(jc.fold(word))
+
+
 # --- detection ---------------------------------------------------------------------------------
 
 

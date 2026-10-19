@@ -50,7 +50,6 @@ def load_words():
 
 _words = load_words()
 COMMON_COMPOUNDS = _words.COMMON_COMPOUNDS
-COMMON_WORDS = _words.COMMON_WORDS
 COMPOUND_PREFIXES = _words.COMPOUND_PREFIXES
 STOPWORDS = _words.STOPWORDS
 VERB_STEMS = _words.VERB_STEMS
@@ -98,6 +97,9 @@ def fold(word: str) -> str:
     if len(word) > 3 and re.search(r"(?:ch|sh|ss|x|z)e$", word):
         return word[:-1]
     return word
+
+
+COMMON_WORDS = frozenset(fold(w) for w in _words.COMMON_WORDS)
 
 
 def norm_term(text: str) -> str:
