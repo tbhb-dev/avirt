@@ -79,7 +79,7 @@ Status: implemented.
 - **Protocol.** Each frame is a 4-byte big-endian length followed by one Protocol Buffers message, with a 1 MiB limit. The helper sends a hello with its workload ID, incarnation, and supported protocol version range. avirthostd answers with protocol version 1 or a refusal. A range that excludes version 1 gets `REFUSAL_CODE_UNSUPPORTED_VERSION`, and startup reconciliation counts the helper as incompatible. Requests, responses, and events use the same connection.
 - **Incarnation.** avirthostd writes a random 16-byte incarnation into the launch intent before spawning the helper and sends it as 32 lowercase hexadecimal characters on the first line of the helper's stdin. The hello must match the workload ID and incarnation. Each side refuses a peer owned by another user, and avirthostd also refuses another workload or a stale incarnation.
 - **Process.** avirtvmd runs as avirthostd's user, as a child process in its own process group, with only `PATH`, `HOME`, and `TMPDIR` in its environment. It exits when avirthostd's end of stdin closes. Its `WorkloadExited` event reports the container's exit code, or error text when there is no code.
-- **Supervision.** `ChildSupervisor` handles helper listing, start, and stop. A repeated start for the same workload and incarnation returns the same handle, while `ChildSupervisor` refuses another incarnation for that workload. Stop is idempotent and returns success only after the helper exits. It records `stopping` in the launch intent before the request and `ended` after the lock check confirms the exit, and a stop of an `ended` helper with a free lock does nothing.
+- **Supervision.** `ChildSupervisor` handles helper listing, start, and stop. A repeated start for the same workload and incarnation returns the same handle, while `ChildSupervisor` refuses another incarnation for that workload. Stop is idempotent and returns success only after the helper exits. It records `stopping` in the launch intent before the request and `ended` after the lock check confirms the exit, and a stop of an `ended` helper does nothing whenever the lock isn't held.
 - **Guest process and sockets.** The container configuration takes the workload process from the OCI image configuration and appends the request environment to the image environment. It provides `proxy.sock` and `mediator.sock` as `.into` sockets with mode 0600.
 
 ## avirtvmd supervision
@@ -112,7 +112,7 @@ The sandbox container runs with `terminal = false`, and avirtvmd supplies separa
 
 Status: implemented.
 
-Each VM uses `containers/<id>/` within avirthostd's runtime directory. On startup avirthostd stops each helper still running and removes a workload's `containers/<id>/` only after its `vmd.lock` is free or missing, or its launch intent records `ended`. It also removes each `containers/<id>/` with no workload directory. If listing the helpers fails, it removes neither (see [lifecycle](./lifecycle.md#crash-cleanup)).
+Each VM uses `containers/<id>/` within avirthostd's runtime directory. On startup avirthostd stops each helper still running and removes a workload's `containers/<id>/` only after its `vmd.lock` is free or missing, or its launch intent records `ended` and nothing holds the lock. It also removes each `containers/<id>/` with no workload directory. If listing the helpers fails, it removes neither (see [lifecycle](./lifecycle.md#crash-cleanup)).
 
 ## Networking
 
