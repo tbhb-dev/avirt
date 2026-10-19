@@ -301,7 +301,7 @@ avirtedgeproxyd's user-owned Unix socket `edgeproxy.sock` in the runtime directo
 
 ## Egress event
 
-An event about one connection (`conn`), one intercepted request (`http`) or one DNS query (`dns`), written into the workload log with `dir: "egress"`. The implemented system writes only `conn` events. See [events](./egress.md#events) and [planned events](./networking.md#limits-events-and-verification).
+An event about one connection (`conn`), one intercepted request (`http`) or one DNS query (`dns`), written into the workload log with `dir: "egress"`. The implemented system writes only `conn` events. See [events](./egress.md#events) and [planned events](./egress.md#events-1).
 
 ## Enforcement point
 

@@ -126,7 +126,7 @@ Each avirt daemon logs through `tracing` with a JSON formatter on stderr, one ob
 ### Field conventions
 
 - An attribute uses its OpenTelemetry semantic convention name where one exists (`error.type`, `server.address`, `server.port`, `http.*`, `rpc.*`, `gen_ai.*`, `log.iostream`), and otherwise a name in the `avirt.` namespace, dot-separated, with snake_case segments.
-- Event names in the workload log stay as [meta events](./hostd-api.md#meta-events) and [events](./egress.md#events) define them. Their OpenTelemetry copies include `event.name` `avirt.<component>.<event>`, such as `avirt.hostd.container_exit` and `avirt.egress.conn`.
+- Event names in the workload log stay as [meta events](./hostd-api.md#meta-events) and [events](./egress.md#events-1) define them. Their OpenTelemetry copies include `event.name` `avirt.<component>.<event>`, such as `avirt.hostd.container_exit` and `avirt.egress.conn`.
 - Times are UTC. NDJSON records use RFC 3339 with milliseconds, and OpenTelemetry records use nanoseconds since the epoch.
 - Identity attributes come only from trusted metadata. A field parsed from workload output, or an attribute a producer sets under a reserved key, never overrides them.
 
@@ -146,7 +146,7 @@ Each avirt daemon logs through `tracing` with a JSON formatter on stderr, one ob
 
 Workload logs, workload stdio and ACP content are secret. They can contain prompts and tool output, along with source code. The Codex account email and plan may appear too. Any credential the agent can read may appear in them.
 
-- **Never logged.** Secret values, placeholder values, header values, request and response bodies, query strings and the contents of `auth.json` never appear in an avirt event, a host service log, a span or a metric (see [events](./egress.md#events)). avirt's own events about credentials record fixed reason strings and binding names.
+- **Never logged.** Secret values, placeholder values, header values, request and response bodies, query strings and the contents of `auth.json` never appear in an avirt event, a host service log, a span or a metric (see [events](./egress.md#events-1)). avirt's own events about credentials record fixed reason strings and binding names.
 - **Redaction.** Before export, avirtlogd and avirtoteld replace each match of the `credential-misplaced` check's patterns (see [placeholders](./egress-credentials.md#placeholders)) and of known credential formats, such as provider API key prefixes, JWTs and PEM private keys, with `[redacted:<kind>]`, and count each replacement in `avirt.log.redactions`. Redaction narrows exposure. It doesn't make content safe to share.
 - **Content off by default.** By default, avirt never records the `gen_ai.input.messages`, `gen_ai.output.messages`, `gen_ai.tool.call.arguments`, and `gen_ai.tool.call.result` attributes, which the semantic conventions mark Opt-In. A namespace can opt in to content in local telemetry, and remote export sends content only for a namespace that opts in to it separately.
 - **Remote export.** Export workload stdio log bodies only for namespaces the host configuration specifies. Export only the metadata of each other telemetry record.

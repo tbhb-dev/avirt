@@ -374,7 +374,7 @@ A host may enroll any number of peers, each with its own record, bundle, connect
 
 Each host records its own side of each peered flow. A host never sends these events to its peer.
 
-- **Source avirtedgeproxyd.** One `conn` event per peer stream, attributed to the source workload, with `src: "edgeproxy"`, `peer`, `request_id`, the destination name, `peer_status` and the byte counts (see [events](./egress.md#events)).
+- **Source avirtedgeproxyd.** One `conn` event per peer stream, attributed to the source workload, with `src: "edgeproxy"`, `peer`, `request_id`, the destination name, `peer_status` and the byte counts (see [events](./egress.md#events-1)).
 - **Destination avirtedgeproxyd.** One `conn` event per peer stream, attributed to the destination workload, with `src: "edgeproxy"`, `peer`, `request_id` and the caller in `x-avirt-caller`.
 - **Destination workload's avirtmediatord.** Its `ingress` decision event, with the peer caller.
 - **Host audit log.** avirthostd records enrollment, each state change, suspension, distrust and revocation, each bundle accepted or rejected with its sequence and reason, each peer connection opened and closed with the handshake outcome (`peer-auth-failed`, `peer-clock-skew`), `Workloads/KeepAlive` calls and the workloads stopped for missing them, and each forwarded and received control-plane call (see [audit logs](./observability.md#audit-logs)). avirtauditd delivers enrollment changes and handshake failures as Authentication (3002), and control-plane calls as API Activity (6003) (see [audit events](./observability.md#audit-events)).

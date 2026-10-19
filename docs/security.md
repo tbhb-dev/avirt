@@ -167,7 +167,7 @@ avirt records each agent action and each avirt decision with an authenticated id
 - **Met.** avirtinitd records each automatic approval as an `auto_approve` meta event ([ACP](./acp.md#permission-requests)).
 - **In Progress.** avirt's own events exclude secret values: the Codex write-back logs a fixed reason string. Lines the agent produces can still contain its credentials ([Codex](./egress-credentials.md#codex)).
 - **Future.** Each event includes `workload`, `gen`, `seq` and a `src` label that avirthostd stamps from the authenticated connection it arrived on ([the event's `src` field](./trust-boundaries.md#src)).
-- **Future.** Each policy decision records the deciding rule and policy snapshot version, and each workload management call records the caller, the action, the resource and the delegation chain ([events](./egress.md#events), [workload management](./components.md#workload-management)).
+- **Future.** Each policy decision records the deciding rule and policy snapshot version, and each workload management call records the caller, the action, the resource and the delegation chain ([events](./egress.md#events-1), [workload management](./components.md#workload-management)).
 - **Future.** Event loss never happens silently. A full event ring refuses new work with 503, and a workload at its log's hard cap ends ([resuming after reconnect](./workload-topology.md#resuming-after-reconnect)).
 - **Future.** avirtauditd delivers the log as OCSF with `src` intact. Its backpressure never stalls a workload ([audit](./observability.md#audit)).
 - **Future.** The workload log and each audit log are tamper-evident: each line includes a hash chain, and each sink receives signed checkpoints ([integrity](./observability.md#integrity)).
