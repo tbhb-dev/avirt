@@ -1,7 +1,7 @@
 ---
 type: Security Design
-title: Sandbox and Landlock
-description: How avirt uses Landlock inside the workload container and the mediator, covering the ABI each runtime's kernel provides, the mandatory and best-effort rights, the landlock crate and the launcher's pre-exec step, the ruleset of each security context with its paths, port rules and scopes, how rulesets are generated from `harness.toml`, workspace destinations, the configuration layer and policy, the limits on widening, how rulesets are recorded, logged and verified, which layer enforces each guarantee, denial reporting, and the regression checks.
+title: Landlock and seccomp
+description: How avirt uses Landlock and seccomp inside the sandbox container and the mediator, covering the ABI each runtime's kernel provides, the mandatory and best-effort rights, the landlock crate and the launcher's pre-exec step, the ruleset of each security context with its paths, port rules and scopes, how rulesets are generated from `harness.toml`, workspace destinations, the configuration layer and policy, the limits on widening, how rulesets are recorded, logged and verified, which layer enforces each guarantee, denial reporting, and the regression checks.
 tags: [avirt, workload, landlock, seccomp, sandbox, security]
 implementation: partial
 generated: { by: codex/gpt-6, at: 2026-10-18T04:56:05Z }
@@ -9,7 +9,7 @@ generated: { by: codex/gpt-6, at: 2026-10-18T04:56:05Z }
 
 # Status: implemented
 
-The repository lacks Landlock code or a dependency on the `landlock` crate. Processes in the workload container run outside Landlock domains. The layers below Landlock that do exist are in [workload hardening](./workload-hardening.md):
+The repository lacks Landlock code or a dependency on the `landlock` crate. Processes in the sandbox container run outside Landlock domains. The layers below Landlock that do exist are in [workload hardening](./workload-hardening.md):
 
 - avirtinitd starts the adapter through `setpriv` as uid 1000 with all five capability sets at zero and `no_new_privs` set (see [agent process](./workload-hardening.md#agent-process)).
 - avirtinitd applies two seccomp filters (`seccompiler`, default allow) to itself with all threads before it starts the adapter, and the adapter inherits them: `socket()` with `AF_VSOCK`, `AF_NETLINK` or `AF_PACKET` returns `EAFNOSUPPORT`, and the io_uring syscalls return `EPERM` (see [seccomp](./workload-hardening.md#seccomp)).
@@ -17,7 +17,7 @@ The repository lacks Landlock code or a dependency on the `landlock` crate. Proc
 
 # Status: planned
 
-Landlock is the filesystem, port and scope layer of the workload sandbox. avirtinitd's launcher applies one Landlock ruleset per security context between fork and exec, alongside the process's UID, capabilities and seccomp filter (see [security contexts](./workload-hardening.md#security-contexts)). avirtinitd itself runs in no Landlock domain, because each child would inherit it.
+Landlock restricts filesystem access, ports and process scope inside the sandbox container. avirtinitd's launcher applies one Landlock ruleset per security context between fork and exec, alongside the process's UID, capabilities and seccomp filter (see [security contexts](./workload-hardening.md#security-contexts)). avirtinitd itself runs in no Landlock domain, because each child would inherit it.
 
 ## Kernel and ABI
 
@@ -43,11 +43,11 @@ Landlock trace events (`/sys/kernel/tracing/events/landlock/`) aren't in either 
 
 | Runtime | Kernel | Landlock configuration | ABI | Denial audit records |
 | --- | --- | --- | --- | --- |
-| Containerization | Kata Containers 3.32.0 arm64 `vmlinux`, Linux 6.18.35, pinned by sha256 (see [compute runtimes](./compute-runtimes.md#guest-artifacts)) | `CONFIG_SECURITY_LANDLOCK=y` from Kata's `landlock.conf` fragment, and `CONFIG_AUDIT=y` and `CONFIG_AUDITSYSCALL=y` from its `lsm.conf` fragment. No fragment sets `CONFIG_LSM`, so the kernel's default list applies, and that list includes `landlock`. | 7 | Available to root inside the workload container, one VM per workload |
-| Docker Desktop | LinuxKit 7.0.14, shared by each container (see [Docker Desktop runtime](./compute-runtimes.md#docker-desktop-runtime)) | Landlock enabled and usable unprivileged with `no_new_privs`. Docker's default seccomp profile allows `landlock_create_ruleset`, `landlock_add_rule` and `landlock_restrict_self`. | 8 | Not available to the workload container (see [denials](#denials)) |
+| Containerization | Kata Containers 3.32.0 arm64 `vmlinux`, Linux 6.18.35, pinned by sha256 (see [compute runtimes](./compute-runtimes.md#guest-artifacts)) | `CONFIG_SECURITY_LANDLOCK=y` from Kata's `landlock.conf` fragment, and `CONFIG_AUDIT=y` and `CONFIG_AUDITSYSCALL=y` from its `lsm.conf` fragment. No fragment sets `CONFIG_LSM`, so the kernel's default list applies, and that list includes `landlock`. | 7 | Available to root in the sandbox container, one VM per workload |
+| Docker Desktop | LinuxKit 7.0.14, shared by each container (see [Docker Desktop runtime](./compute-runtimes.md#docker-desktop-runtime)) | Landlock enabled and usable unprivileged with `no_new_privs`. Docker's default seccomp profile allows `landlock_create_ruleset`, `landlock_add_rule` and `landlock_restrict_self`. | 8 | Not available to the sandbox container (see [denials](#denials)) |
 | Apple container CLI | The same Kata kernel as Containerization | As Containerization | 7 | Not used: avirt removes the Apple container CLI runtime before adding Landlock |
 
-Constraint: the configured ABI is what the running kernel reports, not what its build configuration implies. A kernel command line `lsm=` that omits `landlock` gives ABI 0. avirtinitd probes the ABI in each workload container at boot with `landlock_create_ruleset(NULL, 0, LANDLOCK_CREATE_RULESET_VERSION)`.
+Constraint: the configured ABI is what the running kernel reports, not what its build configuration implies. A kernel command line `lsm=` that omits `landlock` gives ABI 0. avirtinitd probes the ABI in each sandbox container at boot with `landlock_create_ruleset(NULL, 0, LANDLOCK_CREATE_RULESET_VERSION)`.
 
 ### Mandatory and best-effort rights
 
@@ -60,7 +60,7 @@ The **lowest supported ABI is 6**. avirtinitd refuses to start any workload proc
 | `SCOPE_ABSTRACT_UNIX_SOCKET`, `SCOPE_SIGNAL`, in each ruleset | 6 | Mandatory | avirtinitd refuses the launch |
 | Denial logging (`LOG_NEW_EXEC_ON`, `LOG_SUBDOMAINS_OFF`) | 7 | Best effort | Denials surface only as errno in the process |
 | `RESOLVE_UNIX` rules on the sockets each process may connect to | 9 | Best effort | Unix socket file modes and `SO_PEERCRED` checks alone govern connects |
-| UDP port rules | 10 | Not requested | Loopback-only networking and the seccomp socket-domain allowlist govern UDP |
+| UDP port rules | 10 | Not requested | UDP passes through the TUN and avirtnetd under mediator and edge policy checks, alongside the seccomp socket-domain allowlist |
 
 ## Library and launcher
 
@@ -161,7 +161,7 @@ The agent's security context covers the adapter and each tool it starts, as uid 
 | `/run/avirt/ca.pem`, `/run/avirt/ca-bundle.pem` | `file-r` | Configuration layer, from the CA variables in `launch.toml` |
 | `/run/avirt/agent/guest.sock`, `/run/avirt/agent/mcp.sock` | `unix` | Built-in |
 | Each workspace layer destination outside `/usr`, `/opt`, `/etc` and the writable roots | `rx` | Workspace config blob |
-| Each approved extra sandbox path | As approved | Policy (see [extra sandbox paths](#extra-sandbox-paths)) |
+| Each approved extra path | As approved | Policy (see [extra paths](#extra-paths)) |
 
 Outside those entries, the ruleset denies access. The agent can't access `/run` beyond the four preceding entries, `/var`, `/root`, `/srv`, `/mnt`, `/boot`, the rest of `/sys` and `/dev`. It can't write anywhere under `/usr`, `/opt`, `/etc` or `/proc`.
 
@@ -180,7 +180,7 @@ For the reserved paths in [workload hardening](./workload-hardening.md#reserved-
 
 ### Harness additions
 
-`harness.toml` may add to the agent's security context, within the limits in [extra sandbox paths](#extra-sandbox-paths):
+`harness.toml` may add to the agent's security context, within the limits in [extra paths](#extra-paths):
 
 | Key | Effect |
 | --- | --- |
@@ -223,7 +223,7 @@ As `avirt-net`.
 | `/run/avirt/agent` | `sock-dir` |
 | `/run/avirt/mediator.sock`, `/run/avirt/init/net.sock` | `unix` |
 
-avirtnetd reads its bootstrap SVID from an inherited descriptor. It inherits its DNS stub sockets and forward proxy listener and doesn't open any other file.
+avirtnetd reads its bootstrap SVID from an inherited descriptor. It inherits the TUN descriptor, transparent TCP listeners, DNS sockets and optional forward-proxy listener. It doesn't open other files.
 
 ### avirtguestd
 
@@ -264,7 +264,7 @@ avirtmediatord stores its SVID's private key and the workload's MITM CA key in m
 
 ## Network rules
 
-Landlock port rules match the port only, never the address. The workload container and the mediator have no interface other than loopback. A TCP connection can leave a container only through avirtnetd and the workload's HTTP/2 connection to its mediator (see [runtime-provided sockets](./workload-topology.md#runtime-provided-sockets)).
+Landlock port rules match the port only, never the address. On Containerization, the sandbox VM has no network device. nftables redirects TCP to avirtnetd, and its TUN reader handles UDP and ICMP. The mediator has only loopback. Every flow leaves through the workload's HTTP/2 connection to its mediator (see [runtime-provided sockets](./workload-topology.md#runtime-provided-sockets)).
 
 | Process | `NET_BIND_TCP` | `NET_CONNECT_TCP` |
 | --- | --- | --- |
@@ -274,16 +274,16 @@ Landlock port rules match the port only, never the address. The workload contain
 | avirtmcp, avirtguest (nested) | Handled, no rules | Handled, no rules |
 | avirtmediatord | Handled, no rules | Handled, no rules |
 
-- **Agent.** The agent binds and connects to its own servers on loopback for development and for published ports. The only other loopback listeners are avirtnetd's forward proxy and DNS stub, which serve the agent.
-- **avirtnetd.** avirtinitd binds avirtnetd's forward proxy listener and the DNS stub's port 53 sockets and hands them over, so avirtnetd binds nothing itself. Its reverse proxy connects to the agent's published ports, which change while the workload runs. A domain can't change after exec, so the ruleset doesn't handle connect.
+- **Agent.** The agent binds and connects to its own servers on loopback for development and for published ports. avirtnetd also serves transparent TCP, DNS, and the optional forward proxy. Policy checks run outside the sandbox container.
+- **avirtnetd.** avirtinitd creates the TUN and nftables rules, binds the transparent TCP, optional forward-proxy and DNS sockets, and hands the descriptors to avirtnetd. Its reverse proxy connects to the agent's published ports, which change while the workload runs. A domain can't change after exec, so the ruleset doesn't handle connect.
 - **Everything else** has no TCP at all.
-- **UDP** has no Landlock rule at ABI 9 or below. When the target ABI reaches 10 and the crate supports it, limit the agent's UDP sends to port 53 and deny each helper's UDP.
+- **UDP and ICMP.** Landlock doesn't provide the destination policy. The TUN routes packets to avirtnetd. avirtmediatord and avirtedgeproxyd check each flow. DNS to any address on port 53 reaches `/dns`.
 
 ## Scopes
 
 Each ruleset sets both ABI 6 scopes:
 
-- `SCOPE_SIGNAL`: a process may signal only processes in its own domain or a nested one. The agent can signal its own tools. It can't signal a helper, avirtinitd, or the runtime's init.
+- `SCOPE_SIGNAL`: a process may signal only processes in its own domain or a nested one. The agent can signal its own tools. It can't send signals to avirtnetd, avirtacp, avirtagent, avirtexec, avirtguestd, avirtinitd, or the runtime's init.
 - `SCOPE_ABSTRACT_UNIX_SOCKET`: a process may connect only to abstract Unix sockets created in its own domain or a nested one. Abstract sockets have no file mode, so this scope is the only layer that keeps the agent off an abstract socket created by any other workload process or by the runtime.
 
 ## Configuration
@@ -298,7 +298,7 @@ flowchart LR
     harness["harness.toml (harness base)"]
     ws["workspace config blob: roots and layer destinations"]
     overlay["launch.toml: CA and placeholder locations"]
-    pol["approved extra sandbox paths (Cedar, at launch)"]
+    pol["approved extra paths (Cedar, at launch)"]
     doc["/etc/avirt/sandbox.toml (configuration layer)"]
     init["avirtinitd: rulesets at the target ABI"]
     harness --> doc
@@ -316,20 +316,20 @@ flowchart LR
 | Workspace roots | The workspace image config's `roots` (see [workspace image format](./workspaces.md#workspace-image-format)) | avirtguestd's `rw` rules. Each root is under `/workspace` or `/home/agent`, within the agent's existing rules. |
 | Workspace destinations | The config blob's `layers[].destinations` (see [destinations](./workspaces.md#destinations)) | `rx` rules for the agent on destinations outside the agent's built-in rules, such as a directory a `pre-source` hook installs under `/var/lib`. A destination never adds a write. |
 | Configuration layer | `/etc/avirt/launch.toml` (see [configuration layer](./workload-lifecycle.md#configuration-layer)) | `file-r` on the CA files. Each placeholder path must lie in the agent's writable set, or avirthostd refuses the configuration layer. |
-| Policy | Cedar, evaluated by avirthostd at launch order step 1 | The approved extra sandbox paths |
+| Policy | Cedar, evaluated by avirthostd at launch order step 1 | The approved extra paths |
 
-### Extra sandbox paths
+### Extra paths
 
-Operators can add extra sandbox paths to the agent's security context within fixed limits, and nothing can add paths to any other security context. Workspaces can't request an extra sandbox path: their destinations add read and execute rules only.
+Operators can add extra paths to the agent's security context within fixed limits, and nothing can add paths to any other security context. Workspaces can't request an extra path: their destinations add read and execute rules only.
 
-An extra sandbox path is a launch option, `sandbox.read` or `sandbox.write` with a list of absolute paths, given to `avirt launch` or in a `create_workload` request. avirthostd authorizes each path with the Cedar action `extend_sandbox`, whose principal is the caller, whose resource is the new workload's `Namespace`, and whose context holds `via`, `path` and `access` (`read` or `write`). The default denies all paths. A workload that creates another workload through `guest-cli` can request only paths and access its own `sandbox.toml` grants it (see [workload management](./components.md#workload-management)).
+An extra path is a launch option, `sandbox.read` or `sandbox.write` with a list of absolute paths, given to `avirt launch` or in a `create_workload` request. avirthostd authorizes each path with the Cedar action `extend_sandbox`, whose principal is the caller, whose resource is the new workload's `Namespace`, and whose context holds `via`, `path` and `access` (`read` or `write`). The default denies all paths. A workload that creates another workload through `guest-cli` can request only paths and access its own `sandbox.toml` grants it (see [workload management](./components.md#workload-management)).
 
 Limits, which avirthostd checks before policy and avirtinitd checks again on the document:
 
 - A `write` path is never a reserved path, and never beneath `/usr`, `/etc`, `/opt`, `/bin`, `/sbin`, `/lib`, `/boot`, `/root`, `/run`, `/proc`, `/sys` or `/dev`. It grants `rwx`.
 - Never place a `read` path beneath `/run/avirt` (other than the files the agent's security context already names), `/sys` other than `ro`, or `/dev`. It grants `rx`.
-- No extra sandbox path removes a handled right or a scope, grants `MAKE_CHAR`, `MAKE_BLOCK` or `IOCTL_DEV`, or adds a port rule.
-- Each extra sandbox path must exist in the composed root filesystem. Otherwise, avirtinitd must create it at boot as uid 1000 with mode 0755.
+- No extra path removes a handled right or a scope, grants `MAKE_CHAR`, `MAKE_BLOCK` or `IOCTL_DEV`, or adds a port rule.
+- Each extra path must exist in the composed root filesystem. Otherwise, avirtinitd must create it at boot as uid 1000 with mode 0755.
 
 ### Schema
 
@@ -362,10 +362,10 @@ roots = ["/workspace", "/home/agent/.cache"]
 | `version` | Integer | The document format, 1 |
 | `min_abi` | Integer | The lowest supported ABI, always 6 |
 | `agent.pty` | Boolean | Adds `pty` to the agent's security context |
-| `agent.rule` | Array of tables | Rules added to the agent's built-in rows, each with `path`, `access` (`ro`, `rx` or `rwx`), `source`, and `policy` for an extra sandbox path |
+| `agent.rule` | Array of tables | Rules added to the agent's built-in rows, each with `path`, `access` (`ro`, `rx` or `rwx`), `source`, and `policy` for an extra path |
 | `guestd.roots` | Array of paths | avirtguestd's workspace roots |
 
-The helpers' security contexts have no keys: they come only from avirtinitd's built-in rules.
+The security contexts of avirtnetd, avirtacp, avirtagent, avirtexec, and avirtguestd have no keys: they come only from avirtinitd's built-in rules.
 
 ### Recording and logging
 
@@ -389,7 +389,7 @@ The `start` meta event includes the digest of `sandbox.toml`. To reproduce a lau
 
 1. **Probe.** At boot, avirtinitd probes the ABI before starting avirtnetd. It refuses a value below 6.
 2. **Build.** Build each ruleset with `HardRequirement`. A right the kernel can't honor fails the build.
-3. **Sandbox self-test.** Before it launches the agent, avirtinitd forks one probe child under the agent's security context with no exec. The child checks that `open("/etc/avirt/.canary", O_CREAT|O_WRONLY)` fails with `EACCES` and that creating and removing a file under `/tmp` succeeds, and exits with a status that says which check failed. A failed self-test ends the workload before any agent process exists, with the error `landlock self-test failed: <check>`.
+3. **Landlock self-test.** Before it launches the agent, avirtinitd forks one probe child under the agent's security context with no exec. The child checks that `open("/etc/avirt/.canary", O_CREAT|O_WRONLY)` fails with `EACCES` and that creating and removing a file under `/tmp` succeeds, and exits with a status that says which check failed. A failed self-test ends the workload before any agent process exists, with the error `landlock self-test failed: <check>`.
 4. **Record.** avirtinitd writes each `sandbox` event, and the self-test's outcome as `{"self_test": "pass"}` in the agent's event.
 
 ## Interaction with other layers
@@ -398,23 +398,23 @@ The `start` meta event includes the digest of `sandbox.toml`. To reproduce a lau
 
 | Guarantee | Enforced by |
 | --- | --- |
-| The agent writes only under `/workspace`, `/home/agent`, `/tmp`, `/dev/shm`, the listed device nodes, and approved extra sandbox paths | Landlock. File ownership and modes add a second check for root-owned paths. Writes never affect layers 1 to 4 (see [layer stack](./workload-lifecycle.md#layer-stack)). |
-| The agent can't open helper sockets | Socket file modes and helper ownership, `SO_PEERCRED` checks at each listener, and Landlock `RESOLVE_UNIX` at ABI 9 |
+| The agent writes only under `/workspace`, `/home/agent`, `/tmp`, `/dev/shm`, the listed device nodes, and approved extra paths | Landlock. File ownership and modes add a second check for root-owned paths. Writes never affect layers 1 to 4 (see [layer stack](./workload-lifecycle.md#layer-stack)). |
+| The agent can't open sockets owned by avirtnetd, avirtacp, avirtagent, avirtexec, and avirtguestd | Socket file modes and per-process ownership, `SO_PEERCRED` checks at each listener, and Landlock `RESOLVE_UNIX` at ABI 9 |
 | The agent can't access an abstract Unix socket outside its domain | Landlock's abstract socket scope only |
-| The agent can't signal or trace a helper | UID separation, Landlock's signal scope, Landlock's ptrace rule, the seccomp denylist for `ptrace`, `process_vm_*` and `pidfd_*`, and `hidepid=invisible` |
-| The agent can't read a helper's memory or descriptors | UID separation, `hidepid=invisible` and the seccomp denylist. Landlock doesn't restrict reopening pipes and sockets through `/proc/<pid>/fd`. These layers alone provide that guarantee. |
+| The agent can't signal avirtnetd, avirtacp, avirtagent, avirtexec, or avirtguestd, or trace their processes | UID separation, Landlock's signal scope, Landlock's ptrace rule, the seccomp denylist for `ptrace`, `process_vm_*` and `pidfd_*`, and `hidepid=invisible` |
+| The agent can't read the memory or descriptors of those five processes | UID separation, `hidepid=invisible` and the seccomp denylist. Landlock doesn't restrict reopening pipes and sockets through `/proc/<pid>/fd`. These layers alone provide that guarantee. |
 | No workload process gains privilege | `no_new_privs`, zero capabilities, and no setuid, setgid or file capability in any layer (see [content rules](./workspaces.md#content-rules)). Landlock requires `no_new_privs` for an unprivileged domain. |
 | Processes can't change the filesystem topology around their rules | Landlock denies `mount` and `pivot_root` in a domain. The seccomp denylist blocks the mount family, `setns` and new user namespaces, and no process holds `CAP_SYS_ADMIN` or `CAP_SYS_CHROOT`. |
-| Workload processes can't access a host Unix socket or a network | The runtime's absence of a network interface, the seccomp socket-domain allowlist with `AF_VSOCK` denied, and avirtnetd as the only path to the workload's HTTP/2 connection to its mediator. Landlock port rules keep the helpers off TCP. |
-| A helper executes only its own binary | Landlock's `exec` rule, and the seccomp denial of `memfd_create` and `execveat` with `AT_EMPTY_PATH` |
+| Workload processes can't access a host Unix socket or bypass network mediation | The VM has no network device. Only avirtnetd reads the TUN or opens the workload's HTTP/2 connection to its mediator. Seccomp denies `AF_VSOCK`. Landlock port rules constrain process access, while the mediator and edge enforce the policy for each destination. |
+| Each of avirtnetd, avirtacp, avirtagent, avirtexec, and avirtguestd executes only its own binary | Landlock's `exec` rule, and the seccomp denial of `memfd_create` and `execveat` with `AT_EMPTY_PATH` |
 | The agent can't freeze, thaw, or leave the agent cgroup | Root ownership of the cgroup files, and Landlock's `ro` on `/sys/fs/cgroup` |
-| A guest-kernel compromise stays in one workload | A VM per workload container and per mediator on Containerization. On Docker Desktop each workload shares one kernel (see [Docker Desktop runtime](./compute-runtimes.md#docker-desktop-runtime)). |
+| A guest-kernel compromise stays in one workload | A VM per sandbox container and per mediator on Containerization. On Docker Desktop each workload shares one kernel (see [Docker Desktop runtime](./compute-runtimes.md#docker-desktop-runtime)). |
 
 ### What seccomp must block
 
 Landlock confines filesystem, port, and scope access only. The seccomp filters (see [denylist](./workload-hardening.md#denylist)) must deny these for each Landlock-confined process, and the regression suite checks each:
 
-- `unshare` and `clone` with `CLONE_NEWUSER`, except in the tool sandbox of the Codex security context. A new user namespace grants capabilities in it, including `CAP_SYS_CHROOT`, which Landlock doesn't deny.
+- `unshare` and `clone` with `CLONE_NEWUSER`, except in Codex's tool sandbox. A new user namespace grants capabilities in it, including `CAP_SYS_CHROOT`, which Landlock doesn't deny.
 - `ptrace`, `process_vm_readv`, `process_vm_writev`, `pidfd_getfd` and `pidfd_send_signal`.
 - `memfd_create`, and `execveat` with `AT_EMPTY_PATH`.
 - the mount family, `pivot_root` and `setns`.
@@ -443,7 +443,7 @@ avirtinitd opens a `NETLINK_AUDIT` socket at boot before its own seccomp filter.
 
 avirtinitd writes `landlock_denial` events up to a per-workload rate that's a host setting, and reports the rest as one `landlock_denials_dropped` event with a count each second. avirtauditd delivers both as OCSF records with the `src` label kept. With no audit daemon registered, the kernel also prints each record to the VM console with kernel rate limiting. avirthostd receives the console output through `bootLog`.
 
-On Docker Desktop the workload container doesn't receive audit records. The kernel's audit stream is host-wide, reading it needs `CAP_AUDIT_READ`, and the workload container's outer layer drops that capability, so no workload can read another workload's records. A denial there appears only as the errno in the denied process, and the `sandbox` event records `logging: false`.
+On Docker Desktop the sandbox container doesn't receive audit records. The kernel's audit stream is host-wide, reading it needs `CAP_AUDIT_READ`, and the sandbox container's outer layer drops that capability, so no workload can read another workload's records. A denial there appears only as the errno in the denied process, and the `sandbox` event records `logging: false`.
 
 ### Missing ABI
 
@@ -480,7 +480,7 @@ These checks join the [regression suite](./roadmap.md#regression-suite) in phase
 Lifecycle checks:
 
 - with the guest booted with an `lsm=` list that omits `landlock` (a host test setting), the workload ends with `landlock abi 0 below 6` and no agent process ever exists.
-- with an `extend_sandbox` request that policy doesn't permit, avirthostd refuses the launch at step 1 and names the deciding policy, and a permitted `/var/tmp` extra sandbox path makes the first check succeed.
+- with an `extend_sandbox` request that policy doesn't permit, avirthostd refuses the launch at step 1 and names the deciding policy, and a permitted `/var/tmp` extra path makes the first check succeed.
 
 # Open questions
 

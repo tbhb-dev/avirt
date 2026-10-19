@@ -65,7 +65,7 @@ sequenceDiagram
 
 | Exit | When | Message on stderr |
 | --- | --- | --- |
-| 0 | The launch succeeded, and with `--follow` the log reached `container_exit`, whatever the workload container's own exit code | None |
+| 0 | The launch succeeded, and with `--follow` the log reached `container_exit`, whatever the sandbox container's own exit code | None |
 | 1 | avirthostd is unreachable | ``cannot reach avirthostd at URL; is `avirthostd` running?``, followed by the cause |
 | 1 | avirthostd refused the launch with a non-2xx status | `launch failed (STATUS): MESSAGE`, with avirthostd's `error` text |
 | 1 | The 2xx reply isn't a launch response | `unexpected launch response` |
@@ -78,13 +78,13 @@ Through mise, `mise run launch <agent> "<prompt>"` runs `avirt launch --agent <a
 
 # Status: planned
 
-`avirt` provides the operator CLI and TUI for a host. It doesn't own resources (see [components](./components.md#host-services)). Every command except the local ones (`context`, `workspace init`, `workspace config`, `completion` and `version`) is a gRPC call to avirtapid through avirtedgeproxyd's local client listener. avirtapid forwards each call with the caller's identity in `x-avirt-caller`, to avirthostd, avirtbuilderd or avirtregistryd, or to an enrolled peer's avirtapid. The planned command-line tool never talks to avirthostd directly and omits `--port` and `--url`. `launch --follow` and `logs` stream through avirtapid without reading log files.
+`avirt` provides the operator CLI and TUI for a host. It doesn't own resources (see [components](./components.md#host-services)). Every command except the local ones (`context`, `workspace init`, `workspace config`, `completion` and `version`) is a gRPC call to avirtapid through avirtedgeproxyd's `edgeproxy.sock`. avirtapid forwards each call with the caller's identity in `x-avirt-caller`, to avirthostd, avirtbuilderd or avirtregistryd, or to an enrolled peer's avirtapid. The planned command-line tool never talks to avirthostd directly and omits `--port` and `--url`. `launch --follow` and `logs` stream through avirtapid without reading log files.
 
-[avirtadmin](./admin-cli.md) provides host administration commands, and [avirtguest](./guest-cli.md) provides commands inside a workload container. All three tools share the command names, flags, output formats, and exit codes on this page wherever their functions overlap.
+[avirtadmin](./admin-cli.md) provides host administration commands, and [avirtguest](./guest-cli.md) provides commands inside a sandbox container. All three tools share the command names, flags, output formats, and exit codes on this page wherever their functions overlap.
 
 ```mermaid
 flowchart LR
-    cli["avirt"] -->|"gRPC, local client listener"| fd["avirtedgeproxyd"]
+    cli["avirt"] -->|"gRPC, `edgeproxy.sock`"| fd["avirtedgeproxyd"]
     fd --> proxyd["avirtapid"]
     proxyd --> hostd["avirthostd"]
     proxyd --> builderd["avirtbuilderd"]
@@ -94,7 +94,7 @@ flowchart LR
 
 ## Contexts and authentication
 
-`avirt` reaches avirtedgeproxyd's local client listener through `edgeproxy.sock` in the runtime directory, a Unix socket, 0600 and owned by the user (see [trust boundaries](./trust-boundaries.md#listeners)).
+`avirt` reaches avirtedgeproxyd through `edgeproxy.sock` in the runtime directory, a Unix socket, 0600 and owned by the user (see [trust boundaries](./trust-boundaries.md#listeners)).
 
 The socket's mode authenticates the caller. `avirt` lacks a token, key, or certificate. avirtedgeproxyd identifies the caller as the local user principal (see [components](./components.md#open-questions)). Calls made this way include `via: "client"` in their Cedar context.
 
@@ -115,8 +115,8 @@ namespace = "default"
 
 | Key | Default | Meaning |
 | --- | --- | --- |
-| `socket` | `$TMPDIR/avirt-<uid>/edgeproxy.sock` | The local client listener |
-| `host` | None, this host | An enrolled peer's peer host name, its fully qualified DNS name (see [peer host names](./peering.md#peer-host-names)). Every call goes to the local avirtapid, which forwards it to that peer's avirtapid, where the peer's policy applies to the caller's fully qualified identity and the peer's enrollment limits the routes. |
+| `socket` | `$TMPDIR/avirt-<uid>/edgeproxy.sock` | The path to `edgeproxy.sock` |
+| `host` | None, this host | An enrolled peer's host name, its fully qualified DNS name (see [peers' host names](./peering.md#peers-host-names)). Every call goes to the local avirtapid, which forwards it to that peer's avirtapid, where the peer's policy applies to the caller's fully qualified identity and the peer's enrollment limits the routes. |
 | `namespace` | `default` | The namespace for commands that take `--namespace` |
 
 The context in use is `--context NAME`, else `AVIRT_CONTEXT`, else `current-context`, else a built-in context with every key at its default. `--socket`, `--host` and `--namespace` override the context's keys for one command. Remote calls always pass through the local host's avirtapid because the network doesn't expose a client listener.
@@ -142,7 +142,7 @@ avirt
 │   ├── stop WORKLOAD [--grace DURATION]
 │   └── rm WORKLOAD
 ├── port
-│   ├── publish WORKLOAD PORT [--protocol tcp|http] [--expires DURATION]
+│   ├── publish WORKLOAD PORT [--protocol tcp|udp|http] [--expires DURATION]
 │   ├── list WORKLOAD
 │   └── rm WORKLOAD PORT
 ├── service
@@ -179,7 +179,7 @@ avirt
 | Flag | Default | Meaning |
 | --- | --- | --- |
 | `--context NAME` | `AVIRT_CONTEXT`, else `current-context` | The context |
-| `--socket PATH` | The context's `socket` | The local client listener |
+| `--socket PATH` | The context's `socket` | The path to `edgeproxy.sock` |
 | `--host HOST` | The context's `host` | Run the command on an enrolled peer |
 | `--namespace NS`, `-n NS` | The context's `namespace` | The namespace for namespaced commands |
 | `--output FORMAT`, `-o FORMAT` | `text` | `text` or `json` (see [output formats](#output-formats)) |
@@ -192,7 +192,7 @@ avirt launch --agent claude|codex PROMPT
     [--workspace REF [--fresh require|prefer|any] [--allow-local] | --cwd DIR]
     [--mode MODE] [--binding ID]... [--policy REF]
     [--interactive [--idle-limit DURATION]] [--approval auto|operator|reject]
-    [--publish PORT[/tcp|/http]]... [--follow]
+    [--publish PORT[/tcp|/udp|/http]]... [--follow]
 ```
 
 | Flag | Meaning |
@@ -209,10 +209,10 @@ avirt launch --agent claude|codex PROMPT
 | `--policy REF` | The workload's policy reference. Default: the host's default for the namespace. |
 | `--interactive` | Keep the session open after each turn, until an operator ends it, `--idle-limit` passes with no turn running (default 1 h), or the workload stops (see [session lifecycle](./acp.md#session-lifecycle-1)) |
 | `--approval POLICY` | The method for answering permission requests: `auto` (default), `operator` or `reject` (see [client capabilities](./acp.md#client-capabilities-1)) |
-| `--publish PORT[/PROTO]` | A port publication made at launch, repeatable. `PROTO` is `tcp` (default) or `http`. |
+| `--publish PORT[/PROTO]` | A port publication made at launch, repeatable. `PROTO` is `tcp` (default), `udp`, or `http`. |
 | `--follow`, `-f` | Stream the workload log until `container_exit`, as `avirt logs --follow` does |
 
-`launch` prints the workload's short ID, generated name, namespace and canonical UUIDv7, and its local avirt hostname. With `--follow` it then prints the log, and exits 0 when the workload's exit code is 0 and 8 otherwise. A child workload that `avirt` launches has the local user as its `avirt.internal/creator` and `avirt.internal/root` (see [workload management](./components.md#workload-management)).
+`launch` prints the workload's short ID, generated name, namespace and canonical UUIDv7, and its avirt hostname on this host. With `--follow` it then prints the log, and exits 0 when the workload's exit code is 0 and 8 otherwise. A child workload that `avirt` launches has the local user as its `avirt.internal/creator` and `avirt.internal/root` (see [workload management](./components.md#workload-management)).
 
 | Command | Does |
 | --- | --- |
@@ -237,7 +237,7 @@ Choose a namespace with `--namespace`. It remains fixed for the workload's life.
 
 | Command | Does |
 | --- | --- |
-| `avirt port publish WORKLOAD PORT` | Adds a port publication (see [ingress](./workload-topology.md#ingress)). `--protocol` is `tcp` or `http`, and `--expires` ends it early. It ends no later than the workload. |
+| `avirt port publish WORKLOAD PORT` | Adds a port publication (see [ingress](./workload-topology.md#ingress)). `--protocol` is `tcp`, `udp`, or `http`, and `--expires` ends it early. It ends no later than the workload. |
 | `avirt port list WORKLOAD` | Lists the workload's publications with their names and expiry |
 | `avirt port rm WORKLOAD PORT` | Revokes a publication. Its open ingress connections close. |
 | `avirt service create NAME` | Creates a service record on `--port`, whose backend is a workload's published port (`--workload` and `--target-port`) or an authorized host-local service (`--host-local ADDRESS`) |
@@ -264,7 +264,7 @@ The session commands are the operations of the session control API, which avirth
 avirt logs WORKLOAD [--follow] [--source acp|egress|meta|stdio]... [--since SEQ|TIME]
 ```
 
-`logs` reads the workload log that avirthostd keeps (see [log format](./hostd-api.md#envelope)) through avirtapid. `--source` selects envelopes by kind, repeatable: `acp` for both JSON-RPC directions, `egress` for `conn`, `http` and `dns` events, `meta` for meta events, and `stdio` for the workload container's stdout, stderr, and console records. The default is every source except `stdio`. `--since` starts at a sequence number or an RFC 3339 time. `--follow` keeps the stream open and ends after `container_exit`.
+`logs` reads the workload log that avirthostd keeps (see [log format](./hostd-api.md#envelope)) through avirtapid. `--source` selects envelopes by kind, repeatable: `acp` for both JSON-RPC directions, `egress` for `conn`, `http` and `dns` events, `meta` for meta events, and `stdio` for the sandbox container's stdout, stderr, and console records. The default is every source except `stdio`. `--since` starts at a sequence number or an RFC 3339 time. `--follow` keeps the stream open and ends after `container_exit`.
 
 Workload logs can contain prompts and tool output as well as account details. `read_log` authorizes each source separately, so a policy can allow `egress` and `meta` and withhold `acp` and `stdio`. What each source can contain, and what's redacted before it's written, is in [observability](./observability.md#content-and-redaction).
 
@@ -301,7 +301,7 @@ Enroll peers with [avirtadmin](./admin-cli.md#peers-and-enrollment), as [peering
 
 | Command | Does |
 | --- | --- |
-| `avirt peer list` | Enrolled peers with peer host names and trust domains, listener addresses, states, bundle expiry, and allowed routes |
+| `avirt peer list` | Enrolled peers with peers' host names and trust domains, listener addresses, states, bundle expiry, and allowed routes |
 | `avirt peer inspect HOST` | Shows one peer |
 
 On a peer, workload and namespace names are the peer's, and the peer authorizes the caller's fully qualified identity under its own policy.
@@ -371,6 +371,6 @@ avirthostd authorizes commands specifying a workload by a name form (short ID, a
 # Open questions
 
 1. **Ended workloads.** `workload wait`, `workload inspect` and `logs` on an ended workload need avirthostd to keep its exit record and workload log after teardown. How long avirthostd retains an ended workload's record and logs remains open, as does what `workload rm` removes.
-2. **The local user principal.** The Cedar principal for a caller on the local client listener, and how it's qualified when a command runs on a peer with `--host`, is open (see [components](./components.md#open-questions)).
+2. **The local user principal.** The Cedar principal for a caller on `edgeproxy.sock`, and how it's qualified when a command runs on a peer with `--host`, is open (see [components](./components.md#open-questions)).
 3. **Prompt-less launch.** Whether `launch --interactive` can start a workload without a prompt remains open. Such a session would use only `session prompt` for prompts.
 4. **Main workload process choice.** `launch` starts avirtacp, the ACP main workload process. How a caller asks for avirtagent or avirtexec instead, and what `--agent` means for avirtexec, is open.

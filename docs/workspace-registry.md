@@ -86,4 +86,4 @@ avirtregistryd doesn't serve the OCI distribution API (`/v2/`) to clients. `avir
 
 # Open questions
 
-1. **Who can pull a local image.** Being built from local sources keeps an image out of selector resolution and exports. Whether local images restrict pulls to their builder principal remains open.
+1. **Who can pull a local image.** Selector resolution and exports exclude an image built from local sources. Whether local images restrict pulls to their builder principal remains open.

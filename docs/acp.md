@@ -13,10 +13,10 @@ generated: { by: codex/gpt-6, at: 2026-10-18T04:29:26Z }
 
 | ACP role | avirt process | Runs as | Transport |
 | --- | --- | --- | --- |
-| Client | avirtinitd, the workload container's root process | root | The adapter's stdin and stdout |
+| Client | avirtinitd, the sandbox container's root process | root | The adapter's stdin and stdout |
 | Agent | The harness's ACP adapter (claude-agent-acp or codex-acp) and each tool it starts | uid 1000 (`agent`) | Its own stdin and stdout |
 
-`avirtinitd` is one binary for both harnesses. `AVIRT_AGENT`, set in each workload image, selects the conversation: `claude` speaks ACP v2 and `codex` speaks ACP v1. Any other value exits 64. The client uses the `agent-client-protocol` crate 3.4.0 with the `process` and `unstable_protocol_v2` features, and sends `claude-container` or `codex-container`, version `0.0.0`, as its client software info. The per-harness details are in [Claude harness](./acp-claude.md) and [Codex harness](./acp-codex.md).
+`avirtinitd` is one binary for both harnesses. `AVIRT_AGENT`, set in each sandbox image, selects the conversation: `claude` speaks ACP v2 and `codex` speaks ACP v1. Any other value exits 64. The client uses the `agent-client-protocol` crate 3.4.0 with the `process` and `unstable_protocol_v2` features, and sends `claude-container` or `codex-container`, version `0.0.0`, as its client software info. The per-harness details are in [Claude harness](./acp-claude.md) and [Codex harness](./acp-codex.md).
 
 ## Adapter process
 
@@ -77,7 +77,7 @@ sequenceDiagram
 ```
 
 1. **initialize.** avirtinitd sends `initialize` with the harness's protocol version and no client capabilities. If the response's `protocolVersion` differs from the one sent, the workload fails with a JSON-RPC invalid-params error whose data names both versions.
-2. **authenticate.** avirtinitd omits this request. Both harnesses read their credentials from the environment or from files the workload container already holds (see [credentials](./egress-credentials.md#status-implemented)). For Codex, avirtinitd logs the advertised method ids as an `auth_methods` meta event.
+2. **authenticate.** avirtinitd omits this request. Both harnesses read their credentials from the environment or from files the sandbox container already holds (see [credentials](./egress-credentials.md#status-implemented)). For Codex, avirtinitd logs the advertised method ids as an `auth_methods` meta event.
 3. **session/new.** avirtinitd sends the working directory, `AVIRT_CWD` or `/workspace`, and no MCP servers.
 4. **session/prompt.** avirtinitd sends the prompt as one text content block.
 5. **End of turn.** The protocol version determines the end of a turn:
@@ -91,8 +91,8 @@ The exit code is 0 when the stop reason is `end_turn`, 1 for any other stop reas
 
 | Capability | ACP surface | avirt |
 | --- | --- | --- |
-| File system | `fs/read_text_file`, `fs/write_text_file` (ACP v1 only) | avirtinitd omits this capability. The agent reads and writes files itself, inside the workload container. |
-| Terminals | `terminal/create`, `terminal/output`, `terminal/wait_for_exit`, `terminal/kill`, `terminal/release` (ACP v1 only) | avirtinitd omits this capability. The agent runs commands itself, inside the workload container. |
+| File system | `fs/read_text_file`, `fs/write_text_file` (ACP v1 only) | avirtinitd omits this capability. The agent reads and writes files itself, inside the sandbox container. |
+| Terminals | `terminal/create`, `terminal/output`, `terminal/wait_for_exit`, `terminal/kill`, `terminal/release` (ACP v1 only) | avirtinitd omits this capability. The agent runs commands itself, inside the sandbox container. |
 | Permission requests | `session/request_permission` | avirtinitd approves each request automatically |
 | Authentication and elicitation extensions | `auth`, `elicitation` (ACP v2) | Not advertised |
 
@@ -124,13 +124,13 @@ A running session excludes further prompts, cancellation, and operator permissio
 | avirthostd refuses or loses `POST /workloads/<id>/stream` mid-session | The same (with the refusal or failure as the message) |
 | SIGTERM (`container stop`) | The same, with the message `terminated by SIGTERM` |
 
-No ACP request and no prompt turn has a deadline. A session runs until its turn ends, the adapter exits, the connection to the mediator fails, or the workload stops. avirthostd stops a workload container with `container stop --time 5` when the mediator exits unexpectedly or avirthostd shuts down (see [lifecycle](./lifecycle.md#launch-and-teardown)). After the `exit` meta event, avirtinitd waits up to 10 s for avirthostd to drain `POST /workloads/<id>/stream`, or 5 s when it fails before the adapter starts.
+No ACP request and no prompt turn has a deadline. A session runs until its turn ends, the adapter exits, the connection to the mediator fails, or the workload stops. avirthostd stops a sandbox container with `container stop --time 5` when the mediator exits unexpectedly or avirthostd shuts down (see [lifecycle](./lifecycle.md#launch-and-teardown)). After the `exit` meta event, avirtinitd waits up to 10 s for avirthostd to drain `POST /workloads/<id>/stream`, or 5 s when it fails before the adapter starts.
 
 # Status: planned
 
 ## Roles
 
-The ACP client moves out of avirtinitd into avirtacp, the main workload process for ACP harnesses (see [components](./components.md#workload-container) and [roadmap](./roadmap.md#workload-process-split)).
+The ACP client moves out of avirtinitd into avirtacp, the main workload process for ACP harnesses (see [components](./components.md#sandbox-container) and [roadmap](./roadmap.md#workload-process-split)).
 
 | Process | UID | ACP part |
 | --- | --- | --- |
@@ -188,7 +188,7 @@ By default a launch runs one prompt for one turn, then ends the session, as the 
 
 | Capability | avirtacp |
 | --- | --- |
-| File system | avirtacp omits this capability. avirtguestd serves the operator's file access to the workspace (see [components](./components.md#workload-container)). |
+| File system | avirtacp omits this capability. avirtguestd serves the operator's file access to the workspace (see [components](./components.md#sandbox-container)). |
 | Terminals | Not advertised |
 | Permission requests | Decided by the launch's approval policy (see below) |
 | Elicitation | Not advertised |
@@ -230,7 +230,7 @@ See the commands in [operator CLI](./operator-cli.md#sessions). avirtapid forwar
 
 ## Multi-session workloads
 
-A multi-session workload runs more than one ACP session on one adapter connection. The launch prompt opens the first with `session/new`, and a `Sessions/Prompt` call without a session id opens another. Each `Sessions` call then names its session id. Sessions share the workload container, its files and its egress policy, and each session id appears in the envelopes that concern it. A harness that doesn't advertise `session/close` runs one session per workload. A host setting caps the number of sessions per workload.
+A multi-session workload runs more than one ACP session on one adapter connection. The launch prompt opens the first with `session/new`, and a `Sessions/Prompt` call without a session id opens another. Each `Sessions` call then names its session id. Sessions share the sandbox container, its files and its egress policy, and each session id appears in the envelopes that concern it. A harness that doesn't advertise `session/close` runs one session per workload. A host setting caps the number of sessions per workload.
 
 ## Errors and timeouts
 
