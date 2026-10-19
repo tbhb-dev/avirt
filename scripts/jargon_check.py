@@ -90,7 +90,7 @@ def fold(word: str) -> str:
     word = word.rstrip("'")
     if len(word) > 4 and word.endswith("ies"):
         return word[:-3] + "y"
-    if len(word) > 4 and word.endswith(("sses", "xes", "zes", "ches", "shes")):
+    if len(word) > 4 and re.search(r"(?:ss|x|z|ch|sh)es$", word):
         return word[:-2]
     if len(word) > 3 and word.endswith("s") and not word.endswith(("ss", "us", "is")):
         return word[:-1]

@@ -82,7 +82,6 @@ cgroup
 cgroups
 checkpointed
 checksummed
-ches
 chrono
 ciphertext
 clearsigned
@@ -397,7 +396,6 @@ sockaddr_un
 socketpair
 softbreak
 SPIFFE
-sses
 ssock
 SSRF
 stderr
