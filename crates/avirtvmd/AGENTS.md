@@ -38,6 +38,7 @@ The per-workload VM host helper. It's a SwiftPM package rather than a Cargo crat
 - Starting a workload creates `container_dir` with mode 0700 and clones the read-only root filesystem into it with APFS `clonefile`. When the clone fails, the start fails, with no fallback to a full copy.
 - The VM has no network. The container gets only the sockets and shares in the request, and `useInit` is on.
 - The stdio log is `O_EXCL` with mode 0600, and writing to it can't block: a chunk that doesn't fit the 4 MiB ring counts toward `dropped_bytes`. Each record has `ts`, `workload`, `ns`, `short_id`, `stream`, `partial`, and `text` or `b64`. A line over 64 KiB comes out in pieces, and the file stops growing at 256 MiB.
+- When a start fails, the helper removes `container_dir` and renames the stdio log to `<path>.failed`, which keeps the boot log and frees the path for the next start.
 - Stop the workload (SIGTERM, then a forced stop) before the helper exits, on `Stop` and on end-of-file on stdin.
 - Never log or print an incarnation, a prompt, a token, or an environment value.
 - Don't use `@unchecked Sendable`, `nonisolated(unsafe)`, or an `unsafe` expression outside `Sys.swift`. Don't lower the language mode or the warning policy.

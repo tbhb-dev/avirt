@@ -8,7 +8,7 @@ generated: { by: codex/gpt-6, at: 2026-10-18T04:57:34Z }
 
 # avirt
 
-`avirt` runs ACP agents in isolated containers on an Apple silicon Mac. The supported agents are Claude, through [claude-agent-acp](https://github.com/agentclientprotocol/claude-agent-acp), and Codex, through [codex-acp](https://github.com/agentclientprotocol/codex-acp). `avirthostd`, the host daemon, launches one workload per request. A workload is a sandbox container plus its egress mediator (`avirtmediatord`). Inside the sandbox container, `avirtinitd` drives the agent over ACP and streams every JSON-RPC message to `avirthostd`, which writes it to `logs/<workload-id>.ndjson`. In the implemented system, the agent's only way out is the mediator's logged CONNECT proxy. All code is Rust and uses the official [`agent-client-protocol`](https://github.com/agentclientprotocol/rust-sdk) crate.
+`avirt` runs ACP agents in isolated containers on an Apple silicon Mac. The supported agents are Claude, through [claude-agent-acp](https://github.com/agentclientprotocol/claude-agent-acp), and Codex, through [codex-acp](https://github.com/agentclientprotocol/codex-acp). `avirthostd`, the host daemon, launches one workload per request. A workload is a sandbox container plus its egress mediator (`avirtmediatord`). Inside the sandbox container, `avirtinitd` drives the agent over ACP and streams every JSON-RPC message to `avirthostd`, which writes it to `logs/<workload-id>.ndjson`. In the implemented system, the agent's only way out is the mediator's logged CONNECT proxy. All code except `avirtvmd`, the Swift VM helper, is Rust and uses the official [`agent-client-protocol`](https://github.com/agentclientprotocol/rust-sdk) crate.
 
 Agents working in this repository should read [AGENTS.md](AGENTS.md). See [docs/architecture.md](docs/architecture.md) for the architecture, both the implemented system and the planned design, and [docs/build-and-platforms.md](docs/build-and-platforms.md) for build targets and platforms.
 
@@ -45,7 +45,7 @@ Agents working in this repository should read [AGENTS.md](AGENTS.md). See [docs/
 ## Prerequisites
 
 - An Apple silicon Mac with Apple `container` 1.5.0 or later. mise can't install `container`.
-- [mise](https://mise.jdx.dev). `mise.toml` pins Rust 1.97.1 and defines the tasks.
+- [mise](https://mise.jdx.dev). `mise.toml` pins Rust 1.99.0 and defines the tasks.
 - For Claude, put `CLAUDE_CODE_OAUTH_TOKEN` in the uncommitted `mise.local.toml` under `[env]`. mise loads that file on top of `mise.toml`.
 - For Codex, run `codex login` once, which writes `~/.codex/auth.json`.
 
