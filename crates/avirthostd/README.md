@@ -9,7 +9,7 @@ generated: { by: codex/gpt-6, at: 2026-10-18T02:56:31Z }
 
 # avirthostd
 
-The host daemon for avirt, built as the `avirthostd` binary. Running it starts the server with the control API on `127.0.0.1:8787`. It manages the per-workload mediators and sandbox containers, plus the workload logs in `logs/`.
+The host daemon for avirt, built as the `avirthostd` binary. Running it starts the server with the control API on `127.0.0.1:8787`. It manages the per-workload mediators and workload containers, plus the workload logs in `logs/`.
 
 ```bash
 cargo build -p avirthostd -p avirtmediatord
