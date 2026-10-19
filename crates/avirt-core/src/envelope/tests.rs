@@ -16,7 +16,7 @@ fn splitter_handles_chunk_boundaries_and_trailing_line() {
     // Split inside the two-byte e-acute.
     let cut = bytes.iter().position(|&byte| byte == 0xc3).map_or(bytes.len(), |index| index + 1);
     let (head, tail) = bytes.split_at(cut);
-    assert!(splitter.push(head).is_empty());
+    assert_eq!(splitter.push(head), Vec::new());
     assert_eq!(splitter.push(tail), vec![Item::Line("{\"a\":\"\u{e9}\"}".into())]);
     assert_eq!(splitter.finish(), Some(Item::Line(r#"{"b":1}"#.into())));
     assert_eq!(splitter.finish(), None);
@@ -47,7 +47,7 @@ fn an_oversized_line_is_dropped_whole_and_cannot_forge_a_record() {
 fn an_oversized_line_within_one_chunk_and_at_eof() {
     let mut splitter = LineSplitter::with_max(8);
     assert_eq!(splitter.push(b"0123456789\nshort\n"), vec![Item::Truncated(11), Item::Line("short".into())]);
-    assert!(splitter.push(&[b'y'; 20]).is_empty());
+    assert_eq!(splitter.push(&[b'y'; 20]), Vec::new());
     assert_eq!(splitter.finish(), Some(Item::Truncated(20)));
 }
 

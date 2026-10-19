@@ -38,10 +38,10 @@ jobs:
           persist-credentials: false
 
       - name: Set up the toolchain
-        uses: jdx/mise-action@2d8d4cafcbd33be2ea37d2b6f5ad595363d1f1ca # v5.1.1
+        uses: jdx/mise-action@08ae2a091c038e1e05ec6f5115dc5c69d5a2a6b8 # v5.1.2
         with:
           # renovate: datasource=github-releases depName=jdx/mise
-          version: 2026.10.3
+          version: 2026.10.9
 
       # cargo-mutants exits 2 when mutants survive and 3 on timeouts. Neither
       # fails the job: the outcomes are the product, not a gate. A run that
@@ -51,7 +51,7 @@ jobs:
 
       - name: Upload the outcomes
         if: always()
-        uses: actions/upload-artifact@043fb46d1a93c77aae656e7c1c64a875d1fc6a0a # v7.0.1
+        uses: actions/upload-artifact@cf430e030ddbb5b0abf93d22962f4752f3646cd9 # v7.0.2
         with:
           name: mutants
           path: mutants.out/
@@ -67,10 +67,10 @@ jobs:
           persist-credentials: false
 
       - name: Set up the toolchain
-        uses: jdx/mise-action@2d8d4cafcbd33be2ea37d2b6f5ad595363d1f1ca # v5.1.1
+        uses: jdx/mise-action@08ae2a091c038e1e05ec6f5115dc5c69d5a2a6b8 # v5.1.2
         with:
           # renovate: datasource=github-releases depName=jdx/mise
-          version: 2026.10.3
+          version: 2026.10.9
 
       - name: Measure coverage
         env:
@@ -81,7 +81,7 @@ jobs:
           cargo llvm-cov report --html
 
       - name: Upload the reports
-        uses: actions/upload-artifact@043fb46d1a93c77aae656e7c1c64a875d1fc6a0a # v7.0.1
+        uses: actions/upload-artifact@cf430e030ddbb5b0abf93d22962f4752f3646cd9 # v7.0.2
         with:
           name: coverage
           path: |
@@ -103,17 +103,17 @@ jobs:
           persist-credentials: false
 
       - name: Set up the toolchain
-        uses: jdx/mise-action@2d8d4cafcbd33be2ea37d2b6f5ad595363d1f1ca # v5.1.1
+        uses: jdx/mise-action@08ae2a091c038e1e05ec6f5115dc5c69d5a2a6b8 # v5.1.2
         with:
           # renovate: datasource=github-releases depName=jdx/mise
-          version: 2026.10.3
+          version: 2026.10.9
 
       - name: Fuzz every target
         run: mise run fuzz-smoke
 
       - name: Upload crashing inputs
         if: failure()
-        uses: actions/upload-artifact@043fb46d1a93c77aae656e7c1c64a875d1fc6a0a # v7.0.1
+        uses: actions/upload-artifact@cf430e030ddbb5b0abf93d22962f4752f3646cd9 # v7.0.2
         with:
           name: fuzz-artifacts
           path: fuzz/artifacts/

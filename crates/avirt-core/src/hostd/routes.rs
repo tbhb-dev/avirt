@@ -85,7 +85,7 @@ async fn launch_route(hostd: &Arc<Hostd>, req: Request<Incoming>) -> Response<Bo
         Ok(cwd) => cwd,
         Err(message) => return error(StatusCode::BAD_REQUEST, &message),
     };
-    let launched = hostd.launch(&launch.agent, &launch.prompt, cwd.as_deref()).await;
+    let launched = hostd.launch_detached(launch.agent, launch.prompt, cwd).await;
     launch_reply(hostd, launched)
 }
 

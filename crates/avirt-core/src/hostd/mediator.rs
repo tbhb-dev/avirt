@@ -23,7 +23,7 @@ struct Preamble<'line> {
 
 /// Compares two byte strings without stopping at the first difference. `black_box` keeps the
 /// optimizer from turning the loop back into a comparison that exits early.
-pub(super) fn constant_time_eq(left: &[u8], right: &[u8]) -> bool {
+pub(crate) fn constant_time_eq(left: &[u8], right: &[u8]) -> bool {
     left.len() == right.len()
         && hint::black_box(left.iter().zip(right).fold(0u8, |acc, (lhs, rhs)| acc | (lhs ^ rhs))) == 0
 }
