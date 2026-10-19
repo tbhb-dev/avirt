@@ -75,6 +75,9 @@ The runtime directory, `$TMPDIR/avirt-<uid>/` (0700), contains everything a work
 | `workloads/` | Each workload's private directory with its sockets |
 | `scratch/` | Codex temp homes with their `auth.json` copies |
 | `hostd/` | The socket mediators dial |
+| `containers/<id>/` | Each VM's state on the Containerization runtime, which the helper creates and teardown removes |
+| `cache/` | The guest kernel (the Kata Containers 3.32.0 arm64 `vmlinux`, verified against its pinned sha256), the init filesystem, and the composed root filesystems on the Containerization runtime. Startup cleanup removes only stale temporary entries |
+| `images/` | The imported images on the Containerization runtime. Startup cleanup removes only stale temporary blobs |
 | `lock` | Held with an exclusive flock for avirthostd's lifetime, so a second `avirthostd` refuses to start |
 
 ## Crash cleanup
@@ -82,12 +85,12 @@ The runtime directory, `$TMPDIR/avirt-<uid>/` (0700), contains everything a work
 When SIGKILL stops avirthostd:
 
 - its mediators exit by themselves on stdin EOF.
-- its sandbox containers keep running, with no connection to the mediator or proxy.
+- on the Apple container command-line runtime, its sandbox containers keep running, with no connection to the mediator or proxy. On Containerization, each avirtvmd helper stops its VM when its stdin closes, so no VM keeps running after avirthostd exits.
 - its directories, its socket and any Codex temp home stay on disk.
 
 The next `avirthostd` sweeps before it listens:
 
-1. It stops and deletes every container labelled `avirt=1` (the label goes on every `container run`).
+1. On the command-line runtime, it stops and deletes every container labelled `avirt=1` (the label goes on every `container run`). On Containerization, it lists the helpers and stops each one still running. It then removes that workload's directories. A workload whose helper still runs after the stop stays on disk for the next startup.
 2. It restores permissions and then empties `workloads/`, `scratch/`, and `hostd/`, without following links, because the agent can `chmod 0000` its own mounted files.
 3. It skips host write-back and logs what it removed.
 
@@ -97,15 +100,10 @@ avirthostd logs any directory it can't remove and continues. The lock and the ow
 
 ## Runtime directory additions
 
-The Containerization runtime adds these to the runtime directory:
+The planned design adds these to the runtime directory:
 
 | Path | Holds |
 | --- | --- |
-| `containers/<id>/` | Each VM's runtime directory, which teardown and startup cleanup remove |
-| `cache/kernel/` | The extracted Kata Containers 3.32.0 arm64 `vmlinux`, verified against its pinned sha256 |
-| `cache/initfs/` | The `vminit:0.47.0` init filesystem |
-| `cache/rootfs/` | Composed root filesystems, one per pair of harness base and workspace image (see [workspaces](./workspaces.md#composing-the-root-filesystem)) |
-| `images/` | avirthostd's content-addressed cache with the unpacked avirt base, harness base and mediator images, and the configuration layers (see [workload lifecycle](./workload-lifecycle.md#assembly-per-runtime)) |
 | `admin.sock` | avirthostd's admin socket for avirtadmin, 0600 and owned by avirthostd's UID (see [admin CLI](./admin-cli.md)) |
 | `edgeproxy.sock` | avirtedgeproxyd's `edgeproxy.sock`, 0600 and user-owned (see [trust boundaries](./trust-boundaries.md#listeners)) |
 
