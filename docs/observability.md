@@ -18,7 +18,7 @@ avirt produces two kinds of output.
 | --- | --- | --- | --- | --- |
 | Workload log | Durable record | avirtinitd, the mediator, avirthostd | `logs/<workload-id>.ndjson` | Implemented |
 | Sandbox container and mediator output | Durable record | The runtime, avirthostd | `logs/<workload-id>.container.log`, `.mediator.log` | Implemented |
-| Workload stdio log | Durable record | avirtvmd's stdio writers | `logs/<workload-id>.stdio.ndjson` | Planned |
+| Workload stdio log | Durable record | avirtvmd's stdio writers | `logs/<workload-id>.stdio.ndjson` | Implemented (Containerization) |
 | Audit logs | Durable record | avirthostd and the host services | Each component's audit log, delivered as OCSF by avirtauditd | Planned |
 | Logs | Telemetry | avirtlogd, each daemon, avirthostd's event copies | avirtoteld's destinations | Planned |
 | Metrics | Telemetry | Each daemon | avirtoteld's destinations | Planned |
