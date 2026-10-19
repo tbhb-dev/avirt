@@ -235,7 +235,7 @@ codesign --force --sign - --entitlements crates/avirtvmd/avirtvmd.entitlements t
 entitlements=$(codesign -d --entitlements - --xml target/debug/avirtvmd 2>&1)
 [[ $entitlements == *com.apple.security.virtualization* ]] || { echo "avirtvmd lacks com.apple.security.virtualization" >&2; exit 1; }
 swift format lint --strict --recursive --configuration crates/avirtvmd/.swift-format crates/avirtvmd/Package.swift crates/avirtvmd/Sources crates/avirtvmd/Tests
-swift test --package-path crates/avirtvmd --scratch-path target/avirtvmd --skip-build
+swift test --package-path crates/avirtvmd --scratch-path target/avirtvmd
 cargo clippy -p avirt-core --all-targets --features avirtvmd-tests --locked -- -D warnings
 AVIRT_VMD_BIN="$PWD/target/debug/avirtvmd" cargo nextest run -p avirt-core --features avirtvmd-tests --locked
 """
