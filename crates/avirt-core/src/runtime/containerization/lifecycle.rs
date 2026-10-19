@@ -342,7 +342,7 @@ impl ChildSupervisor {
         let recorded_ended = intent.state == State::Ended;
         let state = match lock_state(dir) {
             // avirthostd saw the lock free before it recorded the end, and no helper spawns again for
-            // this directory, so the record settles what a failed check can't.
+            // this directory. The record answers when the lock check fails.
             LockState::Failed(_) | LockState::Free | LockState::Missing if recorded_ended => HelperState::Ended,
             LockState::Failed(why) => HelperState::Unknown(format!("the helper's lock: {why}")),
             LockState::Free | LockState::Missing => HelperState::Ended,

@@ -130,7 +130,7 @@ async fn a_helper_that_cannot_be_confirmed_gone_keeps_its_state() -> Result<()> 
     Ok(())
 }
 
-/// A failure line names the state that the launch intent records.
+/// A failure line includes the state that the launch intent records.
 ///
 /// # Errors
 ///

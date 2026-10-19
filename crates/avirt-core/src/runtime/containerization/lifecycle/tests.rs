@@ -273,7 +273,7 @@ async fn an_ended_intent_with_a_held_lock_is_unknown_and_not_probed() -> Result<
     Ok(())
 }
 
-/// An ended intent with a lock that can't be checked has ended.
+/// An ended intent has ended when opening its lock file fails.
 ///
 /// # Errors
 ///
@@ -399,7 +399,7 @@ async fn stopping_a_helper_that_is_already_gone_records_that_it_ended() -> Resul
     Ok(())
 }
 
-/// A second stop of a helper that ended changes nothing.
+/// A second stop of an ended helper leaves the intent alone.
 ///
 /// # Errors
 ///

@@ -35,7 +35,10 @@ fn an_intent_reads_back_as_written_and_is_private() -> Result<()> {
     Ok(())
 }
 
-/// The two states that record a stop read back as written, and an ended intent has a null pid.
+/// Stopping and ended intents read back as written, and an ended intent has a null pid.
+///
+/// The ended intent clears its pid to `null`. A restart can then never signal a pid that the system
+/// has reused.
 ///
 /// # Errors
 ///
@@ -54,7 +57,7 @@ fn stopping_and_ended_read_back_as_written() -> Result<()> {
     Ok(())
 }
 
-/// An intent in the shape that holds only the earlier states still reads.
+/// An intent written before the stop states existed still reads.
 ///
 /// # Errors
 ///

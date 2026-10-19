@@ -93,7 +93,7 @@ async fn a_crash_after_the_spawn_is_reaped_and_another_root_is_untouched() -> Re
     Ok(())
 }
 
-/// The reaper stops a helper whose avirthostd died while it was stopping it.
+/// The reaper stops a helper after avirthostd died during the stop.
 ///
 /// # Errors
 ///
@@ -108,7 +108,7 @@ async fn a_crash_while_stopping_is_reaped() -> Result<()> {
     let root = Root::open_in(base.path())?;
     let incarnation = Incarnation::random();
     let spec = workload(&root, "1a2b3c4d", incarnation)?;
-    // The first supervisor lives on, so the helper keeps its stdin open, as under a live avirthostd.
+    // Dropping the first supervisor would close the helper's stdin, so it outlasts the reap.
     let first = ChildSupervisor::new(root.workloads());
     first.start("1a2b3c4d", &incarnation, &spec).await?;
     let mut intent = Intent::read(&spec.dir)?;
@@ -142,7 +142,7 @@ async fn a_crash_after_the_end_is_recorded_is_reaped_without_a_dial() -> Result<
     supervisor.start("1a2b3c4d", &incarnation, &spec).await?;
     supervisor.stop("1a2b3c4d", Duration::from_secs(5)).await?;
     ensure!(Intent::read(&spec.dir)?.state == State::Ended, "the stop didn't record the end");
-    // Nothing is left to dial: the helper has exited and its socket goes.
+    // The helper has exited, so nothing answers on its socket.
     drop(fs::remove_file(spec.dir.join("v.sock")));
 
     let swept = reap(&ChildSupervisor::new(root.workloads()), &root).await;
