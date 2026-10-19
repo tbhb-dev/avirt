@@ -13,7 +13,7 @@ swap:
   (?i)peered names?: an internal name under a peer's host name
   (?i)local provenance: an image built from local sources
   (?i)event provenance: the event's `src` field
-  (?i)guest root: root inside the workload container
+  (?i)guest root: root in the sandbox container
   (?i)off-host rules?: state the rule
   (?i)non-policy checks?: the checks that apply in both policy modes
   (?i)required-\w+ invariants?: describe the condition
