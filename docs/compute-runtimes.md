@@ -112,7 +112,7 @@ The sandbox container runs with `terminal = false`, and avirtvmd supplies separa
 
 Status: implemented.
 
-Each VM uses `containers/<id>/` within avirthostd's runtime directory. On startup avirthostd stops each helper still running and removes a workload's `containers/<id>/` only after its `vmd.lock` is free or missing, or its launch intent records `ended` and nothing holds the lock. It also removes each `containers/<id>/` with no workload directory. If listing the helpers fails, it removes neither (see [lifecycle](./lifecycle.md#crash-cleanup)).
+Each VM uses `containers/<id>/` within avirthostd's runtime directory. On startup avirthostd stops each helper still running and removes a workload's `containers/<id>/` only after its `vmd.lock` is free or missing, or its launch intent records `ended` and nothing holds the lock. It also removes each `containers/<id>/` with no workload directory. A `workloads/<id>/` with no `intent.json` goes in the same startup, but its `containers/<id>/` stays until the next one. If listing the helpers fails, it keeps every `containers/<id>/` (see [lifecycle](./lifecycle.md#crash-cleanup)).
 
 ## Networking
 

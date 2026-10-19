@@ -97,11 +97,11 @@ When SIGKILL stops avirthostd:
 
 The next `avirthostd` sweeps before it listens:
 
-1. On the command-line runtime, it stops and deletes every container labelled `avirt=1` (the label goes on every `container run`). On Containerization, it lists the helpers and stops each one still running. It then removes the `containers/<id>/` and `workloads/<id>/` directories of each workload whose helper has exited, and any `containers/<id>/` directory with no `workloads/<id>/` beside it. A workload whose helper still runs after the stop stays on disk for the next startup.
+1. On the command-line runtime, it stops and deletes every container labelled `avirt=1` (the label goes on every `container run`). On Containerization, it lists the helpers and stops each one still running. It then removes the `containers/<id>/` and `workloads/<id>/` directories of each workload whose helper has exited, and any `containers/<id>/` directory with no `workloads/<id>/` beside it. A workload whose helper still runs after the stop stays on disk for the next startup. The paragraph after this list covers a failed helper listing.
 2. It restores permissions and then empties `scratch/`, `hostd/`, and `workloads/` apart from the directories that step 1 keeps, without following links, because the agent can `chmod 0000` its own mounted files.
 3. It skips host write-back and logs what it removed.
 
-Startup matches each helper to its launch intent by workload ID and incarnation. A failed check counts as unknown, not absent, and that helper also gets a stop. When the intent records `ended` and nothing holds the lock, startup removes the workload's directories without connecting to the helper, even if the lock check fails. If a helper holds the lock despite that record, startup reports the workload as unknown and asks the helper to stop over its socket, without a signal. The directories remain until nothing holds the lock. Startup logs the recorded state of each workload with a readable intent that it can't remove. If the helper listing fails, every workload with a launch intent stays on disk.
+Startup matches each helper to its launch intent by workload ID and incarnation. A failed check counts as unknown, not absent, and that helper also gets a stop. When the intent records `ended` and nothing holds the lock, startup removes the workload's directories without connecting to the helper, even if the lock check fails. If a helper holds the lock despite that record, startup reports the workload as unknown and asks the helper to stop over its socket, without a signal. The directories remain until nothing holds the lock. Startup logs the recorded state of each workload with a readable intent that it can't remove. If the helper listing fails, every `containers/<id>/` directory and every workload with a launch intent stay on disk.
 
 The closure of a control socket doesn't confirm that the VM stopped. avirthostd confirms a stop only when it can take the exclusive flock on `vmd.lock` or the lock file doesn't exist, and it sends `SIGKILL` to the helper pid only while the lock remains held after the grace period plus 5 s.
 
@@ -157,13 +157,7 @@ An absent sandbox container and one that's not ready look the same to the mediat
 
 ## Startup cleanup
 
-At startup, under the lock, avirthostd calls `runtime.sweep`:
-
-1. On the Containerization runtime, it stops any VM it still owns and removes every stale `containers/<id>/` directory in the runtime directory.
-2. On Docker, it removes every container and volume labelled `avirt=1`.
-3. It removes `workloads/*`, including stale socket files.
-
-avirthostd keeps the kernel, initfs, and image caches in the runtime directory.
+At startup, under the lock, avirthostd calls `runtime.sweep`. On Docker, it removes every container and volume labelled `avirt=1`. The Containerization and `workloads/` cleanup is in [crash cleanup](#crash-cleanup).
 
 ## Path length
 
