@@ -30,7 +30,7 @@ Every phase runs this suite on every runtime it touches. The bypass checks run i
 - `/proc/1/fd`, `/proc/1/mem` and `/proc/1/environ` are unreadable, and the kernel refuses `kill -9 1`.
 - CONNECT to `127.0.0.1`, `localhost`, `[::1]` and the host's own addresses gets 403 `private-dest`, and an absolute-URI `GET` gets 501 `plain-http`.
 
-## Client and lifecycle checks
+### Client and lifecycle checks
 
 Positive checks, for each agent: a web fetch, `npm install left-pad` and a `git clone` of `octocat/Hello-World`. Each must produce allow lines in `logs/<workload-id>.ndjson` for the model API, example.com, registry.npmjs.org and github.com, all before `container_exit`.
 

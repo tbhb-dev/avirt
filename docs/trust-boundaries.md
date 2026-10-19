@@ -63,7 +63,7 @@ On the host, these local listeners don't use mutual TLS either, and authenticate
 
 uid 1000 never holds an SVID or its key, the trust bundle, a CA key, or a credential from avirt. A trusted upstream can return an injected credential in its response.
 
-The list of host vsock listeners and runtime control sockets must include every listener and control channel. Destination checks occur outside the VM. Only a workload's own mediator accepts its SVID. Bypass tests include unrestricted root inside the guest, runtime processes, and inherited descriptors.
+Every host vsock listener and runtime control socket belongs in this document's listener tables. Destination checks occur outside the VM. Only a workload's own mediator accepts its SVID. Bypass tests include unrestricted root inside the guest, runtime processes, and inherited descriptors.
 
 ## Compromise scope
 

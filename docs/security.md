@@ -63,6 +63,7 @@ The sandbox container holds placeholders and the workload's MITM CA certificate,
 - **Future.** avirtmediatord's `credential-misplaced` check rejects any issued placeholder found outside its bound header, in both policy modes ([placeholders](./egress-credentials.md#placeholders)).
 - **Future.** Each credential has exactly one owner that refreshes it. The Codex refresh token never leaves avirtsecretsd ([Codex refresh](./egress-credentials.md#codex-refresh)).
 - **Future.** avirthostd holds credential binding references and no credential values ([host services](./components.md#host-services)).
+- **Future.** A credential binding requires trust in its recipient: an upstream can return an injected credential to the agent. Short-lived, narrowly scoped or sender-constrained credentials reduce exposure. Only avirtsecretsd holds refresh tokens. Response scanning is optional and can't guarantee detection.
 
 ## Default-deny egress through one global PEP
 
@@ -107,8 +108,6 @@ Independent layers confine the agent. Escaping one leaves the others in place.
 - **Future.** Workspace and configuration layers exclude reserved paths. All layers exclude setuid bits, file capabilities, and device nodes ([reserved paths](./workload-hardening.md#reserved-paths), [content rules](./workspaces.md#content-rules)).
 - **Future.** On Docker Desktop, where each workload shares one kernel, the runtime's capability and seccomp layers sit beneath avirtinitd's, and avirtbuilderd refuses command builds ([runtime outer layer](./workload-hardening.md#runtime-outer-layer)).
 - **Out of Scope.** Approving individual tool calls inside the agent. avirt approves each permission request automatically ([ACP](./acp.md#permission-requests)).
-
-A credential binding requires trust in its recipient: an upstream can return an injected credential to the agent. Short-lived, narrowly scoped or sender-constrained credentials reduce exposure. Only avirtsecretsd holds refresh tokens. Response scanning is optional and can't guarantee detection.
 
 ## Bounded mediator compromise
 

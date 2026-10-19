@@ -388,6 +388,8 @@ Each listener's caller identity and allowed operations are in [trust boundaries]
 
 The peer listener is the only avirt listener on a non-loopback host address.
 
+Every host vsock listener and runtime control socket belongs in this document's listener tables. Destination checks occur outside the VM. Only a workload's own mediator accepts its SVID. The bypass suite runs from unrestricted root inside the guest as well as from the agent's process tree, and it includes runtime processes and inherited descriptors.
+
 ## Restrictions on host connections
 
 avirtedgeproxyd is the only host service that opens connections off the host. The host enforces this below the daemons' configuration, so a compromised or misconfigured daemon still can't reach the network directly. Workload traffic enters the host through the mediator's sockets.
@@ -415,8 +417,6 @@ In the all-in-one server image, avirtinitd in server mode installs an nftables r
 - **Rule.** The ruleset uses an `inet` family output chain with policy `drop`. The chain accepts loopback traffic and established or related traffic. New flows require `meta skuid` equal to avirtedgeproxyd's UID. The chain drops all other traffic. The same chain covers TCP, UDP (including DNS), ICMP, and IPv6.
 - **Identity.** Each host service already runs under its own UID in the image (see [all-in-one server image](./components.md#all-in-one-server-image)), and a child process such as zot, the Collector or a provider plugin runs under its parent's UID or its own, never that of avirtedgeproxyd.
 - **Fail closed.** If installing the ruleset fails, avirtinitd doesn't start any host service and the image exits.
-
-The list of host vsock listeners and runtime control sockets must include every listener and control channel. Destination checks occur outside the VM. Only a workload's own mediator accepts its SVID. The bypass suite runs from unrestricted root inside the guest as well as from the agent's process tree. It includes runtime processes and inherited descriptors.
 
 ## Limits, events, and verification
 
