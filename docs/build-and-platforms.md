@@ -17,6 +17,8 @@ The root workspace includes `avirt-connect` for CONNECT authority parsing and de
 
 Vale's banned-term rules block `mise run lint`. Judge the prose in context: preserve its meaning and grammar, and reserve glossary entries for real terms.
 
+To review candidate terms in added prose by hand, run `mise run lint-jargon`. It exits 0 whatever it finds. A bad `--base` exits 1. It runs outside lint and pre-commit, and `mise run check` runs its tests.
+
 # Status: planned
 
 ## Targets
