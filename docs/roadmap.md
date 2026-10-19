@@ -30,6 +30,16 @@ Every phase runs this suite on every runtime it touches. The bypass checks run i
 - `/proc/1/fd`, `/proc/1/mem` and `/proc/1/environ` are unreadable, and the kernel refuses `kill -9 1`.
 - CONNECT to `127.0.0.1`, `localhost`, `[::1]` and the host's own addresses gets 403 `private-dest`, and an absolute-URI `GET` gets 501 `plain-http`.
 
+## Client and lifecycle checks
+
+Positive checks, for each agent: a web fetch, `npm install left-pad` and a `git clone` of `octocat/Hello-World`. Each must produce allow lines in `logs/<workload-id>.ndjson` for the model API, example.com, registry.npmjs.org and github.com, all before `container_exit`.
+
+Lifecycle checks:
+
+- SIGINT mid-session removes the mediator and workload directory. The VM or container must also be absent.
+- killing the mediator mid-session ends the workload with a `container_error` (freeze and resume from phase 3 on).
+- after SIGKILL stops avirthostd, the next avirthostd start sweeps everything it left, and leaves the state directory untouched.
+
 ## Status: planned
 
 Run the applicable checks on each affected runtime. Prompt the agent to run restriction checks from its own process tree. Run boundary checks as unrestricted root inside the guest. Include runtime processes and inherited descriptors.
@@ -47,16 +57,6 @@ Run the applicable checks on each affected runtime. Prompt the agent to run rest
 - HTTP tests cover canonicalization and ambiguity on every request, pooling, redirects, cleartext termination without injection, gRPC trailers-only refusals and bidirectional streaming. A placeholder found after body forwarding resets the stream and records rejection.
 - Websocket tests cover fragments, continuation and control frames, extension refusal and Close injection between websocket frames in both directions. SSH tests cover placeholder authentication, host-key pins, strict git commands, refusal of unauthorized SSH channel and forwarding requests, and workload caps.
 - Ping tests cover type, length, rate, caps on outstanding requests, and Linux identifier rewriting. UDP and ICMP idle timeouts, TCP half-close, explicit tunnel drain, keepalive, h2 header-list and rapid-reset bounds need conformance coverage.
-
-## Client and lifecycle checks
-
-Positive checks, for each agent: a web fetch, `npm install left-pad` and a `git clone` of `octocat/Hello-World`. Each must produce allow lines in `logs/<workload-id>.ndjson` for the model API, example.com, registry.npmjs.org and github.com, all before `container_exit`.
-
-Lifecycle checks:
-
-- SIGINT mid-session removes the mediator and workload directory. The VM or container must also be absent.
-- killing the mediator mid-session ends the workload with a `container_error` (freeze and resume from phase 3 on).
-- after SIGKILL stops avirthostd, the next avirthostd start sweeps everything it left, and leaves the state directory untouched.
 
 # Phases
 

@@ -17,7 +17,7 @@ On an Apple silicon Mac, avirt runs untrusted ACP agents. avirt approves each pe
 
 avirt provides the base for agent security:
 
-- **Sandboxing.** On Containerization, each sandbox container runs in its own VM without a network device. The TUN and nftables REDIRECT send flows through avirtnetd, and the agent runs under a reduced user, capability, seccomp and Landlock profile (see [workload hardening](./workload-hardening.md) and [Landlock](./landlock.md)).
+- **Sandboxing.** Each sandbox container runs in its own VM with no network interface other than loopback, and the agent runs under a reduced user, capability, seccomp and Landlock profile (see [workload hardening](./workload-hardening.md) and [Landlock](./landlock.md)).
 - **Identity.** avirthostd issues SPIFFE identities to sandbox containers and mediators, and to host services. Peers federate their trust domains (see [identity](./identity.md)).
 - **Egress and ingress mediation.** Each byte the agent sends out passes through its workload's mediator, and each workload-to-workload, service and off-host connection passes through avirtedgeproxyd, the edge proxy (see [egress](./egress.md) and [networking](./networking.md)).
 - **Credential brokering.** avirtsecretsd holds the real credentials, the sandbox container holds placeholders, and the gateways and avirtmediatord inject credentials on their bindings only (see [egress credentials](./egress-credentials.md)).

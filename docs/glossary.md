@@ -235,6 +235,10 @@ The implemented mediator's Pingora CONNECT proxy on `proxy.sock`, which parses t
 
 An HTTP tunnel for relaying UDP datagrams to one immutable destination per stream, with DATAGRAM capsules over HTTP/2. Status: planned. See [HTTP/2 streams](./networking.md#http2-streams).
 
+## Connection header
+
+The first line the implemented mediator writes on each connection to avirthostd's socket, `WORKLOAD <id> <secret>` or `EGRESS <id> <secret>`, naming the connection's kind, the workload and the mediator secret, as in the PROXY protocol. See [sockets](./workload-topology.md#sockets).
+
 ## Connection token
 
 The random 128-bit token avirthostd gives only avirtinitd as `AVIRT_CONNECTION_TOKEN`, which the implemented `POST /workloads/<id>/stream` request must include in `x-avirt-token`. Mutual TLS replaces it in the planned design. See [connection token](./identity.md#connection-token).
@@ -321,7 +325,7 @@ SPIFFE trust between two trust domains that exchange trust bundles. avirt federa
 
 ## Forward proxy
 
-A proxy that opens connections on behalf of clients. avirtnetd provides an optional HTTP CONNECT proxy on loopback for explicitly configured clients. avirt omits proxy variables by default. Status: planned. See [transport scope](./egress.md#transport-scope).
+A proxy that opens connections on behalf of clients. avirtnetd provides an optional HTTP CONNECT proxy on loopback for explicitly configured clients. avirt omits proxy variables by default. Status: planned. See [connection types](./networking.md#connection-types).
 
 ## Freeze reason
 
@@ -421,7 +425,7 @@ The Model Context Protocol, which the agent speaks only to avirtmcp, and which a
 
 ## Mediator
 
-The component of a workload through which its ingress and egress pass. In the implemented system it's the avirtmediatord host process. In the planned design it's a container with no network that runs avirtinitd and avirtmediatord. See [architecture](./architecture.md#topology).
+The component of a workload through which every byte the agent sends out passes. In the implemented system it's the avirtmediatord host process, which handles egress only. In the planned design it's a container with no network that runs avirtinitd and avirtmediatord. See [architecture](./architecture.md#topology).
 
 ## Mediator secret
 
@@ -658,6 +662,10 @@ An IP address assigned to a name in the mediator's synthetic address table for t
 ## Tap
 
 The JSON-RPC tap: the ACP client's hook that reports every line written to the adapter's stdin and read from its stdout and stderr, unaltered, as workload log envelopes. See [JSON-RPC tap](./acp.md#json-rpc-tap).
+
+## TCP proxy to `proxy.sock`
+
+avirtinitd's implemented listener on a `127.0.0.1` port that forwards each agent connection, unchanged, to the mediator's `proxy.sock`. avirtnetd's forward proxy replaces it in the planned design. See [TCP proxy to `proxy.sock`](./workload-topology.md#tcp-proxy-to-proxysock).
 
 ## TLS interception
 
