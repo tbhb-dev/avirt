@@ -119,7 +119,7 @@ require respond return reveal run say see seek seem send serve set share show si
 stay stop store suggest take talk tell tend think treat try turn understand update use verify wait want watch work
 write
 authenticate authorize bind bypass compose conform deliver deny dial emit enforce expire expose forward freeze
-log manage mount operate persist publish refer renew restart resume retain revoke rotate route sign spawn
+log manage mount operate persist publish refer renew reserve restart resume retain revoke rotate route sign spawn
 supervise transmit validate derive translate support normalize prove skip install parse resolve redirect discard reset
 """.split()
 )
