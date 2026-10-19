@@ -82,6 +82,15 @@ Status: implemented.
 - **Supervision.** `ChildSupervisor` handles helper listing, start, and stop. A repeated start for the same workload and incarnation returns the same handle, while `ChildSupervisor` refuses another incarnation for that workload. Stop is idempotent and returns success only after the helper exits.
 - **Guest process and sockets.** The container configuration takes the workload process from the OCI image configuration and appends the request environment to the image environment. It provides `proxy.sock` and `mediator.sock` as `.into` sockets with mode 0600.
 
+## avirtvmd supervision
+
+Status: planned.
+
+- A launchd supervisor starts one explicit job per workload. avirthostd writes a property list for the job into the workload directory. It picks the `gui/<uid>` domain when `launchctl` reports an Aqua session, and the `user/<uid>` domain otherwise, for a background session. The property list sets `LimitLoadToSessionType` to `["Aqua", "Background"]` and `KeepAlive` to false, and the job starts explicitly with `RunAtLoad` or `launchctl kickstart`.
+- The launchd job has no socket activation: avirtvmd binds `v.sock` itself.
+- A launchd job gets its incarnation from a 0600 file in the 0700 workload directory instead of from stdin.
+- Startup reconciliation stops the avirtvmd jobs that launchd manages, and they can exist between an avirthostd crash and that reconciliation. A job removed through `launchctl`, or a missing job, doesn't prove that the VMs stopped: avirthostd waits until the identified process has exited.
+
 ## Guest artifacts
 
 Status: implemented.

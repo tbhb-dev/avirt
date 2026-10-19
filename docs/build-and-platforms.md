@@ -91,7 +91,7 @@ Apple doesn't publish a prebuilt Containerization artifact. SwiftPM builds the l
 ## Signing
 
 - **Development.** The avirtvmd build signs the helper with the `com.apple.security.virtualization` entitlement. avirthostd and its tests don't need it.
-- **Distribution.** Distribution builds sign `avirthostd` and `avirtvmd` with Developer ID and notarize them.
+- **Distribution.** Distribution builds sign `avirthostd` and `avirtvmd` with Developer ID, each with its own stable signing identifier, and notarize them.
 - **Secrets broker.** Distribution builds sign `avirtsecretsd` and `avirtsecrets-1password` with Developer ID and notarize them. Each has a stable signing identifier that keeps its designated requirements unchanged across releases (see [macOS Keychain](./secrets-keychain.md#code-signing-and-entitlements)).
 
 ## CI matrix
