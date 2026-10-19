@@ -102,28 +102,8 @@ jobs:
           # renovate: datasource=github-releases depName=jdx/mise
           version: 2026.10.9
 
-      # SwiftPM's dependency checkouts and build products for avirtvmd. The
-      # key names everything that decides what a restored build holds, and
-      # `check-vmd` still builds on every run: only the dependencies and
-      # their objects come from the cache.
-      - name: Read the Swift version
-        if: runner.os == 'macOS'
-        id: swift
-        run: |
-          version=$(swift --version 2>&1 | head -n 1 | tr -c '[:alnum:].\n' '-')
-          echo "version=${version}" >> "$GITHUB_OUTPUT"
-
-      - name: Cache the avirtvmd build
-        if: runner.os == 'macOS'
-        uses: actions/cache@55cc8345863c7cc4c66a329aec7e433d2d1c52a9 # v6.1.0
-        with:
-          path: |
-            target/avirtvmd
-            target/avirtvmd-test
-          key: vmd-${{ runner.os }}-${{ steps.swift.outputs.version }}-${{ hashFiles('**/Package.resolved') }}
-
       # Registry downloads and the compiled dependencies. `target/avirtvmd`
-      # and `target/avirtvmd-test` have their own cache above, so they are left out here.
+      # holds the Swift build, which this cache leaves out.
       - name: Cache the Rust build
         uses: actions/cache@55cc8345863c7cc4c66a329aec7e433d2d1c52a9 # v6.1.0
         with:
@@ -132,7 +112,6 @@ jobs:
             ~/.cargo/git
             target
             !target/avirtvmd
-            !target/avirtvmd-test
           key: rust-${{ runner.os }}-${{ hashFiles('Cargo.lock', 'mise.toml') }}
 
       # The ci profile in .config/nextest.toml: no retries, a flaky pass fails.

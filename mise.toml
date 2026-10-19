@@ -228,11 +228,14 @@ shell = "bash -c"
 run = """
 set -euo pipefail
 if [[ "$(uname -s)" != Darwin ]]; then echo "avirtvmd builds on macOS only; nothing to check on $(uname -s)"; exit 0; fi
-mise run build-vmd
+swift build --package-path crates/avirtvmd --scratch-path target/avirtvmd --build-tests
+mkdir -p target/debug
+cp target/avirtvmd/debug/avirtvmd target/debug/avirtvmd
+codesign --force --sign - --entitlements crates/avirtvmd/avirtvmd.entitlements target/debug/avirtvmd
 entitlements=$(codesign -d --entitlements - --xml target/debug/avirtvmd 2>&1)
 [[ $entitlements == *com.apple.security.virtualization* ]] || { echo "avirtvmd lacks com.apple.security.virtualization" >&2; exit 1; }
 swift format lint --strict --recursive --configuration crates/avirtvmd/.swift-format crates/avirtvmd/Package.swift crates/avirtvmd/Sources crates/avirtvmd/Tests
-swift test --package-path crates/avirtvmd --scratch-path target/avirtvmd-test
+swift test --package-path crates/avirtvmd --scratch-path target/avirtvmd --skip-build
 cargo clippy -p avirt-core --all-targets --features avirtvmd-tests --locked -- -D warnings
 AVIRT_VMD_BIN="$PWD/target/debug/avirtvmd" cargo nextest run -p avirt-core --features avirtvmd-tests --locked
 """
