@@ -1,5 +1,6 @@
 """Tests for scripts/jargon_check.py. Run: mise run test-jargon"""
 
+import re
 import subprocess
 import sys
 from pathlib import Path
@@ -57,6 +58,13 @@ def test_possessive_and_plural_fold():
 @pytest.mark.parametrize("singular, plural", [("cache", "caches"), ("size", "sizes"), ("box", "boxes"), ("class", "classes")])
 def test_fold_gives_singular_and_plural_one_form(singular, plural):
     assert jc.fold(singular) == jc.fold(plural)
+
+
+def test_markdown_parser_pin_matches_in_script_and_requirements():
+    pin = re.search(r'markdown-it-py==[\d.]+', Path(jc.__file__).read_text()).group()
+    tests = Path(__file__).parent
+    assert pin in (tests / "requirements.in").read_text().split()
+    assert re.search(rf"^{re.escape(pin)} ", (tests / "requirements.txt").read_text(), re.M)
 
 
 # --- detection ---------------------------------------------------------------------------------
