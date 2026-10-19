@@ -190,6 +190,7 @@ hvsock
 idents
 IETF
 ifaddrs
+iniconfig
 initfs
 inodes
 interceptable
@@ -231,6 +232,7 @@ MCP
 mctl
 MDM
 mdns
+mdurl
 mediatord
 medproxy
 medproxyd
@@ -300,6 +302,7 @@ pipefail
 PIDs
 Pingora
 plaintext
+pluggy
 policyd
 POSIX
 pport
@@ -317,6 +320,7 @@ psock
 ptmx
 ptrace
 pullable
+pygments
 pypirc
 pytest
 pyyaml

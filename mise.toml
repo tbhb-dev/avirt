@@ -114,7 +114,7 @@ run = "bats .agents/skills/agent-commit/tests .agents/skills/agent-pr/tests .age
 
 [tasks.test-jargon]
 description = "Unit tests for the new-term check"
-run = "uv run --no-project --with pytest==8.4.2 --with markdown-it-py==4.0.0 pytest scripts/tests -q"
+run = "uv run --no-project --with-requirements scripts/tests/requirements.txt pytest scripts/tests -q"
 
 [tasks.check]
 description = "The full local gate: fmt, clippy, rustdoc, shear, deny, the tests, the skill suites, check-docs and the new-term tests"

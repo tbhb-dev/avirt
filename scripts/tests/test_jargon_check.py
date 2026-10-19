@@ -1,4 +1,4 @@
-"""Tests for scripts/jargon_check.py. Run: uv run --no-project --with pytest==8.4.2 --with markdown-it-py==4.0.0 pytest scripts/tests"""
+"""Tests for scripts/jargon_check.py. Run: uv run --no-project --with-requirements scripts/tests/requirements.txt pytest scripts/tests"""
 
 import subprocess
 import sys

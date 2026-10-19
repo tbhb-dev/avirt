@@ -2,6 +2,9 @@
 # /// script
 # requires-python = ">=3.11"
 # dependencies = ["markdown-it-py==4.0.0"]
+#
+# [tool.uv]
+# exclude-newer = "2026-10-01T00:00:00Z"
 # ///
 """Flag invented jargon: terms an added line of prose introduces that nobody defined.
 
