@@ -111,7 +111,7 @@ sequenceDiagram
 Constraints:
 
 - avirtinitd uses more than one thread, so the child between fork and exec must not perform memory allocation. It calls `landlock_restrict_self` directly on the ruleset descriptor with `libc::syscall`, not `RulesetCreated::restrict_self`, and passes the flags itself.
-- Use flags `LANDLOCK_RESTRICT_SELF_LOG_NEW_EXEC_ON | LANDLOCK_RESTRICT_SELF_LOG_SUBDOMAINS_OFF` at target ABI 7 or later, and 0 below it. The launcher creates the domain before `execve`. Without `LOG_NEW_EXEC_ON`, the kernel wouldn't log denials by the executed program. `LOG_SUBDOMAINS_OFF` leaves denials by domains a harness creates for itself, such as Codex's sandbox, to that harness.
+- Use flags `LANDLOCK_RESTRICT_SELF_LOG_NEW_EXEC_ON | LANDLOCK_RESTRICT_SELF_LOG_SUBDOMAINS_OFF` at target ABI 7 or later, and 0 below it. The launcher creates the domain before `execve`. Without `LOG_NEW_EXEC_ON`, the kernel wouldn't log denials by the executed program. `LOG_SUBDOMAINS_OFF` leaves denials by domains a harness creates for itself, such as Codex's tool sandbox, to that harness.
 - The child after fork has one thread, so `TSYNC` isn't needed.
 - The launcher enforces Landlock before seccomp, so seccomp filters don't have to permit the launcher's own remaining syscalls, and the security context's filters govern only the executed program.
 - The ruleset permits executing the binary itself and, for a <!-- Linker term. --><!-- vale ai-tells.OverusedVocabulary = NO -->dynamically linked<!-- vale ai-tells.OverusedVocabulary = YES --> binary, its ELF interpreter, because `execve` runs inside the new domain.
@@ -189,7 +189,7 @@ For the reserved paths in [workload hardening](./workload-hardening.md#reserved-
 | `sandbox.read` | Adds `ro` or `rx` rules for paths outside the agent's built-in rules |
 | `sandbox.write` | Adds `rwx` rules, only beneath `/workspace`, `/home/agent` or `/tmp`, which the agent's built-in rules already cover, so it doesn't add access and documents the harness's writable state |
 
-A harness that sandboxes its own tools with Landlock, such as Codex's sandbox, stacks its domain inside the agent's. The kernel allows 16 stacked domains, and the agent's domain is the first.
+A harness that sandboxes its own tools with Landlock, such as Codex's tool sandbox, stacks its domain inside the agent's. The kernel allows 16 stacked domains, and the agent's domain is the first.
 
 ### avirtmcp and avirtguest
 
@@ -414,7 +414,7 @@ The `start` meta event includes the digest of `sandbox.toml`. To reproduce a lau
 
 Landlock confines filesystem, port, and scope access only. The seccomp filters (see [denylist](./workload-hardening.md#denylist)) must deny these for each Landlock-confined process, and the regression suite checks each:
 
-- `unshare` and `clone` with `CLONE_NEWUSER`, except in Codex's sandbox. A new user namespace grants capabilities in it, including `CAP_SYS_CHROOT`, which Landlock doesn't deny.
+- `unshare` and `clone` with `CLONE_NEWUSER`, except in Codex's tool sandbox. A new user namespace grants capabilities in it, including `CAP_SYS_CHROOT`, which Landlock doesn't deny.
 - `ptrace`, `process_vm_readv`, `process_vm_writev`, `pidfd_getfd` and `pidfd_send_signal`.
 - `memfd_create`, and `execveat` with `AT_EMPTY_PATH`.
 - the mount family, `pivot_root` and `setns`.
@@ -486,7 +486,7 @@ Lifecycle checks:
 
 1. **ABI in the running Apple guest (phase 11).** The Kata 6.18.35 configuration implies ABI 7 with Landlock in the default `CONFIG_LSM` list. Check that the probe returns 7 inside a Containerization workload and that a `NETLINK_AUDIT` reader receives `AUDIT_LANDLOCK_ACCESS` records there.
 2. **Docker Desktop kernel audit.** Whether LinuxKit 7.0.14 has `CONFIG_AUDIT` matters only to the host's console. Check whether the Docker Desktop VM's kernel log receives denial records from containers at a rate that matters.
-3. **Codex's sandbox.** Whether Codex's workspace-write sandbox stacks its own Landlock domain cleanly inside the agent's, and whether it needs user namespaces (see [roadmap](./roadmap.md#open-questions)).
+3. **Codex's tool sandbox.** Whether Codex's workspace-write sandbox stacks its own Landlock domain cleanly inside the agent's, and whether it needs user namespaces (see [roadmap](./roadmap.md#open-questions)).
 4. **avirtguestd's paths.** The workspace snapshot directory has no fixed path, and the design assigns `/run/avirt/streams/guestd.sock` to both avirtguestd's listener and one of avirtnetd's local service sockets. Each needs one owner and one path before avirtguestd's ruleset can name them.
 5. **Statically linked helpers.** If avirt uses static binaries, the paths each helper needs lose `/usr/lib`, `/etc/ld.so.cache` and the ELF interpreter, which narrows each helper's read set.
 6. **Agent read access to `/var`.** The agent's security context doesn't grant access under `/var`, so tools that read `/var/lib` or `/var/cache` from the avirt base fail unless a workspace destination specifies the path. Check the positive checks and common toolchains against that.

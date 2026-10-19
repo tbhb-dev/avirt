@@ -61,11 +61,11 @@ The agent can spend CPU and use the proxy. Its visible files include its own fil
 | `ptrace`, `process_vm_readv`, `process_vm_writev`, `pidfd_getfd`, `pidfd_send_signal` | Blocks cross-process memory and fd access | `strace`, `gdb` |
 | `bpf`, `perf_event_open`, `userfaultfd` | Blocks kernel exploit primitives | None |
 | `mount`, `fsopen`, `fsconfig`, `fsmount`, `fspick`, `move_mount`, `open_tree`, `umount2`, `pivot_root`, `setns` | Blocks remounting around Landlock | None |
-| `unshare` and `clone` with `CLONE_NEWUSER` | Blocks capabilities in a new user namespace | `unshare -Urn`, and possibly Codex's sandbox |
+| `unshare` and `clone` with `CLONE_NEWUSER` | Blocks capabilities in a new user namespace | `unshare -Urn`, and possibly Codex's tool sandbox |
 | `clone3` and `pidfd_open`, returning `ENOSYS` | The filter can't inspect `clone3` flags. glibc and libuv fall back | None |
 | `kexec_*`, `init_module`, `finit_module`, `delete_module` | Module and kernel loading | None |
 
-`seccomp(SECCOMP_SET_MODE_FILTER)` stays allowed. Stacked filters can only tighten, and Codex installs its own filters for tool commands. If Codex's sandbox needs user namespaces, the Codex security context allows `CLONE_NEWUSER`.
+`seccomp(SECCOMP_SET_MODE_FILTER)` stays allowed. Stacked filters can only tighten, and Codex installs its own filters for tool commands. If Codex's tool sandbox needs user namespaces, the Codex security context allows `CLONE_NEWUSER`.
 
 ## Landlock
 

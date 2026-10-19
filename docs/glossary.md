@@ -217,7 +217,7 @@ The backend that creates and removes the sandbox container and mediator for a wo
 
 ## Condition on policy sets
 
-A condition that must remain true for every candidate policy set. The prover checks it before avirtpolicyd builds a policy snapshot. A condition can limit the requests a set permits. It can also require permission or denial for specified requests. Status: planned. See [conditions](./egress-policies.md#conditions).
+A condition that must remain true for every candidate policy set. The prover checks it before avirtpolicyd builds a policy snapshot. A condition can limit the requests a set permits. It can also require permission or denial for specified requests. Status: planned. See [conditions](./egress-policies.md#conditions-on-policy-sets).
 
 ## Configuration layer
 

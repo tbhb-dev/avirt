@@ -95,7 +95,7 @@ flowchart LR
     comps -->|"off-host calls"| fd
     daemons -->|"egress listener"| fd
     clients --> csock
-    csock -->|"local client listener"| fd
+    csock -->|"edgeproxy.sock"| fd
     webui --> wport
     wport -->|"local listener"| fd
     admin -->|"admin.sock, peer credentials"| hostd
@@ -338,7 +338,7 @@ All runtimes present the same Unix sockets inside the containers under `/run/avi
 | avirtmediatord's ingress listener | None | vsock from avirthostd into the mediator VM | Open (see [components](./components.md#open-questions)) |
 | avirthostd's SNI routing to avirtedgeproxyd's egress listener | None | Host Unix socket | Host Unix socket |
 | avirtedgeproxyd to host services and `services/ingress-relay.sock` | None | Host Unix sockets | Host Unix sockets |
-| Local client listener, `edgeproxy.sock` | None | Host Unix socket | Host Unix socket |
+| `edgeproxy.sock` | None | Host Unix socket | Host Unix socket |
 | Web UI users | None | TCP listener on the host's loopback interface | TCP listener on the host's loopback interface |
 | Peer listener (`peering.listen`, default 8788) | None | TCP listener on the host | TCP listener on the host |
 | Host socket paths under the 104-byte limit | `proxy.sock`, `mediator.sock`, `hostd.sock` | None | `c.sock`, `s.sock` |
@@ -380,7 +380,7 @@ Each listener's caller identity and allowed operations are in [trust boundaries]
 | Host | avirthostd's end of the mediator's connection, one per workload | Runtime-provided Unix socket, mTLS 1.3, h2 |
 | Host | avirthostd's SNI routing: each mediator's outbound socket, and `services/ingress-relay.sock` for avirtedgeproxyd | Runtime-provided Unix socket and Unix, TLS forwarded unchanged |
 | Host | Host service listeners `services/<name>.sock` (0660 with a group), the issuer `services/issuer.sock` | Unix, mTLS 1.3 (the issuer accepts an enrollment token or a current SVID) |
-| Host | avirtedgeproxyd's local client listener `edgeproxy.sock`, and avirthostd's `admin.sock`, in the runtime directory | Unix, 0600, user-owned |
+| Host | avirtedgeproxyd's `edgeproxy.sock`, and avirthostd's `admin.sock`, in the runtime directory | Unix, 0600, user-owned |
 | Host | avirtedgeproxyd's loopback listener for web UI users | TCP, loopback |
 | Host | The peer port, on the `peering.listen` addresses, default port 8788, and absent while `peering.listen` is empty | TCP on the host network |
 | Host | zot, `127.0.0.1:<port>` | Loopback TCP, mTLS from avirtregistryd's private CA |

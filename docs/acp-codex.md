@@ -38,14 +38,14 @@ avirthostd refuses a codex launch with a 400 unless the host `auth.json` exists 
 
 codex-acp reads `INITIAL_AGENT_MODE` at startup. avirthostd passes it through from its own environment when that environment sets it.
 
-| Mode | Codex's sandbox and approvals |
+| Mode | Codex's tool sandbox and approvals |
 | --- | --- |
 | `read-only` | Codex's read-only sandbox. Codex requests permission for writes, and avirtinitd approves them. |
 | `workspace-write` | Writes inside the workspace, no network for tool commands |
 | `agent` | The default: workspace-write sandbox, approvals on request |
 | `agent-full-access` | Codex runs without its sandbox |
 
-Codex's sandbox blocks the network for tool commands in `workspace-write` and `agent`, and makes `/tmp` read-only in `read-only`, so bypass and positive egress checks for Codex need `agent-full-access`. The sandbox container is the security boundary, not Codex's sandbox (see [workload hardening](./workload-hardening.md)).
+Codex's tool sandbox blocks the network for tool commands in `workspace-write` and `agent`, and makes `/tmp` read-only in `read-only`, so bypass and positive egress checks for Codex need `agent-full-access`. The sandbox container is the security boundary, not Codex's tool sandbox (see [workload hardening](./workload-hardening.md)).
 
 ## Configuration sources
 
@@ -147,4 +147,4 @@ The policy rules are in [egress](./egress-policies.md#external-destinations).
 # Open questions
 
 1. **Managed defaults and project config.** The managed-configuration documentation gives `managed_config.toml` precedence over the user `config.toml` and command-line overrides, but not relative to a trusted project's `.codex/config.toml`. Whether a managed default also overrides project config matters only when a project has trusted status.
-2. **Modes as requirements.** Whether the overlay also constrains Codex's sandbox and approval values in `requirements.toml` (`allowed_permission_profiles` for Codex 0.138.0 and later), so that an operator's mode change through the session control API can't leave the launch's mode, is open.
+2. **Modes as requirements.** Whether the overlay also constrains Codex's tool sandbox and approval values in `requirements.toml` (`allowed_permission_profiles` for Codex 0.138.0 and later), so that an operator's mode change through the session control API can't leave the launch's mode, is open.

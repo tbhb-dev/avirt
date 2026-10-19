@@ -131,7 +131,7 @@ Status: planned. These items from [components](./components.md) have no phase or
 - **Canonical workload IDs.** UUIDv7 workload IDs in SPIFFE IDs, Cedar entities and log records, with short IDs from their random bits and clash handling.
 - **avirtregistryd.** The wrapped OCI registry for workspace images, its secondary index and search API, avirtbuilderd pushing to it and avirthostd pulling from it by digest.
 - **Operational ownership.** Resource admission and accounting, the content-addressed cache with digest verification and garbage collection, sandboxed build jobs, and protocol versioning with draining (see [components](./components.md#operational-ownership)).
-- **Policy prover.** avirtpolicyd's Cedar prover beyond the policy snapshot gate in phase 7: host-wide invariants (limits on permitted requests, conditions that require permission and conditions that require denial), the MITM CA name constraints it derives, and proof results reported with each policy snapshot (see [egress policies](./egress-policies.md)).
+- **Policy prover.** avirtpolicyd's Cedar prover beyond the policy snapshot gate in phase 7: host-wide conditions on policy sets (conditions that limit permitted requests, conditions that require permission and conditions that require denial), the MITM CA name constraints it derives, and proof results reported with each policy snapshot (see [egress policies](./egress-policies.md)).
 - **Policy advisor.** avirtpolicyd proposes policy changes from denials. It groups `deny` events by principal, action, and resource and drafts the narrowest Cedar permit that would allow each group. It checks every proposal against the prover's properties and queues it for an operator to accept or reject. No proposal takes effect without acceptance.
 
 # Open questions
@@ -139,7 +139,7 @@ Status: planned. These items from [components](./components.md) have no phase or
 Resolve these before building the phases that depend on them:
 
 1. **Codex with a placeholder `auth.json`, end to end (phase 10).** Check the synthesized refresh response through Codex's token persistence, its reload from disk on a 401, and codex-acp's login path, using a hand-made placeholder `auth.json` against a stub gateway and then a forced real refresh.
-2. **Codex's sandbox under the planned seccomp filter (phase 11).** Does workspace-write need `CLONE_NEWUSER` or nested seccomp? Docker's default profile also blocks `unshare`. The answer affects both runtimes.
+2. **Codex's tool sandbox under the planned seccomp filter (phase 11).** Does workspace-write need `CLONE_NEWUSER` or nested seccomp? Docker's default profile also blocks `unshare`. The answer affects both runtimes.
 3. **The SPIFFE verifier and rotation (phase 3).** Run conformance tests against the X.509-SVID rules (chain to bundle through the issuing CA, authorization of the exact peer ID, name constraints, no web roots) and against the workload-signed inner request, plus a soak with a 2-minute lifetime and long streams across rotations.
 4. **Landlock in the running Apple guest (phase 11).** Expect `landlock_create_ruleset(NULL, 0, LANDLOCK_CREATE_RULESET_VERSION)` to return 7 inside a Containerization sandbox container. It must return at least 6, since a kernel `lsm=` argument could drop Landlock (see [workload kernels](./landlock.md#workload-kernels)).
 5. **CA coverage under termination (phase 8).** Does Claude Code's `NODE_EXTRA_CA_CERTS` path cover every client it uses, and which `/api/*` calls does it make at startup?
