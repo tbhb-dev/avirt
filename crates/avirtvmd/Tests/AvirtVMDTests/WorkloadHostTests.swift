@@ -107,7 +107,7 @@ struct WorkloadHostTests {
     #expect(await failing.current == .idle)
   }
 
-  @Test("A failed launch removes the container directory and the log, so the start can run again")
+  @Test("A failed launch removes the container directory and renames the log, so the start can run again")
   func failedLaunchCleansUp() async throws {
     let scratch = try ScratchDirectory()
     defer { scratch.remove() }
@@ -118,6 +118,7 @@ struct WorkloadHostTests {
     }
     #expect(!FileManager.default.fileExists(atPath: prepared.containerDir))
     #expect(!FileManager.default.fileExists(atPath: prepared.stdioPath))
+    #expect(FileManager.default.fileExists(atPath: prepared.stdioPath + ".failed"))
   }
 
   @Test("A request whose root filesystem can't be cloned removes the container directory")

@@ -149,6 +149,20 @@ async fn exited(pid: u32) -> Result<()> {
     bail!("process {pid} still runs")
 }
 
+/// Releases the workload, then checks that the helper `pid` exited and that no directory remains.
+///
+/// # Errors
+///
+/// Fails when the helper keeps running or a directory remains.
+async fn release_and_verify(mut fixture: Fixture, pid: u32) -> Result<()> {
+    fixture.handle.stop_mediator().await;
+    Box::new(fixture.handle).release(true).await;
+    exited(pid).await?;
+    ensure!(!fixture.workload_dir.exists(), "the workload directory remains");
+    ensure!(!fixture.container_dir.exists(), "the VM state remains");
+    Ok(())
+}
+
 /// A refused start ends with the helper stopped and both directories removed.
 ///
 /// # Errors
@@ -171,19 +185,14 @@ async fn a_failure_reply_to_the_start_ends_in_a_full_teardown() -> Result<()> {
     let pid = Intent::read(&fixture.workload_dir)?.pid.context("the intent has no pid")?;
     ensure!(alive(pid), "the stand-in helper isn't running");
 
-    fixture.handle.stop_mediator().await;
-    Box::new(fixture.handle).release(true).await;
-    exited(pid).await?;
-    ensure!(!fixture.workload_dir.exists(), "the workload directory remains");
-    ensure!(!fixture.container_dir.exists(), "the VM state remains");
-    Ok(())
+    release_and_verify(fixture, pid).await
 }
 
 /// The start fails after the timeout when the helper doesn't answer the start request.
 ///
 /// # Errors
 ///
-/// Fails when the start succeeds or outlasts the timeout, or when the error names another cause.
+/// Fails when the start succeeds or outlasts the timeout, when the error names another cause, when the helper keeps running, or when a directory remains.
 ///
 /// # Panics
 ///
@@ -201,9 +210,9 @@ async fn a_helper_that_never_answers_the_start_request_times_out() -> Result<()>
     let Err(err) = fixture.handle.start_workload().await else { bail!("the start succeeded") };
     ensure!(err.to_string().contains("didn't answer the start request"), "the error is {err:#}");
     ensure!(began.elapsed() < Duration::from_secs(10), "the start waited {:?}", began.elapsed());
-    fixture.handle.stop_mediator().await;
-    Box::new(fixture.handle).release(true).await;
-    Ok(())
+    let pid = Intent::read(&fixture.workload_dir)?.pid.context("the intent has no pid")?;
+
+    release_and_verify(fixture, pid).await
 }
 
 /// The supervisor kills a helper that binds its socket and never completes the handshake.

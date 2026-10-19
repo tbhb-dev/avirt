@@ -70,6 +70,11 @@ enum Sys {
     _ = unsafe unlink(path)
   }
 
+  /// Renames `source` to `destination`, replacing a file already there.
+  static func moveFile(from source: String, to destination: String) {
+    _ = unsafe rename(source, destination)
+  }
+
   static func restrictToOwner(_ path: String) throws(LockError) {
     guard unsafe chmod(path, 0o600) == 0 else {
       throw .unavailable(errno)
