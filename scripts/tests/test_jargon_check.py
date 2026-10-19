@@ -1,4 +1,4 @@
-"""Tests for scripts/jargon_check.py. Run: uv run --no-project --with-requirements scripts/tests/requirements.txt pytest scripts/tests"""
+"""Tests for scripts/jargon_check.py. Run: mise run test-jargon"""
 
 import subprocess
 import sys

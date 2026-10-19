@@ -466,6 +466,7 @@ UTC
 Vale
 VCS
 vendir
+venv
 virtio
 virtiofs
 Vite

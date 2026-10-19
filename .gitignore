@@ -24,4 +24,5 @@ tmp/
 mutants.out*/
 *.profraw
 __pycache__/
+.venv-jargon/
 .pytest_cache/
