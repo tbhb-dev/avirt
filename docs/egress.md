@@ -73,7 +73,7 @@ TCP uses one HTTP/2 CONNECT stream per flow. UDP uses CONNECT-UDP with DATAGRAM 
 ## How avirtmediatord handles egress
 
 1. **Destination.** Use the canonical authority or IP address. A synthetic address maps to a name only through the mediator's synthetic address table. Refuse an unknown synthetic address. A CONNECT authority supplies a name directly. Other addresses stay IP destinations even if a client supplies SNI or Host. `name_from` is `dns`, `connect` or `none`.
-2. **Entity.** Resolve internal names to Workload or Service entities and refuse unresolved names. Ordinary flows can't target host services. MCP and guest CLI streams reach only their designated service paths.
+2. **Entity.** Resolve avirt hostnames to Workload or Service entities and refuse unresolved names. Ordinary flows can't target host services. MCP and guest CLI streams reach only their designated service paths.
 3. **Connection policy.** Check `connect` with the destination protocol and port, using port 0 for ICMP. The principal comes from the authenticated workload identity, never its source address.
 4. **Protocol.** Select SSH, HTTP, or TLS from port and policy before dialing. Port 22 or an SSH binding selects SSH. Skip probe dials. Check `intercept` for TLS or SSH at any permitted port, or `passthrough` with the detected protocol.
 5. **Inspection.** Under TLS interception, present a leaf certificate from the workload's MITM CA and offer both `h2` and `http/1.1`. Check authorization and `credential-misplaced` on one canonical request. Serialize it with only the credential its binding permits. Check the exact Codex refresh match before the placeholder scan. Act as the cleartext HTTP server with authorization per request and no injection. SSH uses the binding's pinned host key, authentication with a placeholder key, and allowed channel operations.
@@ -87,7 +87,7 @@ TCP uses one HTTP/2 CONNECT stream per flow. UDP uses CONNECT-UDP with DATAGRAM 
 
 avirtedgeproxyd accepts CONNECT, CONNECT-UDP and `icmp` streams from authorized mediators and host services, and from enrolled peers on its peer listener. It verifies the caller's SVID and current generation before evaluating the host policy snapshot. On authorized delegated calls it also checks the originating principal in `x-avirt-caller`.
 
-Internal names resolve to canonical entities. Local workload ports use the destination mediator's ingress listener. A service can use its authorized backend, and an internal name under a peer's host name routes through that peer's avirtedgeproxyd. The edge resolves external names and checks every resolved address before dialing. Retries repeat the checks and never trigger an unchecked re-resolution. TCP and UDP use separate sockets per flow. UDP sockets connect to their fixed destination. ICMP uses unprivileged datagram sockets.
+avirt hostnames resolve to canonical entities. Local workload ports use the destination mediator's ingress listener. A service can use its authorized backend, and an avirt hostname under a peer's host name routes through that peer's avirtedgeproxyd. The edge resolves external names and checks every resolved address before dialing. Retries repeat the checks and never trigger an unchecked re-resolution. TCP and UDP use separate sockets per flow. UDP sockets connect to their fixed destination. ICMP uses unprivileged datagram sockets.
 
 ## `private-dest`
 
@@ -95,7 +95,7 @@ The edge refuses non-global addresses and addresses assigned to the host's own i
 
 | Status | Cause |
 | --- | --- |
-| 403 | `private-dest`, an unknown internal name, or a denied caller or destination |
+| 403 | `private-dest`, an unknown avirt hostname, or a denied caller or destination |
 | 502 | DNS or dial failure |
 | 504 | Connection timeout |
 
@@ -105,7 +105,7 @@ avirtedgeproxyd doesn't decrypt the upstream TLS opened by a mediator or gateway
 
 All TCP and UDP port 53 traffic reaches avirtnetd's DNS stub resolver, including queries sent to an arbitrary address and UDP port 53 read from the TUN. Each query opens a separate `POST /dns` stream with `application/dns-message` request and response bodies and a separate concurrency limit. `resolve` applies at both the mediator and edge, including every name in a CNAME chain.
 
-The mediator returns synthetic answers for both external and internal names. The synthetic address table has a size limit. Allocations fail when full. DNS rewrites include HTTPS and SVCB address hints, AliasMode, TargetName and port, with consistent `mandatory` and `no-default-alpn` fields. The synthesizer removes `ech` and omits `h3` for intercepted names. Guest DNSSEC validation fails on rewritten answers. [Names and DNS](./networking.md#names-and-dns) specifies the table and residual channels. [DNS](./dns.md) defines internal names.
+The mediator returns synthetic answers for both external and avirt hostnames. The synthetic address table has a size limit. Allocations fail when full. DNS rewrites include HTTPS and SVCB address hints, AliasMode, TargetName and port, with consistent `mandatory` and `no-default-alpn` fields. The synthesizer removes `ech` and omits `h3` for intercepted names. Guest DNSSEC validation fails on rewritten answers. [Names and DNS](./networking.md#names-and-dns) specifies the table and residual channels. [DNS](./dns.md) defines avirt hostnames.
 
 ## Websockets
 

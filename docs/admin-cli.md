@@ -139,7 +139,7 @@ avirtadmin has no `--context` and no `--host`. It administers only the host it r
 
 | Command | Does |
 | --- | --- |
-| `avirtadmin namespace create NS` | Creates a namespace. `NS` is a lowercase DNS label of at most 63 characters, rejected rather than truncated (see [internal names](./dns.md#internal-names)). |
+| `avirtadmin namespace create NS` | Creates a namespace. `NS` is a lowercase DNS label of at most 63 characters, rejected rather than truncated (see [avirt hostnames](./dns.md#avirt-hostnames)). |
 | `avirtadmin namespace list`, `inspect NS` | As `avirt namespace list` and `inspect` |
 | `avirtadmin namespace rm NS` | Removes an empty namespace. avirtadmin refuses a namespace with a live workload, a service, or a workspace repository with exit 5. It never removes `default`. |
 

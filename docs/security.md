@@ -156,7 +156,7 @@ avirt denies or ends the workload if a check can't run, a dependency is missing,
 - **Met.** Losing its mediator leaves a workload without an outbound path. A mediator shuts down on stdin EOF when avirthostd exits ([mediator process](./egress.md#mediator-process)).
 - **Met.** Codex write-back replaces the host `auth.json` only with a strictly newer copy of the same login. avirthostd skips write-back unless it confirms that the workload has ended ([Codex](./egress-credentials.md#codex)).
 - **Future.** No agent starts before the workload identity, the MITM CA, the placeholders and a valid policy snapshot are in place ([launch handshake](./workload-topology.md#launch-handshake)).
-- **Future.** A missing or expired policy snapshot, a Cedar evaluation error and an internal name that resolves to no entity each deny, in both modes ([policy failure behavior](./egress-policies.md#policy-failure-behavior)).
+- **Future.** A missing or expired policy snapshot, a Cedar evaluation error and an avirt hostname that resolves to no entity each deny, in both modes ([policy failure behavior](./egress-policies.md#policy-failure-behavior)).
 - **Future.** A lost connection between the workload and its mediator freezes the agent, and the workload ends if mediator confirmation fails to complete within 30 s ([freeze and reconnect](./workload-topology.md#freeze-and-reconnect)).
 - **Future.** Each side of each protocol refuses a version it doesn't support with a named error ([operational ownership](./components.md#operational-ownership)).
 

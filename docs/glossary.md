@@ -35,7 +35,7 @@ The cgroup v2 group that holds the agent and every tool it starts, which avirtin
 
 ## Alias
 
-An optional DNS label that a workload or a service contains beside its ID or name. Name resolution maps it to the same entity, and it never grants anything. Status: planned. See [internal names](./dns.md#internal-names).
+An optional DNS label that a workload or a service contains beside its ID or name. Name resolution maps it to the same entity, and it never grants anything. Status: planned. See [avirt hostnames](./dns.md#avirt-hostnames).
 
 ## All-in-one server image
 
@@ -63,6 +63,10 @@ The project, always written in lowercase, and its operator CLI, the `avirt` bina
 
 The image from which every planned sandbox image derives. It includes the OS userland and the `agent` user, along with the per-process UIDs, the `avirt-ws` group, and every avirt guest binary. Status: planned. See [layer stack](./workload-lifecycle.md#layer-stack).
 
+## avirt hostname
+
+A DNS name under `host.avirt.internal`, or ending in an active peer's host name, that specifies a workload or a service, which only avirtdnsd answers. avirtdnsd maps it to avirtedgeproxyd on the host that serves it, and the workload receives a synthetic address. Status: planned. See [avirt hostnames](./dns.md#avirt-hostnames).
+
 ## avirtacp
 
 The main workload process that drives an ACP adapter, taps every JSON-RPC line and serves the session control API. In the implemented system avirtinitd holds the ACP client instead. Status: planned. See [sandbox container](./components.md#sandbox-container).
@@ -89,7 +93,7 @@ The host service that schedules workspace builds and runs prebuild configuration
 
 ## avirtdnsd
 
-The host service that answers internal names with the address of avirtedgeproxyd on the host that serves them. Status: planned. See [DNS](./dns.md#the-avirtdnsd-zone).
+The host service that answers avirt hostnames with the address of avirtedgeproxyd on the host that serves them. Status: planned. See [DNS](./dns.md#the-avirtdnsd-zone).
 
 ## avirtedgeproxyd
 
@@ -297,7 +301,7 @@ A component that evaluates policy and enforces the decision on traffic or a call
 
 ## Enrollment
 
-The act by which an operator adds a peer to this host from the peer's enrollment file, after comparing its fingerprint out of band. This makes the host trust the peer's trust bundle and internal names under that peer's host name. Status: planned. See [enrollment](./peering.md#enrollment).
+The act by which an operator adds a peer to this host from the peer's enrollment file, after comparing its fingerprint out of band. This makes the host trust the peer's trust bundle and avirt hostnames under that peer's host name. Status: planned. See [enrollment](./peering.md#enrollment).
 
 ## Enrollment file
 
@@ -382,10 +386,6 @@ Internet Control Message Protocol. avirt supports echo through an extended CONNE
 ## Ingress listener
 
 avirtmediatord's listener on `/run/avirt/ingress.sock`, on which avirtedgeproxyd, through avirthostd's SNI routing, reaches that workload's published ports. Status: planned. See [runtime-provided sockets](./workload-topology.md#runtime-provided-sockets).
-
-## Internal name
-
-A DNS name under `host.avirt.internal`, or ending in an active peer's host name, that specifies a workload or a service, which only avirtdnsd answers. avirtdnsd maps it to avirtedgeproxyd on the host that serves it, and the workload receives a synthetic address. Status: planned. See [internal names](./dns.md#internal-names).
 
 ## Invariant
 
@@ -665,7 +665,7 @@ avirtmediatord accepting the agent's TLS connection with a leaf certificate from
 
 ## TLS passthrough
 
-avirtmediatord relaying a connection to avirtedgeproxyd byte for byte without decrypting TLS. It neither inspects requests nor injects credentials. Every internal name takes this path, as does an external connection when `passthrough` permits it. Status: planned. See [how avirtmediatord handles egress](./egress.md#how-avirtmediatord-handles-egress).
+avirtmediatord relaying a connection to avirtedgeproxyd byte for byte without decrypting TLS. It neither inspects requests nor injects credentials. Every avirt hostname takes this path, as does an external connection when `passthrough` permits it. Status: planned. See [how avirtmediatord handles egress](./egress.md#how-avirtmediatord-handles-egress).
 
 ## Trailers-only
 

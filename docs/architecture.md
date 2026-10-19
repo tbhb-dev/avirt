@@ -66,7 +66,7 @@ The mediator runs in its own container with no network interface other than loop
 - **Sandbox container.** avirtnetd provides its HTTP/2 connection to its mediator. avirtnetd holds the workload SVID, receives redirected TCP and reads UDP and ICMP from its TUN. It provides DNS and an optional loopback forward proxy. The sandbox VM has no network device.
 - **Mediator.** avirtmediatord is one process with one UID, Landlock ruleset, and SVID. It serves workload and ingress listeners, with TLS interception and credential injection in-process. The same process maintains the connection to avirthostd and calls `GET /workload`, `GET /workload/control`, and `POST /workload/svid`.
 - **Host.** avirthostd owns workload lifecycle and the SPIFFE issuer, avirtsecretsd stores the real credentials (see [secrets](./secrets.md)), avirtpolicyd distributes policy snapshots, avirtmodelgwd and avirtmcpgwd inject model and MCP credentials, avirtregistryd stores and indexes workspace images, and avirtedgeproxyd is the only global policy enforcement point and the only host service that opens connections off the host (see [components](./components.md#avirtedgeproxyd)).
-- **Names and namespaces.** Each workload is in one host-local namespace, and avirtdnsd routes internal names through the edge proxy of the host that serves them. avirtmediatord returns synthetic addresses per workload (see [DNS](./dns.md#internal-names)).
+- **Names and namespaces.** Each workload is in one host-local namespace, and avirtdnsd routes avirt hostnames through the edge proxy of the host that serves them. avirtmediatord returns synthetic addresses per workload (see [DNS](./dns.md#avirt-hostnames)).
 
 ```mermaid
 flowchart LR

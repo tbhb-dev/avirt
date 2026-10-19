@@ -99,7 +99,7 @@ bind: [{host: api.anthropic.com, port: 443, paths: ["/v1/*", "/api/*"]}]
 Constraints:
 
 - Bindings are host administration: only avirtadmin can create bindings or change or remove them. Workload principals lack these permissions.
-- A binding's `bind` hosts are external hosts. Bindings exclude internal names and host services.
+- A binding's `bind` hosts are external hosts. Bindings exclude avirt hostnames and host services.
 - A launch attaches bindings by id. avirthostd authorizes `attach_binding` for each one against the host policy snapshot (see [egress policies](./egress-policies.md#actions)), and then registers the workload's bindings with avirtsecretsd.
 - Bindings attached to one workload must have disjoint matches over host, port, and path.
 

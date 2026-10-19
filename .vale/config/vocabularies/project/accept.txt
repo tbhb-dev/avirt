@@ -270,7 +270,6 @@ Xcode
 zot
 [Pp]athname
 
-[Ii]nternal names?
 ICMP
 TUN
 TUN's

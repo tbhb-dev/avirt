@@ -18,9 +18,9 @@ A **peering** joins two avirt hosts so that workloads on one reach workloads and
 The **peer's host name**, `<host>`, identifies a peer. It must be the peer's real fully qualified DNS name, such as `mac-studio.example.com` or the tailnet name `studio.example.ts.net`. avirt takes it from the peer's enrollment file at enrollment rather than assigning a name.
 
 - **Own host names.** Each host lists its own fully qualified names in the host setting `peering.hosts`, which defaults to the machine's fully qualified host name when it has at least two labels. Its enrollment file contains them, and avirtedgeproxyd's SVID includes each of them as a DNS SAN beside its SPIFFE ID (see [peer listener](#peer-listener)).
-- **Syntax.** `<host>` is lowercase ASCII, at least two labels, each label 1 to 63 characters of `a`-`z`, `0`-`9` and `-`, not starting or ending with `-`, with no trailing dot. An internationalized name uses its A-label (`xn--`) form. `<host>` is at most 116 characters, the cap in [DNS](./dns.md#internal-names), so an internal name under a peer's host name, `<alias>-<id>.<ns>.workload.<host>`, is at most 137 + 116 = 253 characters.
-- **Name forms.** A peer workload is `<id>.<ns>.workload.<host>`, `<alias>-<id>.<ns>.workload.<host>` or `<generated>.<ns>.workload.<host>`, and a peer service is `<name>.<ns>.svc.<host>` or `<alias>.<ns>.svc.<host>`. Internal names under a peer's host name have no short form without `<ns>`.
-- **Parsing.** In a name with at least four labels, `<host>` is everything after the third label. The name is an internal name under a peer's host name only if its third label is `workload` or `svc`, its first two labels are valid for that form, and `<host>` is the host name of an `active` peer (see [enrollment record](#enrollment-record)). Any other name, including the peer's host name itself, any other name under it, a name under a peer that's not `active`, and a name under a host that's not enrolled, isn't an internal name: it resolves normally and is classified as an external endpoint.
+- **Syntax.** `<host>` is lowercase ASCII, at least two labels, each label 1 to 63 characters of `a`-`z`, `0`-`9` and `-`, not starting or ending with `-`, with no trailing dot. An internationalized name uses its A-label (`xn--`) form. `<host>` is at most 116 characters, the cap in [DNS](./dns.md#avirt-hostnames), so an avirt hostname under a peer's host name, `<alias>-<id>.<ns>.workload.<host>`, is at most 137 + 116 = 253 characters.
+- **Name forms.** A peer workload is `<id>.<ns>.workload.<host>`, `<alias>-<id>.<ns>.workload.<host>` or `<generated>.<ns>.workload.<host>`, and a peer service is `<name>.<ns>.svc.<host>` or `<alias>.<ns>.svc.<host>`. avirt hostnames under a peer's host name have no short form without `<ns>`.
+- **Parsing.** In a name with at least four labels, `<host>` is everything after the third label. The name is an avirt hostname under a peer's host name only if its third label is `workload` or `svc`, its first two labels are valid for that form, and `<host>` is the host name of an `active` peer (see [enrollment record](#enrollment-record)). Any other name, including the peer's host name itself, any other name under it, a name under a peer that's not `active`, and a name under a host that's not enrolled, isn't an avirt hostname: it resolves normally and is classified as an external endpoint.
 - **Matching.** The peer's avirtedgeproxyd must present `<host>` as a DNS SAN on each connection, along with `spiffe://<peer td>/service/avirtedgeproxyd`. avirtedgeproxyd refuses a connection whose certificate lacks that DNS SAN.
 - **Qualification.** Cedar entities, `avirt` contexts and `--host` use the full `<host>`, with no alias: `Peer::"mac-studio.example.com"`, `Namespace::"mac-studio.example.com/team-a"`, `Workload::"mac-studio.example.com/team-a/<uuid>"`.
 - **One name per enrollment.** For a peer whose enrollment file lists more than one name, enrollment uses the first name unless `--host` chooses another from the file's list. Enrollment refuses a name absent from the file.
@@ -57,7 +57,7 @@ To compute the fingerprint, sort all root certificates in `bundle` bytewise by t
 1. It parses the file and refuses one whose `version` it doesn't support, whose `created` is more than 7 days old, whose bundle lacks an unexpired root, or whose roots aren't name-constrained to the file's trust domain.
 2. It shows the trust domain, the file's host names, the peer's host name for the record, and the fingerprint. With `--fingerprint FP` it compares them and refuses on a mismatch. Without it, it asks the operator to confirm on a terminal, and without a terminal it refuses.
 3. avirthostd validates the name and the trust domain against [peers' host names](#peers-host-names), then evaluates `enroll_peer`. It writes the enrollment record to `peers/` in its state directory (see [lifecycle](./lifecycle.md#durable-state)) and adds the `Peer` entity to its next entity revision.
-4. avirtedgeproxyd installs the peer's bundle in its verifier, and the peer's host name reaches avirtdnsd, which answers internal names under that peer's host name once the record enters `active`. The record starts in `pending`.
+4. avirtedgeproxyd installs the peer's bundle in its verifier, and the peer's host name reaches avirtdnsd, which answers avirt hostnames under that peer's host name once the record enters `active`. The record starts in `pending`.
 5. avirthostd fetches the peer's bundle through avirtedgeproxyd at once, and then on the refresh schedule. The first fetch that completes mutual TLS and returns a valid bundle moves the record to `active`. Until the peer has enrolled this host too, the peer refuses the handshake and the record stays `pending`.
 
 The enrollment file's bundle is the bootstrap bundle: the first connection to the peer authenticates it with that bundle, and each later connection with the most recently fetched one.
@@ -102,11 +102,11 @@ sequenceDiagram
 | `reachable` | False after three consecutive failed dials or refreshes, true again after the next success |
 | `enrolled`, `last_handshake`, `last_refresh`, `last_error` | Times and the last failure reason |
 
-| State | Meaning | Peer listener | Internal names under a peer's host name |
+| State | Meaning | Peer listener | avirt hostnames under a peer's host name |
 | --- | --- | --- | --- |
-| `pending` | Enrolled here, no mutual handshake yet | Accepts the peer | Not internal names: they resolve normally. avirthostd attempts bundle fetches, which the peer refuses until it enrolls this host. |
-| `active` | A mutual handshake and a bundle fetch have succeeded | Accepts the peer | internal names, routed to the peer, whether `reachable` is true or not |
-| `suspended` | `avirtadmin peer suspend` | Refuses the peer and closes its open connections | Not internal names: they resolve normally |
+| `pending` | Enrolled here, no mutual handshake yet | Accepts the peer | Not avirt hostnames: they resolve normally. avirthostd attempts bundle fetches, which the peer refuses until it enrolls this host. |
+| `active` | A mutual handshake and a bundle fetch have succeeded | Accepts the peer | avirt hostnames, routed to the peer, whether `reachable` is true or not |
+| `suspended` | `avirtadmin peer suspend` | Refuses the peer and closes its open connections | Not avirt hostnames: they resolve normally |
 
 ## Trust bundles
 
@@ -138,10 +138,10 @@ If a peer skips bundle fetches throughout the 30-day overlap, it retains only th
 
 | Command | Effect |
 | --- | --- |
-| `avirtadmin peer suspend HOST` | avirtedgeproxyd stops accepting the peer and closes each open connection authenticated by its trust domain, at once, ending each stream on them. The internal names under that peer's host name are no longer internal names, so avirtedgeproxyd stops dialing the peer. The record, its bundle, and its policy references remain. |
+| `avirtadmin peer suspend HOST` | avirtedgeproxyd stops accepting the peer and closes each open connection authenticated by its trust domain, at once, ending each stream on them. The avirt hostnames under that peer's host name are no longer avirt hostnames, so avirtedgeproxyd stops dialing the peer. The record, its bundle, and its policy references remain. |
 | `avirtadmin peer resume HOST` | Returns the record to `pending` and refreshes at once. |
 | `avirtadmin peer distrust-root HOST FINGERPRINT` | Removes the root with that fingerprint (the SHA-256 of its DER, in the same encoding as the peer fingerprint) from the peer's bundle and adds it to `distrusted`, so no later refresh can return it. avirtedgeproxyd closes connections whose peer chain uses that root. A bundle left with no root suspends the peer. |
-| `avirtadmin peer revoke HOST` | Removes the enrollment and its bundle from the verifier. avirtedgeproxyd closes each connection with the peer, and the next entity revision excludes the `Peer` entity. The internal names under that peer's host name become ordinary names and resolve normally. avirthostd stops each workload created here from that peer, as when its creator stops sending `Workloads/KeepAlive` calls (see [workload management across hosts](#workload-management-across-hosts)). |
+| `avirtadmin peer revoke HOST` | Removes the enrollment and its bundle from the verifier. avirtedgeproxyd closes each connection with the peer, and the next entity revision excludes the `Peer` entity. The avirt hostnames under that peer's host name become ordinary names and resolve normally. avirthostd stops each workload created here from that peer, as when its creator stops sending `Workloads/KeepAlive` calls (see [workload management across hosts](#workload-management-across-hosts)). |
 
 Changing the verifier affects new handshakes. avirtedgeproxyd closes each existing connection whose peer trust domain the host no longer trusts, or whose chain uses a distrusted root. Revocation is local and immediate on the host that runs it. The other host sees refused handshakes from then on, and its record's `reachable` becomes false.
 
@@ -214,14 +214,14 @@ These never cross a peering:
 - **Keys.** Any private key, the SPIFFE CA, the MITM CAs, and each SVID other than the two hosts' avirtedgeproxyd SVIDs.
 - **Policy.** Policy sets, policy snapshots, invariants, and decisions. Each host's policy remains private to that host. Its decisions don't bind the other host.
 - **Audit and logs.** Audit logs, workload logs and audit records stay on the host that wrote them. A peer reads a workload's log only through `Logs/ReadLog` on its routes, under the peer's own `read_log` policy, which is a control-plane call and not audit delivery.
-- **DNS queries.** avirtdnsd answers each internal name under a peer's host name locally (see [DNS](#dns)).
+- **DNS queries.** avirtdnsd answers each avirt hostname under a peer's host name locally (see [DNS](#dns)).
 - **Topology.** This host never reveals its other peers to a peer. Peer routes exclude `Peers/*`, and avirt never forwards a stream to a third host.
 
 ### Workload traffic
 
-A workload connects to a peer's workload or service by its internal name under that peer's host name:
+A workload connects to a peer's workload or service by its avirt hostname under that peer's host name:
 
-1. avirtmediatord on the source host resolves the internal name under the peer's host name to `Namespace::"<host>/<ns>"` (see [name resolution](./egress-policies.md#name-resolution)). Next come the workload policy snapshot's `resolve` and `connect` checks. After these checks, avirtmediatord sends the stream to its own avirtedgeproxyd through avirthostd's SNI routing, as for each internal name.
+1. avirtmediatord on the source host resolves the avirt hostname under the peer's host name to `Namespace::"<host>/<ns>"` (see [name resolution](./egress-policies.md#name-resolution)). Next come the workload policy snapshot's `resolve` and `connect` checks. After these checks, avirtmediatord sends the stream to its own avirtedgeproxyd through avirthostd's SNI routing, as for each avirt hostname.
 2. At the source avirtedgeproxyd, authorization of avirtmediatord SVID includes generation fencing. It evaluates the host policy snapshot's `connect` for the source `Workload` and `Namespace::"<host>/<ns>"`, then rewrites `:authority`. On a connection to the peer, it opens the stream with `x-avirt-caller` set to the source workload's SPIFFE ID.
 3. avirtedgeproxyd on the destination host checks the caller's trust domain and resolves the local name to its own entity. Then it evaluates its host policy snapshot's `connect` for `Workload::"<source host>/<ns>/<uuid>"` and connects to the destination workload's avirtmediatord's ingress listener or to a host-local backend, as for a local caller (see [edge proxy egress](./egress.md#edge-proxy-egress)).
 4. avirtmediatord on the destination host evaluates `ingress` for the peer `Workload` in `x-avirt-caller`. This mapping matches avirtedgeproxyd's. For this mapping, the workload policy snapshot supplies the enrolled peers' trust domains and names.
@@ -274,18 +274,18 @@ avirt workspace import peer:<host>/<ns>/<name>[:<tag>|@<digest>] [REPOSITORY[:TA
 
 ### DNS
 
-avirtdnsd answers a name only when it's an internal name under an `active` peer's host name (see [parsing](#peers-host-names)): `*.<ns>.workload.<host>` or `*.<ns>.svc.<host>`, with a first label valid for the form. The answer is the address the peer's first address resolves to. Other names under `<host>` resolve normally as public names through avirtedgeproxyd's DNS proxy (see [workload DNS](./egress.md#workload-dns)). These include the peer's host name itself, other names under it, and peered forms for `pending` or `suspended` peers. Connections to these names use external endpoint policy. DNS queries for internal names under a peer's host name remain local to each host. The peer's avirtedgeproxyd resolves its own local names. avirtmediatord routes by name and ignores the address in the answer (see [internal names](./dns.md#internal-names)).
+avirtdnsd answers a name only when it's an avirt hostname under an `active` peer's host name (see [parsing](#peers-host-names)): `*.<ns>.workload.<host>` or `*.<ns>.svc.<host>`, with a first label valid for the form. The answer is the address the peer's first address resolves to. Other names under `<host>` resolve normally as public names through avirtedgeproxyd's DNS proxy (see [workload DNS](./egress.md#workload-dns)). These include the peer's host name itself, other names under it, and peered forms for `pending` or `suspended` peers. Connections to these names use external endpoint policy. DNS queries for avirt hostnames under a peer's host name remain local to each host. The peer's avirtedgeproxyd resolves its own local names. avirtmediatord routes by name and ignores the address in the answer (see [avirt hostnames](./dns.md#avirt-hostnames)).
 
 ## Policy
 
 ### Entities
 
-A `Peer` entity represents an enrolled peer, and a peer's namespaces are in it, so `principal in Peer::"<host>"` matches each identity from that peer and `resource in Peer::"<host>"` each internal name under that peer's host name.
+A `Peer` entity represents an enrolled peer, and a peer's namespaces are in it, so `principal in Peer::"<host>"` matches each identity from that peer and `resource in Peer::"<host>"` each avirt hostname under that peer's host name.
 
 | Entity | Id | Parents | Attributes | Source |
 | --- | --- | --- | --- | --- |
 | `Peer` | `<host>` | None | `trust_domain` | avirthostd's entity revision, from the enrollment records |
-| `Namespace` (peer) | `<host>/<ns>` | Its `Peer` | None | Built at evaluation from the internal name under the peer's host name or the asserted caller |
+| `Namespace` (peer) | `<host>/<ns>` | Its `Peer` | None | Built at evaluation from the avirt hostname under the peer's host name or the asserted caller |
 | `Workload` (peer) | `<host>/<ns>/<uuid>` | Its peer `Namespace` | None, and no tags | Built at evaluation from the asserted caller |
 | `HostService` (peer) | `<host>/<name>` | None | None | Built at evaluation from the asserted caller |
 
@@ -351,7 +351,7 @@ Peering is pairwise and never transitive:
 
 - A stream that arrives on the peer listener goes only to a local destination: avirtedgeproxyd never forwards it to another peer.
 - avirtapid never forwards a peer caller's call to another peer.
-- A peered form under a host that's not an `active` peer of this host isn't an internal name, whatever another peer knows: it resolves normally and is an external endpoint.
+- A peered form under a host that's not an `active` peer of this host isn't an avirt hostname, whatever another peer knows: it resolves normally and is an external endpoint.
 
 A host may enroll any number of peers, each with its own record, bundle, connection pool, and limits. A mesh of n hosts is n(n − 1)/2 mutual enrollments.
 
@@ -359,7 +359,7 @@ A host may enroll any number of peers, each with its own record, bundle, connect
 
 | Failure | Effect on new flows | Effect on open flows | Recovery |
 | --- | --- | --- | --- |
-| Peer unreachable | New streams fail: 502 for a dial failure, 504 after the 10 s connect timeout. Control-plane calls fail with `UNAVAILABLE`, exit 7 in `avirt`. The peer stays `active`, so avirtdnsd still answers internal names under that peer's host name. | Streams on a connection that fails end with `error: "peer-lost"`. Streams never resume. | Automatic once a dial succeeds. After three failures the record's `reachable` is false. |
+| Peer unreachable | New streams fail: 502 for a dial failure, 504 after the 10 s connect timeout. Control-plane calls fail with `UNAVAILABLE`, exit 7 in `avirt`. The peer stays `active`, so avirtdnsd still answers avirt hostnames under that peer's host name. | Streams on a connection that fails end with `error: "peer-lost"`. Streams never resume. | Automatic once a dial succeeds. After three failures the record's `reachable` is false. |
 | Partition | As for an unreachable peer, for each direction without connectivity to the other host | Streams end when liveness fails, within about 60 s. After 5 minutes without `Workloads/KeepAlive` calls, avirthostd stops workloads created from the other side unless they have detached status. | Automatic. A workload stopped for missing `Workloads/KeepAlive` calls stays stopped. |
 | Bundle refresh fails | None while the current bundle verifies the peer | None | The next interval. The record keeps `last_error`. |
 | Bundle or name mismatch after installing the peer again, a broken root chain, or a certificate without the recorded peer's host name | Each handshake with the peer fails, recorded as `peer-auth-failed`, in both directions | Connections close at their next handshake, and at the latest when the peer certificate expires | `avirtadmin peer revoke`, then a new enrollment from a new enrollment file |
@@ -407,7 +407,7 @@ Each `avirtadmin peer` command performs host administration on avirthostd's admi
 # Open questions
 
 1. **Peer user principals.** The local and web UI user principals are open (see [components](./components.md#open-questions)), and so is how a peer represents another host's user, as `<host>/<user>` or otherwise.
-2. **Peer entities below the namespace.** The source host resolves an internal name under a peer's host name to that peer's namespace (see [egress policies](./egress-policies.md#open-questions)). Whether a peer exports a catalog of the services it lets a peer see, so the source can resolve service names and their aliases to `Service::"<host>/<ns>/<name>"` entities, is open.
+2. **Peer entities below the namespace.** The source host resolves an avirt hostname under a peer's host name to that peer's namespace (see [egress policies](./egress-policies.md#open-questions)). Whether a peer exports a catalog of the services it lets a peer see, so the source can resolve service names and their aliases to `Service::"<host>/<ns>/<name>"` entities, is open.
 3. **One-way reachability.** A host without inbound connectivity can't receive streams. Its peer can't refresh its bundle. Whether a peer may open reverse streams on a connection the other host dialed is open. Push delivery of bundles is also an open question.
 4. **A conformant bundle endpoint.** Whether a host also serves its bundle without client authentication, as a SPIFFE `https_spiffe` bundle endpoint, for federation with non-avirt SPIFFE deployments, is open.
 5. **Short-code enrollment.** Whether enrollment also offers a short one-time code that both hosts exchange online under a password-authenticated key exchange, instead of exchanging enrollment files, is open.

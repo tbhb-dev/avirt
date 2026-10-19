@@ -142,9 +142,9 @@ UDP uses connected upstream sockets. Its flow key includes the source address an
 
 ### Zones and name forms
 
-avirtdnsd answers the avirt DNS zone and is the only component that does. A local name ends in `<ns>.workload.host.avirt.internal` or `<ns>.svc.host.avirt.internal`, with a short form for the `default` namespace, and an internal name under a peer's host name ends in `<ns>.workload.<host>` or `<ns>.svc.<host>` for an enrolled peer `<host>`. The name forms, the label syntax and the length caps are in [DNS](./dns.md#internal-names).
+avirtdnsd answers the avirt DNS zone and is the only component that does. A local name ends in `<ns>.workload.host.avirt.internal` or `<ns>.svc.host.avirt.internal`, with a short form for the `default` namespace, and an avirt hostname under a peer's host name ends in `<ns>.workload.<host>` or `<ns>.svc.<host>` for an enrolled peer `<host>`. The name forms, the label syntax and the length caps are in [DNS](./dns.md#avirt-hostnames).
 
-avirt's host services use SNI names `<name>.svc.<td>` in the trust domain (see [SNI routing](./workload-topology.md#sni-routing)), never internal names, and the mediator refuses an agent CONNECT to one of those names with 403.
+avirt's host services use SNI names `<name>.svc.<td>` in the trust domain (see [SNI routing](./workload-topology.md#sni-routing)), never avirt hostnames, and the mediator refuses an agent CONNECT to one of those names with 403.
 
 ### IDs
 
@@ -158,14 +158,14 @@ avirt's host services use SNI names `<name>.svc.<td>` in the trust domain (see [
 
 ### Namespaces
 
-Each workload is in exactly one namespace, fixed at creation, and the namespace scopes service names and aliases. A namespace is local to its host. References to anything on another host must use fully qualified identifiers: its internal name under that host's name and an identity in that host's trust domain, along with a Cedar entity qualified by that host (see [namespaces and labels](./components.md#namespaces-and-labels)).
+Each workload is in exactly one namespace, fixed at creation, and the namespace scopes service names and aliases. A namespace is local to its host. References to anything on another host must use fully qualified identifiers: its avirt hostname under that host's name and an identity in that host's trust domain, along with a Cedar entity qualified by that host (see [namespaces and labels](./components.md#namespaces-and-labels)).
 
 ### Name resolution results
 
 | Name | Asked from | DNS answer | Where a connection to it goes |
 | --- | --- | --- | --- |
-| A local internal name | A workload, through avirtnetd's stub, the `/dns` stream and avirtmediatord's `resolve` check, then [avirtdnsd](./dns.md#the-avirtdnsd-zone) | A synthetic address for this name | avirtmediatord sends the HTTP/2 stream for the flow to this host's avirtedgeproxyd, which resolves the name to its canonical entity and routes to the destination workload's avirtmediatord |
-| An internal name under a peer's host name | The same | A synthetic address for this name | avirtmediatord still sends the HTTP/2 stream for the flow to this host's avirtedgeproxyd, which forwards it to the peer's avirtedgeproxyd (see [peering](./peering.md#workload-traffic)) |
+| A local avirt hostname | A workload, through avirtnetd's stub, the `/dns` stream and avirtmediatord's `resolve` check, then [avirtdnsd](./dns.md#the-avirtdnsd-zone) | A synthetic address for this name | avirtmediatord sends the HTTP/2 stream for the flow to this host's avirtedgeproxyd, which resolves the name to its canonical entity and routes to the destination workload's avirtmediatord |
+| An avirt hostname under a peer's host name | The same | A synthetic address for this name | avirtmediatord still sends the HTTP/2 stream for the flow to this host's avirtedgeproxyd, which forwards it to the peer's avirtedgeproxyd (see [peering](./peering.md#workload-traffic)) |
 | A public name | A workload, through the same stub and `resolve` check, then avirtedgeproxyd's DNS proxy | A synthetic answer, with `resolve` evaluated for each name in a CNAME chain | The flow includes the name. avirtedgeproxyd resolves it again when it dials, and the private-address block applies. |
 | A denied name | A workload | `NXDOMAIN`, in audit mode too | Nothing |
 | Any name, asked of another address | A workload | The same policy-checked synthetic answer or `NXDOMAIN` | Port 53 on any address reaches `/dns` |
@@ -184,7 +184,7 @@ A synthetic address obtains its destination name only through this table, with `
 
 ### Query handling
 
-For each query avirtmediatord evaluates `resolve`, including every name in a CNAME chain. avirtedgeproxyd parses external DNS requests and obtains real answers. It never forwards arbitrary DNS bytes. avirtdnsd resolves [internal names](./dns.md#internal-names). The workload receives synthetic answers for both external and internal names. DNS has its own concurrency and admission limits, a query-type allowlist, and size and rate limits. Supported query types are A, AAAA, HTTPS, SVCB, and CNAME. MX and TXT need permission.
+For each query avirtmediatord evaluates `resolve`, including every name in a CNAME chain. avirtedgeproxyd parses external DNS requests and obtains real answers. It never forwards arbitrary DNS bytes. avirtdnsd resolves [avirt hostnames](./dns.md#avirt-hostnames). The workload receives synthetic answers for both external and avirt hostnames. DNS has its own concurrency and admission limits, a query-type allowlist, and size and rate limits. Supported query types are A, AAAA, HTTPS, SVCB, and CNAME. MX and TXT need permission.
 
 The synthesizer rewrites address hints and removes `ech`. For intercepted names it also removes `h3`. It handles SVCB AliasMode, TargetName, `port`, and the consistency of `mandatory` and `no-default-alpn` after those removals. Intercepted HTTP responses omit `Alt-Svc`. Rewritten answers prevent guest DNSSEC validation. Encrypted DNS to a permitted endpoint is a possible channel under that endpoint's policy. Encoded data in permitted DNS names is another possible channel.
 
@@ -196,7 +196,7 @@ A `Destination` has ID `<protocol>/<host-or-ip>:<port>` and a `protocol` attribu
 
 ### Address checks
 
-avirtedgeproxyd resolves external names and checks every address before dialing it. `private-dest` rejects non-global addresses and addresses assigned to the host's interfaces for every protocol. A watcher using a routing socket supplies host interface addresses without enumerating interfaces on every flow. avirtedgeproxyd dials only checked addresses. It repeats the checks on retries. Internal names resolve to Workload or Service entities. An authorized service record permits only its recorded backend.
+avirtedgeproxyd resolves external names and checks every address before dialing it. `private-dest` rejects non-global addresses and addresses assigned to the host's interfaces for every protocol. A watcher using a routing socket supplies host interface addresses without enumerating interfaces on every flow. avirtedgeproxyd dials only checked addresses. It repeats the checks on retries. avirt hostnames resolve to Workload or Service entities. An authorized service record permits only its recorded backend.
 
 A peer connection can use only the peer's enrolled addresses and never the host's own addresses.
 

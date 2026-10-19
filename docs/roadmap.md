@@ -120,7 +120,7 @@ Status: planned. These items from [components](./components.md) have no phase or
 - **avirtinitd role modes.** `avirtinitd` as PID 1 in the sandbox container, and the server mode in the all-in-one server image.
 - **Workload components.** avirtagent, avirtexec, avirtguestd, avirtmcp and avirtguest, plus avirtnetd's reverse proxy and guest control gRPC API.
 - **Namespaces and labels.** Namespaces in avirthostd, label key authorization, `Workload` in `Namespace` in the Cedar schema, and the namespace in workload SPIFFE IDs.
-- **Internal names and workload DNS.** avirtdnsd's avirt DNS zone, avirtnetd's DNS stub resolver, synthetic per-workload answers, one `POST /dns` stream per query with `application/dns-message`, `resolve` policy and `dns` events (see [DNS](./dns.md)).
+- **avirt hostnames and workload DNS.** avirtdnsd's avirt DNS zone, avirtnetd's DNS stub resolver, synthetic per-workload answers, one `POST /dns` stream per query with `application/dns-message`, `resolve` policy and `dns` events (see [DNS](./dns.md)).
 - **avirtedgeproxyd as policy enforcement point.** Port publications, service records, host-local service backends, avirtmediatord's ingress listener, `/ingress` extended CONNECT with `:protocol: connect-tcp`, name-to-entity resolution, and workload-to-workload connections through avirtedgeproxyd on the same host and across peered hosts.
 - **Host request path.** avirtapid, avirtedgeproxyd's local client and peer listeners, avirt and avirtguest reaching avirtapid over gRPC and avirtwebd over REST through it, and avirtadmin on avirthostd's `admin.sock`.
 - **Web UI.** The frontend app, its static assets bundled into avirtwebd, and avirtwebd's authentication and MFA methods.
