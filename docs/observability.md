@@ -11,7 +11,7 @@ generated: { by: codex/gpt-6, at: 2026-10-18T05:20:59Z }
 
 avirt produces two kinds of output.
 
-- **Durable records** have an owner and sequence numbers. These include the workload log, audit logs, and workload stdio logs. Each has exactly one writer. Producers never drop records silently: a producer that can't hand over a record refuses new work, or writes a record of what it couldn't keep.
+- **Durable records** have an owner and sequence numbers. These include the workload log, audit logs, and workload stdio logs. Each has exactly one writer. Producers never drop records silently: a producer that can't hand over a record refuses new work, or writes a record of what it couldn't keep. The implemented workload stdio log is the exception: avirtvmd drops a record without a `dropped_bytes` record when the record would take the file past 256 MiB or when the write fails.
 - **Telemetry** is logs, metrics and traces delivered as OpenTelemetry through avirtoteld. It's a view for operators. No record, audit event or policy decision depends on its delivery, and telemetry backpressure never refuses work or stalls a workload.
 
 | Signal | Kind | Producers | Store | Status |
@@ -28,13 +28,16 @@ avirt produces two kinds of output.
 
 ## Workload log
 
-avirthostd creates the logs directory 0700 and each file in it 0600, owned by the UID avirthostd runs as. Each launch gets three files (see [log files](./hostd-api.md#log-files)):
+avirthostd creates the logs directory 0700. Every file in it has mode 0600 and belongs to the UID avirthostd runs as. Each launch gets these files (see [log files](./hostd-api.md#log-files)):
 
 | File | Writer | Contents |
 | --- | --- | --- |
 | `logs/<workload-id>.ndjson` | avirthostd | The workload log: one envelope per line |
-| `logs/<workload-id>.container.log` | The `container` command-line tool process | Its stdout and stderr, which contain the sandbox container's |
+| `logs/<workload-id>.container.log` | The `container` command-line tool process, on the Apple container CLI runtime only | Its stdout and stderr, which contain the sandbox container's |
 | `logs/<workload-id>.mediator.log` | avirtmediatord | The mediator's stderr |
+| `logs/<workload-id>.stdio.ndjson` | avirtvmd | The sandbox container's stdout, stderr, and console on the Containerization runtime |
+| `logs/<workload-id>.avirtvmd.log` | avirtvmd | Its stderr on the Containerization runtime |
+| `logs/<workload-id>.stdio.ndjson.failed` | avirtvmd | The stdio log of a start that failed, renamed, on the Containerization runtime |
 
 The workload ID is 8 random hexadecimal characters. A launch never reuses an ID that already has a log file in the directory. avirthostd never deletes a log file.
 
@@ -45,6 +48,16 @@ The envelope has fields `{ts, dir, msg}` in that order, with `ts` an RFC 3339 UT
 - **avirthostd's events.** avirthostd writes `line_truncated`, `auth_writeback`, `container_error` and `container_exit` itself, with its own `ts`, and holds the errors, the cleanup outcome and `container_exit` until the stream has drained, so `container_exit` is the last line.
 
 avirthostd doesn't check the envelopes in that request. The sandbox container may have written any `meta` line other than the four listed, and it can write a line that looks like one of those four. Only avirthostd's own lines are host-observed.
+
+## Workload stdio log
+
+On the Containerization runtime, avirtvmd creates `logs/<workload-id>.stdio.ndjson` with mode 0600 and exclusive creation, so it fails if the file already exists. It writes the sandbox container's stdout and stderr and the VM console from Containerization's `bootLog` into that file, with `stream` set to `stdout`, `stderr` or `console`.
+
+avirtvmd copies chunks into a ring with a 4 MiB limit and records the byte count of each chunk that doesn't fit in a `dropped_bytes` record for its stream. Its writer thread splits each line into pieces of at most 64 KiB and writes a record for each piece. It sets `partial: true` on every record except the last record of a line and flushes unfinished lines as partial after 200 ms without new output. The thread writes invalid UTF-8 as base64 in `b64`.
+
+Each record contains `{ts, workload, ns, short_id, stream, partial, text|b64}`. On receipt of the chunk, avirtvmd stamps `ts` as an RFC 3339 time in milliseconds. Both `workload` and `short_id` contain the workload ID. The `ns` field contains `default`. A `dropped_bytes` record has `ts` (the time the writer recorded the drop), the identity fields, `stream` and `dropped_bytes`, with no `partial`, `text` or `b64`.
+
+The file has no rotation. avirtvmd drops every record that would take the file past 256 MiB, without a `dropped_bytes` record.
 
 ## avirthostd's output
 
@@ -83,9 +96,9 @@ On the Containerization runtime, avirtvmd's writer is on the read path of the sa
 3. It frames lines and marks partial lines. It flushes on a timer or a size threshold and caps line length. It encodes invalid UTF-8 as base64.
 4. It flushes on `close()`.
 
-A dedicated writer thread behind the ring writes the per-workload NDJSON file `logs/<workload-id>.stdio.ndjson` (0640, group readable only by avirtlogd's UID), one record per line as `{ts, workload, ns, short_id, stream, partial, text|b64}`. The writer rotates files and caps their total disk usage. Rotation never removes a segment that avirtlogd hasn't checkpointed past. At the disk cap the writer stops writing and its ring fills. The writer drops further chunks and counts them in a `dropped_bytes` record without stalling the workload. avirtlogd needs only read access to that directory. The VMs, vsock and the virtualization entitlement stay with avirtvmd.
+A dedicated writer thread behind the ring writes the per-workload NDJSON file `logs/<workload-id>.stdio.ndjson`, one record per line as `{ts, workload, ns, short_id, stream, partial, text|b64}`. In the planned design the file has mode 0640, group readable only by avirtlogd's and avirtauditd's UIDs, and rotates under a total disk cap. Rotation never removes a segment that avirtlogd hasn't checkpointed past. At the disk cap the writer stops writing and its ring fills. The writer drops further chunks and counts them in a `dropped_bytes` record without stalling the workload. avirtlogd needs only read access to that directory. The VMs, vsock and the virtualization entitlement stay with avirtvmd.
 
-The VM console, the guest kernel's console plus vminitd's own logs, comes from Containerization's `bootLog` as a file or file handle. avirtlogd reads it as a separate source with `stream=console`.
+The VM console, the guest kernel's console plus vminitd's own logs, comes from Containerization's `bootLog`. avirtvmd writes it into the same stdio file with `stream=console`, and avirtlogd reads that stream from the file.
 
 Workload stdio log content is untrusted, console text included. The identity attributes on each record come from trusted runtime and host metadata: the fields avirtvmd writes on the Containerization runtime, and avirthostd's records of each container on Docker Desktop. Fields parsed from log content never override them.
 
@@ -97,7 +110,7 @@ avirtlogd turns each stdio record into one OpenTelemetry log record:
 
 | Log record field | Source |
 | --- | --- |
-| `Timestamp` | The record's `ts`, the receive time avirthostd stamped |
+| `Timestamp` | The record's `ts`, the receive time avirtvmd stamped |
 | `ObservedTimestamp` | When avirtlogd read the record |
 | `Body` | `text` as a string, or `b64` decoded to bytes |
 | `SeverityNumber` | Unset. avirtlogd never parses a severity out of workload output. |

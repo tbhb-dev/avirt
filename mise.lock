@@ -118,6 +118,20 @@ checksum = "sha256:9cd98a532c5c5e0c4161314de0225de27e4c8a323917b6ea7b1b714d3ae23
 url = "https://github.com/protocolbuffers/protobuf/releases/download/v36.2/protoc-36.2-osx-aarch_64.zip"
 url_api = "https://api.github.com/repos/protocolbuffers/protobuf/releases/assets/570742436"
 
+[[tools.rush]]
+version = "0.11.0"
+backend = "aqua:shenwei356/rush"
+
+[tools.rush."platforms.linux-x64"]
+checksum = "sha256:7a22bbc7122acd5bd23e2dfde49f84bb856944a1860057bc89921b3dce45d056"
+url = "https://github.com/shenwei356/rush/releases/download/v0.11.0/rush_linux_amd64.tar.gz"
+url_api = "https://api.github.com/repos/shenwei356/rush/releases/assets/579426098"
+
+[tools.rush."platforms.macos-arm64"]
+checksum = "sha256:87f811032b727806158111856b77be076d2c923cc013de20d744405eb4dfe455"
+url = "https://github.com/shenwei356/rush/releases/download/v0.11.0/rush_darwin_arm64.tar.gz"
+url_api = "https://api.github.com/repos/shenwei356/rush/releases/assets/579424349"
+
 [[tools.rust]]
 version = "1.99.0"
 backend = "core:rust"

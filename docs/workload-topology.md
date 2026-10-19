@@ -33,7 +33,7 @@ At startup, the mediator opens the `EGRESS` connection. It dials a `WORKLOAD` co
 
 `avirtinitd` listens on an ephemeral `127.0.0.1` port. It forwards each connection to `proxy.sock`. The agent connects to it through `HTTPS_PROXY` and the related variables (see [workload hardening](./workload-hardening.md)).
 
-Forwarded sockets must never half-close. With a `-v` socket-file mount, sending `SHUT_WR` immediately after the last write loses the peer's reply. To avoid that loss, the TCP proxy omits forwarding a client's end-of-stream. After the client finishes, each read on the other direction has a 30 s idle timeout. When the host side ends or a read idles out, the proxy notifies the client and closes. The log can show a proxied connection lasting longer than the client's connection.
+Constraint: on a vsock connection accepted by the host, Virtualization.framework drops a guest `shutdown(SHUT_WR)` sent about one millisecond after the last write and truncates a guest `close()` after a large write, so avirtinitd's relay never forwards a client's end of file. After the client finishes, each read on the other direction has a 30 s idle timeout on both runtimes. When the host side ends or a read idles out, the relay notifies the client and closes. The log can show a proxied connection lasting longer than the client's connection.
 
 # Status: planned
 

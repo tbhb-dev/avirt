@@ -58,6 +58,12 @@ Run the applicable checks on each affected runtime. Prompt the agent to run rest
 - Websocket tests cover fragments, continuation and control frames, extension refusal and Close injection between websocket frames in both directions. SSH tests cover placeholder authentication, host-key pins, strict git commands, refusal of unauthorized SSH channel and forwarding requests, and workload caps.
 - Ping tests cover type, length, rate, caps on outstanding requests, and Linux identifier rewriting. UDP and ICMP idle timeouts, TCP half-close, explicit tunnel drain, keepalive, h2 header-list and rapid-reset bounds need conformance coverage.
 
+### Containerization lifecycle checks
+
+- Crash avirthostd at each persisted launch and stop step. Test after avirthostd writes the launch intent but before it spawns the helper, and after the spawn but before the helper replies. A retried operation never creates a second owner of a workload. A failed helper listing, a late socket bind, a timeout and an incompatible protocol version never allow deletion of resources still in use.
+- Kill one avirtvmd and confirm that only its workload ends, with a `container_error`.
+- Run avirthostd's handshake against a helper that serves another workload, then against one with a stale incarnation, and confirm that avirthostd refuses each. Developer ID checks on the socket belong to [phase 1b](#phases).
+
 # Phases
 
 | Phase | Changes | Removes | Verify |
