@@ -1,6 +1,7 @@
 """Tests for scripts/jargon_check.py. Run: uv run --no-project --with pytest==8.4.2 --with markdown-it-py==4.0.0 pytest scripts/tests"""
 
 import subprocess
+import sys
 from pathlib import Path
 
 import jargon_check as jc
@@ -285,6 +286,16 @@ def test_exit_status(tmp_path, monkeypatch, capsys):
     write(tmp_path, {"docs/b.md": TWICE})
     assert jc.main(["--base", "main"]) == 0
     assert 'docs/b.md:3: new-term: "drift budget" (2 uses)' in capsys.readouterr().out
+
+
+SCRIPT = Path(jc.__file__)
+
+
+@pytest.mark.parametrize("argv", [["--base", "nope"], ["--head", "HEAD", "--staged"], ["--bogus"]])
+def test_usage_errors_exit_one(tmp_path, monkeypatch, argv):
+    make_repo(tmp_path, monkeypatch, BASE)
+    done = subprocess.run([sys.executable, str(SCRIPT), *argv], cwd=tmp_path, capture_output=True, text=True)
+    assert done.returncode == 1
 
 
 def test_environment_base_and_explicit_override(tmp_path, monkeypatch):

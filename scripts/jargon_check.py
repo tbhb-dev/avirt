@@ -557,7 +557,10 @@ def main(argv: list[str] | None = None) -> int:
     where = parser.add_mutually_exclusive_group()
     where.add_argument("--head", help="head ref; default is the working tree")
     where.add_argument("--staged", action="store_true", help="read the staged index")
-    args = parser.parse_args(argv)
+    try:
+        args = parser.parse_args(argv)
+    except SystemExit as exc:
+        return 1 if exc.code else 0
 
     findings, summary = run(args.base or os.environ.get("JARGON_BASE") or default_base(), args.head, args.staged)
     for f in sorted(findings, key=lambda f: (f.path, f.line, f.term)):
