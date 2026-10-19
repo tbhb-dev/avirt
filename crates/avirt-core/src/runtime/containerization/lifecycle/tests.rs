@@ -315,7 +315,9 @@ async fn a_listing_reports_the_recorded_state() -> Result<()> {
     for (id, state) in ids.iter().zip(states) {
         workload_dir(root.path(), id, state)?;
     }
-    for status in listed(root.path()).await? {
+    let statuses = listed(root.path()).await?;
+    ensure!(statuses.len() == ids.len(), "the listing has {} statuses", statuses.len());
+    for status in statuses {
         let index = ids.iter().position(|id| *id == status.workload).context("an unexpected workload")?;
         ensure!(status.recorded == states.get(index).copied(), "{status:?}");
     }
