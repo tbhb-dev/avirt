@@ -36,7 +36,7 @@ A **workload** is the lifecycle unit, like a pod with a sidecar. Its **sandbox c
 | avirtacp | Runs an agent workload through the Agent Client Protocol (see [ACP](./acp.md)) | workload | Partial |
 | avirtagent | Runs an agent workload through its native harness | workload | Planned |
 | avirtexec | Generic execution | workload | Planned |
-| avirtnetd | Provides guest networking with the client end of the workload's HTTP/2 connection to its mediator and stores the workload SVID. Receives redirected TCP and reads UDP and ICMP from its TUN. Provides DNS answers with synthetic addresses through the mediator and an optional forward proxy. Also provides the reverse proxy and guest control gRPC API | workload | Partial |
+| avirtnetd | Provides guest networking with the client end of the workload's HTTP/2 connection to its mediator and stores the workload SVID. Receives redirected TCP and reads UDP and ICMP from its TUN. Provides DNS answers with synthetic addresses through the mediator and an optional forward proxy. Also provides the reverse proxy and guest control gRPC API | workload | Planned |
 | avirtguestd | Workload services: a file server and an MCP server | workload | Planned |
 | avirtmcp | A stdio MCP server, launched by the agent, that relays to avirtmcpgwd | workload | Planned |
 | avirtguest | The guest CLI in sandbox images, which reaches avirtapid through avirtnetd, avirtmediatord, and avirtedgeproxyd (see [guest CLI](./guest-cli.md)) | workload | Planned |

@@ -1,7 +1,7 @@
 ---
 type: Component Design
 title: Compute runtimes
-description: The runtime interface avirthostd uses for its per-workload primitives, the Containerization runtime that hosts Apple VMs inside avirthostd, the Docker Desktop runtime, and the implemented backend that invokes Apple container commands.
+description: The runtime interface avirthostd uses for its per-workload primitives, the Containerization runtime that hosts Apple VMs through a per-workload avirtvmd helper, the Docker Desktop runtime, and the implemented backend that invokes Apple container commands.
 tags: [avirt, runtime, containerization, docker, apple-container]
 implementation: partial
 generated: { by: codex/gpt-6, at: 2026-10-18T05:10:25Z }
@@ -24,9 +24,9 @@ Status: implemented. Remove this runtime once the Containerization runtime match
 
 # Runtime interface
 
-Status: planned.
+Status: implemented. One `Runtime` per process runs the workloads, and `AVIRT_RUNTIME` selects it: `container` or `containerization`, the default. `Runtime::open` allocates a workload's resources and returns a `WorkloadHandle`. `Runtime::sweep` ends what a previous avirthostd left running. The handle starts the mediator and the container and reports how they end. It also stops them and removes the workload's state. Each runtime starts the mediator as an avirtmediatord host process. The trait is in `avirt-core`.
 
-`avirthostd` drives one `Runtime` per process, selected by `AVIRT_RUNTIME` (`containerization`, the default on macOS, or `docker`). Backends conform to the trait in `avirt-core`. Builds include them by target and cargo feature (see [build and platforms](./build-and-platforms.md)).
+Status: planned. The interface below replaces the implemented one and adds a `docker` backend that `AVIRT_RUNTIME=docker` selects. Builds include the backends by target and cargo feature (see [build and platforms](./build-and-platforms.md)).
 
 ```rust
 #[async_trait]
@@ -62,28 +62,42 @@ pub struct RuntimeProps {
 
 # Containerization runtime
 
-Status: planned. This is the Apple runtime.
-
-`avirthostd` hosts the VMs itself, through Apple's `containerization` package. A Swift shim wraps the package and exports a `@_cdecl` C ABI. The avirthostd build links the shim as a dylib.
+Status: implemented. This is the Apple runtime and the default on macOS. `avirthostd` starts one `avirtvmd` helper per workload and talks to it over `v.sock`. That helper, a Swift process holding the `com.apple.security.virtualization` entitlement, boots the sandbox container in its own VM through Apple's `containerization` package. The VM has no network device. The workload's `proxy.sock` and `mediator.sock`, host socket files, appear under `/run/avirt/` along with the profile's shares, and the mediator is the avirtmediatord host process. Containerization 0.47.0's vminit and the Kata Containers 3.32.0 arm64 kernel make up the guest, both cached in avirthostd's runtime directory. Console, stdout, and stderr go to `logs/<workload-id>.stdio.ndjson` through the helper, and each VM keeps its files in `containers/<id>/` in the runtime directory.
 
 ## Host requirements
 
-- The avirthostd binary contains the `com.apple.security.virtualization` entitlement and uses an ad-hoc signature for development. `cargo run` and `cargo test` go through a signing runner (see [build and platforms](./build-and-platforms.md)).
-- The Swift shim is a SwiftPM `.dynamic` product, loaded through an `@executable_path` rpath.
+Status: implemented.
+
+- The `avirtvmd` binary holds the `com.apple.security.virtualization` entitlement with an ad-hoc signature for development, and the `build-vmd` task builds and signs it. avirthostd links no Swift and doesn't need the entitlement.
 - The runtime pins Containerization 0.47.0. The kernel, the vminit image, and the package version move together.
 
 ## Guest artifacts
 
-The guest kernel needs TUN, nftables REDIRECT and connection tracking, including IPv6 original-destination lookup. avirtinitd configures these before starting the other guest processes.
+Status: implemented.
 
 - **Kernel.** The Kata Containers 3.32.0 arm64 `vmlinux`, pinned by URL and by the release tarball's sha256 `8736c054d9223974735394f822000823baef509e1c33405ec798240fa9b6e4b5`. avirthostd extracts it once and caches it in its runtime directory.
-- **Init filesystem.** It comes from `ghcr.io/apple/containerization/vminit:0.47.0` through `initfsReference`, stored in avirthostd's own runtime directory.
-- **Images.** avirthostd unpacks the avirt base, harness base, and mediator images into its own content-addressed cache, also in the runtime directory. Each sandbox container's writable root block device is an APFS `clonefile` copy of its composed root filesystem with the configuration layer unpacked into it (see [workload lifecycle](./workload-lifecycle.md#assembly-per-runtime)).
+- **Init filesystem.** This comes from `ghcr.io/apple/containerization/vminit:0.47.0` through `initfsReference`, stored in avirthostd's own runtime directory.
+
+Status: planned. Guest kernels need TUN, nftables REDIRECT and connection tracking, including IPv6 original-destination lookup, which avirtinitd configures before it starts the other guest processes. The avirt base, harness base, and mediator images live in avirthostd's own content-addressed cache in the runtime directory. Every sandbox container's writable root block device is an APFS `clonefile` copy of its composed root filesystem with the configuration layer unpacked into it (see [workload lifecycle](./workload-lifecycle.md#layer-stack)).
+
+## Workload stdio
+
+Status: implemented.
+
+The sandbox container runs with `terminal = false`, and avirtvmd supplies separate non-blocking writers for stdout and stderr, which feed `logs/<workload-id>.stdio.ndjson`. The VM console comes from `bootLog`. avirtlogd tails both (see [observability](./observability.md#workload-stdout-and-stderr)).
+
+## State
+
+Status: implemented.
+
+Each VM uses `containers/<id>/` within avirthostd's runtime directory. On startup avirthostd's sweep removes every stale `containers/<id>/` directory and stops any VM it still owns (see [lifecycle](./lifecycle.md)).
 
 ## Networking
 
-- **Sandbox VM:** no network device. avirtinitd configures a TUN and nftables REDIRECT. avirtnetd transfers each flow to the mediator.
-- **Mediator VM:** no network. Its connections are the four Unix sockets below.
+Status: planned. The remaining sections describe the planned design, which keeps the avirtvmd helper for each sandbox VM and adds a mediator VM with vsock sockets.
+
+- **Sandbox VM:** no network device. In the planned design avirtinitd configures a TUN and nftables REDIRECT, and avirtnetd transfers each flow to the mediator.
+- **Mediator VM:** in the planned design it has no network, and its connections are the four Unix sockets below.
 
 ## Unix sockets
 
@@ -106,23 +120,15 @@ Constraints:
 - This runtime operates without host socket files, so `host_socket_paths` is 0.
 - The guest kernel provides Landlock ABI 7 (see [Landlock](./landlock.md#workload-kernels)).
 
-## Workload stdio
-
-The sandbox container runs with `terminal = false`, and avirthostd supplies separate non-blocking writers for stdout and stderr, which feed `logs/<workload-id>.stdio.ndjson`. The VM console comes from `bootLog`. avirtlogd tails both (see [observability](./observability.md#workload-stdout-and-stderr)).
-
-## State
-
-Each VM uses `containers/<id>/` within avirthostd's runtime directory. On startup avirthostd's sweep removes every stale `containers/<id>/` directory and stops any VM it still owns (see [lifecycle](./lifecycle.md)).
-
 ```mermaid
 flowchart LR
     subgraph hostd["avirthostd (one process)"]
         core["avirt-core server"]
-        shim["Swift shim dylib (Containerization 0.47.0)"]
         fwd["vsock forwarding and SNI routing"]
-        core --- shim
         core --- fwd
     end
+    vmd["avirtvmd (one per workload, Containerization 0.47.0)"]
+    core <-->|"v.sock"| vmd
     subgraph wvm["sandbox VM (TUN, no network device)"]
         net["avirtnetd: TLS client"]
     end

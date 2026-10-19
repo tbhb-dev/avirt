@@ -11,7 +11,7 @@ generated: { by: codex/gpt-6, at: 2026-10-18T05:20:59Z }
 
 ## Sockets
 
-The sandbox container uses `--network none`. The runtime mounts two Unix socket files into it with `-v` from the workload's private directory `workloads/<id>/` (0700). For each mounted socket file, the runtime forwards connections to the host process listening on it. Both files are mode 0600 on the host, which maps through, so only root in the sandbox container can open them.
+The sandbox container has no network device on Containerization and uses `--network none` on the Apple container CLI runtime. The runtime mounts two Unix socket files into it (with `-v` on the Apple container CLI runtime) from the workload's private directory `workloads/<id>/` (0700). For each mounted socket file, the runtime forwards connections to the host process listening on it, and both files are mode 0600 on the host, which maps through, so only root in the sandbox container can open them.
 
 | Guest path | Host listener | Traffic |
 | --- | --- | --- |
@@ -39,7 +39,7 @@ Forwarded sockets must never half-close. With a `-v` socket-file mount, sending 
 
 ## Runtime-provided sockets
 
-The sandbox VM has no network device. Its TUN and nftables REDIRECT rules send TCP, UDP, ICMP and DNS through avirtnetd to the mediator. Within the mediator, loopback is the only interface. Connections across the container boundary use Unix sockets that the compute runtime provides (see [compute runtimes](./compute-runtimes.md) and [networking](./networking.md)). One socket connects the sandbox container to its mediator over HTTP/2. The mediator uses four sockets.
+On Containerization, the sandbox VM has no network device. Its TUN and nftables REDIRECT rules send TCP, UDP, ICMP and DNS through avirtnetd to the mediator. Within the mediator, loopback is the only interface. Connections across the container boundary use Unix sockets that the compute runtime provides (see [compute runtimes](./compute-runtimes.md) and [networking](./networking.md)). One socket connects the sandbox container to its mediator over HTTP/2. The mediator uses four sockets.
 
 | Socket | Container end | Host end | Initiated by | TLS client and server |
 | --- | --- | --- | --- | --- |

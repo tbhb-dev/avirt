@@ -33,6 +33,8 @@ The full planned component inventory, covering the host services, the mediator c
 
 The mediator is a host process. The sandbox container has no network. Its only connections are two Unix socket files that the container runtime relays to the mediator.
 
+The diagram shows the Apple container CLI runtime. Containerization boots the sandbox container in a VM with no network device.
+
 ```mermaid
 flowchart LR
     subgraph workload["sandbox container (--network none, --init)"]
@@ -63,7 +65,7 @@ flowchart LR
 
 The mediator runs in its own container with no network interface other than loopback. Runtime-provided Unix sockets connect the workload to its mediator and the mediator to the host. Each connection uses mutual TLS with SPIFFE identities end to end. The full topology, with each traffic class hop by hop, is in [networking](./networking.md#connection-types).
 
-- **Sandbox container.** avirtnetd provides its HTTP/2 connection to its mediator. avirtnetd holds the workload SVID, receives redirected TCP and reads UDP and ICMP from its TUN. It provides DNS and an optional loopback forward proxy. The sandbox VM has no network device.
+- **Sandbox container.** avirtnetd provides its HTTP/2 connection to its mediator. avirtnetd holds the workload SVID, receives redirected TCP and reads UDP and ICMP from its TUN. It provides DNS and an optional loopback forward proxy. On Containerization, the sandbox VM has no network device.
 - **Mediator.** avirtmediatord is one process with one UID, Landlock ruleset, and SVID. It serves workload and ingress listeners, with TLS interception and credential injection in-process. The same process maintains the connection to avirthostd and calls `GET /workload`, `GET /workload/control`, and `POST /workload/svid`.
 - **Host.** avirthostd owns workload lifecycle and the SPIFFE issuer, avirtsecretsd stores the real credentials (see [secrets](./secrets.md)), avirtpolicyd distributes policy snapshots, avirtmodelgwd and avirtmcpgwd inject model and MCP credentials, avirtregistryd stores and indexes workspace images, and avirtedgeproxyd is the only global policy enforcement point and the only host service that opens connections off the host (see [components](./components.md#avirtedgeproxyd)).
 - **Names and namespaces.** Each workload is in one host-local namespace, and avirtdnsd answers avirt hostnames with the address of the edge proxy of the host that serves them. avirtmediatord returns synthetic addresses per workload (see [DNS](./dns.md#avirt-hostnames)).

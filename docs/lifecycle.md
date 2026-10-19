@@ -11,6 +11,8 @@ generated: { by: codex/gpt-6, at: 2026-10-18T05:10:25Z }
 
 ## Launch and teardown
 
+The diagram shows the Apple container CLI runtime. Containerization starts the same workload through its avirtvmd helper.
+
 ```mermaid
 sequenceDiagram
     participant CLI as avirt launch

@@ -97,7 +97,7 @@ Each connection across a container or host boundary authenticates with a short-l
 
 Independent layers confine the agent. Escaping one leaves the others in place.
 
-- **Met.** Each sandbox container runs in its own VM under the Apple container CLI runtime ([compute runtimes](./compute-runtimes.md#apple-container-cli-runtime)).
+- **Met.** Each sandbox container runs in its own VM under the Apple container CLI runtime and the Containerization runtime ([compute runtimes](./compute-runtimes.md)).
 - **Met.** The agent runs as uid 1000 with each capability set empty and `no_new_privs`, and its environment excludes the workload ID, prompt, and connection token ([agent process](./workload-hardening.md#agent-process)).
 - **Met.** Seccomp denies `AF_VSOCK`, `AF_NETLINK` and `AF_PACKET` sockets and io_uring, to avirtinitd and everything it starts, before the agent starts ([seccomp](./workload-hardening.md#seccomp)).
 - **Met.** `proxy.sock` and `mediator.sock` are `root:root 0600`, and the agent can't read `/proc/1/fd`, `/proc/1/mem` or `/proc/1/environ` or signal PID 1 ([what the agent can still do](./workload-hardening.md#residual-agent-access)).

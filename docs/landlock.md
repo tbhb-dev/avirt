@@ -264,7 +264,7 @@ avirtmediatord stores its SVID's private key and the workload's MITM CA key in m
 
 ## Network rules
 
-Landlock port rules match the port only, never the address. The sandbox VM has no network device. nftables redirects TCP to avirtnetd, and its TUN reader handles UDP and ICMP. The mediator has only loopback. Every flow leaves through the workload's HTTP/2 connection to its mediator (see [runtime-provided sockets](./workload-topology.md#runtime-provided-sockets)).
+Landlock port rules match the port only, never the address. On Containerization, the sandbox VM has no network device. nftables redirects TCP to avirtnetd, and its TUN reader handles UDP and ICMP. The mediator has only loopback. Every flow leaves through the workload's HTTP/2 connection to its mediator (see [runtime-provided sockets](./workload-topology.md#runtime-provided-sockets)).
 
 | Process | `NET_BIND_TCP` | `NET_CONNECT_TCP` |
 | --- | --- | --- |

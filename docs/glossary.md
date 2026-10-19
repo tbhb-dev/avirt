@@ -213,7 +213,7 @@ A cached root filesystem, or on Docker Desktop a composed image, made of a harne
 
 ## Compute runtime
 
-The backend that creates and removes the sandbox container and mediator for a workload and provides their Unix sockets to the host. The implementations are the Containerization runtime, the Docker Desktop runtime, or the Apple container CLI runtime. See [runtime interface](./compute-runtimes.md#runtime-interface).
+The backend that creates and removes the sandbox container and mediator for a workload and provides their Unix sockets to the host. The Containerization runtime and the Apple container CLI runtime exist today. Status: planned. The Docker Desktop runtime is a third. See [runtime interface](./compute-runtimes.md#runtime-interface).
 
 ## Condition on policy sets
 
@@ -249,7 +249,7 @@ The random 128-bit token avirthostd gives only avirtinitd as `AVIRT_CONNECTION_T
 
 ## Containerization runtime
 
-The Apple compute runtime of the planned design, which hosts each sandbox container and each mediator as its own VM inside avirthostd through Apple's `containerization` package. Status: planned. See [Containerization runtime](./compute-runtimes.md#containerization-runtime).
+The Apple compute runtime, the default on macOS, which hosts each sandbox container as its own VM through a per-workload avirtvmd helper and Apple's `containerization` package. Status: implemented. In the planned design each mediator also runs as its own VM. See [Containerization runtime](./compute-runtimes.md#containerization-runtime).
 
 ## Content-addressed cache
 
@@ -617,7 +617,7 @@ The Rust SSH library used for mediator interception, including the per-workload 
 
 ## Sandbox container
 
-The container in which avirtinitd and the agent or another main workload process run. Today it runs with `--network none`, and the agent's traffic leaves only through `proxy.sock`. Status: planned. On the Containerization runtime it has its own VM with no network device, and its TUN and nftables REDIRECT send each flow through avirtnetd and the workload's HTTP/2 connection to its mediator. See [sandbox container](./components.md#sandbox-container) and [connection to the mediator](./workload-topology.md#http2-streams).
+The container in which avirtinitd and the agent or another main workload process run. Today it has no network beyond loopback (`--network none` on the Apple container CLI runtime, a VM with no network device on Containerization), and the agent's traffic leaves only through `proxy.sock`. Status: planned. Its TUN and nftables REDIRECT send each flow through avirtnetd and the workload's HTTP/2 connection to its mediator. See [sandbox container](./components.md#sandbox-container) and [connection to the mediator](./workload-topology.md#http2-streams).
 
 ## Sandbox image
 
@@ -625,7 +625,7 @@ Any image a sandbox container boots from: in the implemented system `avirt-workl
 
 ## Sandbox VM
 
-The VM that runs the sandbox container on a runtime with VM isolation. The mediator has its own VM. See [compute runtimes](./compute-runtimes.md#runtime-interface).
+The VM that runs the sandbox container on a runtime with VM isolation. Status: planned. The mediator has its own VM. See [compute runtimes](./compute-runtimes.md#runtime-interface).
 
 ## Seatbelt
 

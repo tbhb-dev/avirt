@@ -11,7 +11,7 @@ generated: { by: codex/gpt-6, at: 2026-10-18T12:00:00Z }
 
 ## Path
 
-The sandbox container runs with `--network none`, so TCP, UDP, DNS and IPv6 all fail inside it and only loopback works. The agent's only way out is avirtinitd's TCP proxy to `proxy.sock`, which forwards to the mediator's CONNECT proxy on `proxy.sock` (see [workload topology](./workload-topology.md)). Every client must honour the proxy variables. Claude Code, Codex, Node `fetch` and `https` (with `NODE_USE_ENV_PROXY=1`), npm, git, and curl all do. `git://` and `ssh://` don't work.
+The sandbox container has no network beyond loopback: the Apple container CLI runtime starts it with `--network none`, and Containerization boots a VM with no network device. TCP, UDP, DNS, and IPv6 all fail inside it. The agent's only way out is avirtinitd's TCP proxy to `proxy.sock`, which forwards to the mediator's CONNECT proxy on `proxy.sock` (see [workload topology](./workload-topology.md)). Every client must honour the proxy variables. Claude Code, Codex, Node `fetch` and `https` (with `NODE_USE_ENV_PROXY=1`), npm, git, and curl all do. `git://` and `ssh://` don't work.
 
 ## Mediator process
 
@@ -58,7 +58,7 @@ To list the hosts a set of workloads used: `jq -r 'select(.dir=="egress") | .msg
 
 ## Path
 
-The sandbox VM has no network device. avirtinitd configures the guest TUN and nftables REDIRECT rules, and avirtnetd transfers every TCP, UDP, and ICMP flow to avirtmediatord. DNS uses one POST `/dns` stream per query. Clients may still use the loopback forward proxy. avirt doesn't set proxy variables by default. [Guest networking](./networking.md#guest-networking) specifies transparent listeners, routing, process privileges, and error handling.
+On Containerization, the sandbox VM has no network device. avirtinitd configures the guest TUN and nftables REDIRECT rules, and avirtnetd transfers every TCP, UDP, and ICMP flow to avirtmediatord. DNS uses one POST `/dns` stream per query. Clients may still use the loopback forward proxy. avirt doesn't set proxy variables by default. [Guest networking](./networking.md#guest-networking) specifies transparent listeners, routing, process privileges, and error handling.
 
 Every outbound connection from avirtmediatord passes through a runtime-provided Unix socket and avirthostd's SNI routing. Mutual TLS authenticates both ends. avirtmediatord delegates external resolution and sockets to avirtedgeproxyd. avirtedgeproxyd performs those operations after its own authorization checks.
 

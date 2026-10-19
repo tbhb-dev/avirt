@@ -9,7 +9,7 @@ generated: { by: codex/gpt-6, at: 2026-10-18T12:00:00Z }
 
 # Status: implemented
 
-The current code runs on the Apple container CLI runtime (see [compute runtimes](./compute-runtimes.md#apple-container-cli-runtime)). Its topology diagram is in [architecture](./architecture.md#status-implemented).
+The current code runs on the Containerization runtime by default and on the Apple container CLI runtime (see [compute runtimes](./compute-runtimes.md#apple-container-cli-runtime)). Its topology diagram is in [architecture](./architecture.md#status-implemented).
 
 ## Paths
 
@@ -20,7 +20,7 @@ The current code runs on the Apple container CLI runtime (see [compute runtimes]
 | Egress events | avirtmediatord, `hostd/hostd.sock`, avirthostd | One event connection per workload | The `EGRESS <id> <secret>` connection header |
 | Operator CLI to avirthostd | `avirt`, cleartext HTTP/2 on `127.0.0.1:8787` (or `AVIRT_HOSTD_URL`), avirthostd | None | None: any local process can call the control API (see [control API](./hostd-api.md#control-api)) |
 
-- **Workload network.** The sandbox container runs with `--network none`. TCP, UDP, DNS and IPv6 to anything but loopback fail inside it. avirtinitd sets `HTTPS_PROXY`, `https_proxy`, `HTTP_PROXY`, `http_proxy`, `ALL_PROXY`, `npm_config_proxy` and `npm_config_https_proxy` to avirtinitd's TCP proxy, `NO_PROXY` and `no_proxy` to `localhost,127.0.0.1`, and `NODE_USE_ENV_PROXY=1` (see [egress path](./egress.md#path)).
+- **Workload network.** The sandbox container has no network beyond loopback: the Apple container CLI runtime starts it with `--network none`, and Containerization boots a VM with no network device. TCP, UDP, DNS and IPv6 to anything but loopback fail inside it. avirtinitd sets `HTTPS_PROXY`, `https_proxy`, `HTTP_PROXY`, `http_proxy`, `ALL_PROXY`, `npm_config_proxy` and `npm_config_https_proxy` to avirtinitd's TCP proxy, `NO_PROXY` and `no_proxy` to `localhost,127.0.0.1`, and `NODE_USE_ENV_PROXY=1` (see [egress path](./egress.md#path)).
 - **Off-host path.** avirtmediatord is a host process, and it resolves names with the host resolver and dials upstreams itself. If any resolved address fails the private-address block, avirtmediatord refuses the whole CONNECT with 403 `private-dest`.
 - **Socket domains.** avirtinitd's seccomp filter makes `socket()` with `AF_VSOCK`, `AF_NETLINK` or `AF_PACKET` return `EAFNOSUPPORT` for itself and the agent (see [seccomp](./workload-hardening.md#seccomp)).
 - **Half-close constraint.** Nothing on a socket file that the runtime relays may half-close, so avirtinitd's TCP proxy never forwards a client's end-of-stream, and once the client has finished each read on the other direction has a 30 s idle timeout (see [TCP proxy to `proxy.sock`](./workload-topology.md#tcp-proxy-to-proxysock)).
@@ -328,7 +328,7 @@ sequenceDiagram
 
 All runtimes present the same Unix sockets inside the containers under `/run/avirt/`. The dialing side never changes TLS roles. In the planned runtimes, each runtime relay and each hop where avirthostd forwards bytes unchanged transmits ciphertext only, as does each shared volume.
 
-| Socket | Today, Apple container CLI | Containerization | Docker Desktop |
+| Socket | Today, both runtimes | Containerization, planned | Docker Desktop |
 | --- | --- | --- | --- |
 | Agent egress | `proxy.sock`, a host socket file relayed by the runtime, plaintext CONNECT | CONNECT, CONNECT-UDP or `icmp` streams on the workload's HTTP/2 connection to its mediator | The same as Containerization |
 | Log envelopes | `mediator.sock`, a host socket file, whose bytes avirtmediatord forwards unchanged to `hostd.sock` | The `/envelopes` HTTP/2 stream, which avirtmediatord forwards on the mediator's connection to avirthostd | The same as Containerization |
