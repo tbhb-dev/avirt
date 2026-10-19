@@ -93,6 +93,20 @@ async fn a_crash_after_the_spawn_is_reaped_and_another_root_is_untouched() -> Re
     Ok(())
 }
 
+/// Reaps `root` with a fresh supervisor, as a restarted avirthostd does, then checks that workload
+/// `1a2b3c4d` and its VM state no longer exist.
+///
+/// # Errors
+///
+/// Fails when the workload remains in `kept` or either directory remains.
+async fn reap_and_ensure_removed(root: &Root) -> Result<()> {
+    let swept = reap(&ChildSupervisor::new(root.workloads()), root).await;
+    ensure!(swept.removed == ["1a2b3c4d"] && swept.kept.is_empty(), "{swept:?}");
+    ensure!(!root.workloads().join("1a2b3c4d").exists(), "the workload directory remains");
+    ensure!(!root.containers().join("1a2b3c4d").exists(), "the VM state remains");
+    Ok(())
+}
+
 /// The reaper stops a helper after avirthostd died during the stop.
 ///
 /// # Errors
@@ -115,10 +129,7 @@ async fn a_crash_while_stopping_is_reaped() -> Result<()> {
     intent.state = State::Stopping;
     intent.write(&spec.dir)?;
 
-    let swept = reap(&ChildSupervisor::new(root.workloads()), &root).await;
-    ensure!(swept.removed == ["1a2b3c4d"] && swept.kept.is_empty(), "{swept:?}");
-    ensure!(!root.workloads().join("1a2b3c4d").exists(), "the workload directory remains");
-    ensure!(!root.containers().join("1a2b3c4d").exists(), "the VM state remains");
+    reap_and_ensure_removed(&root).await?;
     drop(first);
     Ok(())
 }
@@ -145,9 +156,6 @@ async fn a_crash_after_the_end_is_recorded_is_reaped_without_a_dial() -> Result<
     // The helper has exited, so nothing answers on its socket.
     drop(fs::remove_file(spec.dir.join("v.sock")));
 
-    let swept = reap(&ChildSupervisor::new(root.workloads()), &root).await;
-    ensure!(swept.removed == ["1a2b3c4d"] && swept.kept.is_empty(), "{swept:?}");
-    ensure!(!root.workloads().join("1a2b3c4d").exists(), "the workload directory remains");
-    ensure!(!root.containers().join("1a2b3c4d").exists(), "the VM state remains");
+    reap_and_ensure_removed(&root).await?;
     Ok(())
 }
