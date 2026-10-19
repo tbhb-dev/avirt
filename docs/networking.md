@@ -341,7 +341,7 @@ All runtimes present the same Unix sockets inside the containers under `/run/avi
 | `edgeproxy.sock` | None | Host Unix socket | Host Unix socket |
 | Web UI users | None | TCP listener on the host's loopback interface | TCP listener on the host's loopback interface |
 | Peer listener (`peering.listen`, default 8788) | None | TCP listener on the host | TCP listener on the host |
-| Host socket paths under the 104-byte limit | `proxy.sock`, `mediator.sock`, `hostd.sock` | None | `c.sock`, `s.sock` |
+| Host socket paths under the 104-byte limit | `proxy.sock`, `mediator.sock`, `hostd.sock`, and `v.sock` on Containerization | None | `c.sock`, `s.sock` |
 
 avirtedgeproxyd reaches host services over local Unix sockets. Each service accepts mutual TLS connections. Peer authentication checks the exact SVID against the enrolled trust domain's bundle and never authorizes by source address.
 

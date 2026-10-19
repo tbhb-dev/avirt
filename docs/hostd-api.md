@@ -50,6 +50,9 @@ Without `cwd`, the agent works in the image's empty `/workspace`. With `cwd`, av
 | `PORT` | `avirthostd`, `avirt` | 8787 | Control API port |
 | `LOGS_DIR` | `avirthostd` | `logs` | Log directory |
 | `AVIRT_MEDIATOR_BIN` | `avirthostd` | `avirtmediatord` next to avirthostd | The mediator binary |
+| `AVIRT_RUNTIME` | `avirthostd` | `containerization` | The runtime, `container` or `containerization` |
+| `AVIRT_VMD_BIN` | `avirthostd` | `avirtvmd` next to avirthostd | The per-workload VM helper on Containerization |
+| `AVIRT_IMAGE_ARCHIVES` | `avirthostd` | `target/images` | The directory of OCI archives that `mise run build-image` writes |
 | `CLAUDE_IMAGE` | `avirthostd` | `avirt-workload-claude:dev` | Claude sandbox image |
 | `CODEX_IMAGE` | `avirthostd` | `avirt-workload-codex:dev` | Codex sandbox image |
 | `CODEX_HOST_HOME` | `avirthostd` | `~/.codex` | Directory of the host `auth.json` |

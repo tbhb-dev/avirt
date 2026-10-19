@@ -11,7 +11,7 @@ generated: { by: codex/gpt-6, at: 2026-10-18T04:29:26Z }
 
 ## Container
 
-The sandbox container runs with `--init`, and with `--network none` on the Apple container CLI runtime. With `--init` the runtime's init is PID 1 and avirtinitd is its direct child: init reaps orphaned processes and passes `container stop` to avirtinitd as SIGTERM. `avirtinitd` handles SIGTERM by recording a `terminated by SIGTERM` error, closing its HTTP/2 connection on `mediator.sock` and exiting with code 2. The image build removes `ubuntu:26.04`'s uid 1000 user and assigns uid 1000 to `agent`. The Containerfile omits `USER`, and avirtinitd starts as root.
+The sandbox container runs with `--init`, and with `--network none` on the Apple container CLI runtime. With `--init` the runtime's init is PID 1 and avirtinitd is its direct child: init reaps orphaned processes and passes `container stop` to avirtinitd as SIGTERM, whereas Containerization's avirtvmd sends SIGTERM itself and forces a stop after the grace period. `avirtinitd` handles SIGTERM by recording a `terminated by SIGTERM` error, closing its HTTP/2 connection on `mediator.sock` and exiting with code 2. The image build removes `ubuntu:26.04`'s uid 1000 user and assigns uid 1000 to `agent`. The Containerfile omits `USER`, and avirtinitd starts as root.
 
 ## Agent process
 
