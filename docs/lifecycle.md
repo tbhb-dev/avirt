@@ -68,7 +68,7 @@ New launches get 503 meanwhile. Cleanup also runs when setup fails partway.
 
 ## Runtime directory
 
-The runtime directory, `$TMPDIR/avirt-<uid>/` (0700), contains what a workload leaves on disk except its logs, which go to the logs directory (`logs/` in avirthostd's working directory by default, set by `LOGS_DIR`):
+The runtime directory, `$TMPDIR/avirt-<uid>/` (0700), contains avirthostd's state and what a workload leaves on disk, except its logs, which go to the logs directory (`logs/` in avirthostd's working directory by default, set by `LOGS_DIR`):
 
 | Path | Holds |
 | --- | --- |
