@@ -93,6 +93,9 @@ def fold(word: str) -> str:
     if len(word) > 4 and re.search(r"(?:ss|x|z|ch|sh)es$", word):
         return word[:-2]
     if len(word) > 3 and word.endswith("s") and not word.endswith(("ss", "us", "is")):
+        word = word[:-1]
+    # A singular in -che, -she, -ze, -xe or -sse shares a key with its plural, which lost the e.
+    if len(word) > 3 and re.search(r"(?:ch|sh|ss|x|z)e$", word):
         return word[:-1]
     return word
 

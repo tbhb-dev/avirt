@@ -54,6 +54,11 @@ def test_possessive_and_plural_fold():
     assert jc.fold("processes") == "process" and jc.fold("refuses") == "refuse"
 
 
+@pytest.mark.parametrize("singular, plural", [("cache", "caches"), ("size", "sizes"), ("box", "boxes"), ("class", "classes")])
+def test_fold_gives_singular_and_plural_one_form(singular, plural):
+    assert jc.fold(singular) == jc.fold(plural)
+
+
 # --- detection ---------------------------------------------------------------------------------
 
 
