@@ -11,7 +11,7 @@ generated: { by: codex/gpt-6, at: 2026-10-18T05:10:25Z }
 
 ## Workspace layout
 
-The root workspace includes `avirt-connect` for CONNECT authority parsing and destination checks. `mise run check` checks that workspace. `crates/avirtvmd` is a SwiftPM package outside it, and on macOS `mise run build-vmd` builds the package and signs it with the `com.apple.security.virtualization` entitlement, and avirthostd starts the result from `AVIRT_VMD_BIN` or from the file next to its own binary. The implemented mediator uses the [Pingora CONNECT app](./egress.md#pingora-connect-app).
+The root workspace includes `avirt-connect` for CONNECT authority parsing and destination checks. `mise run check` checks that workspace. `crates/avirtvmd` is a SwiftPM package outside it. On macOS, `mise run build-vmd` builds the package and signs it with the `com.apple.security.virtualization` entitlement. avirthostd starts the result from `AVIRT_VMD_BIN` or from the file next to its own binary. The implemented mediator uses the [Pingora CONNECT app](./egress.md#pingora-connect-app).
 
 Runtime backends conform to the `Runtime` trait from `avirt-core`. At run time `AVIRT_RUNTIME` selects `container` or `containerization`, and Docker isn't a choice. Because the Containerization backend starts the avirtvmd helper for each workload, avirthostd links no Swift.
 
