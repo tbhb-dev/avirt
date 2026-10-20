@@ -57,4 +57,12 @@ struct PeerSignatureTests {
     _ = try ownSigningInfo()
     #expect(!(try ownCdhashRequirementText()).isEmpty)
   }
+
+  @Test("Only a status that meets or fails the Developer ID requirement answers")
+  func unexpectedStatusThrows() throws {
+    #expect(try signingInfo(team: "ABCDE12345", validity: errSecSuccess).meetsDeveloperID)
+    #expect(try !signingInfo(team: nil, validity: errSecCSReqFailed).meetsDeveloperID)
+    #expect(try !signingInfo(team: nil, validity: errSecCSUnsigned).meetsDeveloperID)
+    #expect(throws: SignatureError.self) { try signingInfo(team: nil, validity: errSecCSSignatureFailed) }
+  }
 }

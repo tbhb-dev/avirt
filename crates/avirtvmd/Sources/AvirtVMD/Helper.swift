@@ -26,12 +26,14 @@ private let incarnationTimeout = Duration.seconds(5)
 ///   - stdin: The descriptor avirthostd writes the incarnation to and then keeps open.
 /// - Returns: The process exit code, one of the `HelperExit` values.
 public func runHelper(workload: String, directory: String, stdin: Int32 = STDIN_FILENO) async -> Int32 {
-  await runHelper(workload: workload, directory: directory, stdin: stdin, launcher: launchContainer)
+  await runHelper(
+    workload: workload, directory: directory, stdin: stdin, launcher: launchContainer, signingInfo: ownSigningInfo)
 }
 
-/// [`runHelper`] with another way to start the workload's VM, for tests.
+/// [`runHelper`] with another way to start the workload's VM and to read its own signature, for tests.
 func runHelper(
-  workload: String, directory: String, stdin: Int32, launcher: @escaping Launcher
+  workload: String, directory: String, stdin: Int32, launcher: @escaping Launcher,
+  signingInfo: () throws -> SigningInfo = ownSigningInfo
 ) async -> Int32 {
   let watcher = StdinWatcher(descriptor: stdin)
   guard case .line(let text) = await watcher.readFirstLine(timeout: incarnationTimeout),
@@ -52,7 +54,7 @@ func runHelper(
 
   let policy: PeerPolicy
   do {
-    policy = try peerPolicy(for: ownSigningInfo())
+    policy = try peerPolicy(for: signingInfo())
   } catch {
     log("can't read its own signing information: \(error)")
     return HelperExit.failure

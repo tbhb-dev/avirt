@@ -78,7 +78,15 @@ func ownSigningInfo() throws -> SigningInfo {
   let code = try Sys.selfCode()
   let information = try Sys.signingInformation(of: code)
   let team = information[kSecCodeInfoTeamIdentifier as String] as? String
-  switch try PeerRequirement(developerIDRequirementText).check(code) {
+  return try signingInfo(team: team, validity: PeerRequirement(developerIDRequirementText).check(code))
+}
+
+/// The signing information for a team identifier and the status of checking the Developer ID requirement.
+///
+/// Only a status that says the code meets or fails the requirement is an answer. Any other status
+/// throws, so the helper never guesses.
+func signingInfo(team: String?, validity: OSStatus) throws -> SigningInfo {
+  switch validity {
   case errSecSuccess:
     return SigningInfo(teamID: team, meetsDeveloperID: true)
   case errSecCSReqFailed, errSecCSUnsigned:
