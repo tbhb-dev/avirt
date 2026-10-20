@@ -50,6 +50,17 @@ func runHelper(
   }
   defer { close(lock) }
 
+  let policy: PeerPolicy
+  do {
+    policy = try peerPolicy(for: ownSigningInfo())
+  } catch {
+    log("can't read its own signing information: \(error)")
+    return HelperExit.failure
+  }
+  if case .sameUser = policy {
+    log("development build: control peers are checked by user ID only")
+  }
+
   let group = MultiThreadedEventLoopGroup(numberOfThreads: 2)
   let socketPath = directory + "/v.sock"
   let listener: NIOAsyncChannel<ControlChannel, Never>
@@ -58,6 +69,7 @@ func runHelper(
   let server = ControlServer(
     identity: Identity(workload: workload, incarnation: incarnation),
     host: host,
+    policy: policy,
     requestStop: { stopSink.yield(.stopRequested) }
   )
   do {

@@ -58,6 +58,7 @@ func connect(to socket: String, group: MultiThreadedEventLoopGroup) async throws
 /// Runs `body` against a control server bound in a scratch directory.
 func withServer(
   userID: UInt32 = Sys.currentUID(),
+  policy: PeerPolicy = .sameUser,
   launcher: @escaping Launcher = refusingLauncher,
   _ body: (_ socket: String, _ group: MultiThreadedEventLoopGroup, _ stops: Counter) async throws -> Void
 ) async throws {
@@ -69,7 +70,8 @@ func withServer(
   let stops = Counter()
   let host = WorkloadHost(workload: testIdentity.workload, launcher: launcher)
   let server = ControlServer(
-    identity: testIdentity, host: host, userID: userID, requestStop: { stops.increment() })
+    identity: testIdentity, host: host, userID: userID, policy: policy,
+    requestStop: { stops.increment() })
   let serving = Task { try await server.serve(on: listener) }
   do {
     try await body(socket, group, stops)

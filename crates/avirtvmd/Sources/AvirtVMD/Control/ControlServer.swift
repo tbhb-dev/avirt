@@ -34,14 +34,16 @@ struct ControlServer: Sendable {
   let requestStop: @Sendable () -> Void
   private let slot = ConnectionSlot()
   private let userID: UInt32
+  private let policy: PeerPolicy
 
   init(
     identity: Identity, host: WorkloadHost, userID: UInt32 = Sys.currentUID(),
-    requestStop: @escaping @Sendable () -> Void
+    policy: PeerPolicy = .sameUser, requestStop: @escaping @Sendable () -> Void
   ) {
     self.identity = identity
     self.host = host
     self.userID = userID
+    self.policy = policy
     self.requestStop = requestStop
   }
 
@@ -91,6 +93,18 @@ struct ControlServer: Sendable {
     guard try await peerUID(of: channel) == userID else {
       log("refused a connection from another user")
       return
+    }
+    if case .signed(let requirement) = policy {
+      guard let token = try? await peerAuditToken(of: channel), peerSatisfies(requirement, token: token) else {
+        log("refused a connection whose code isn't avirthostd's")
+        var refusal = HelperMessage()
+        refusal.refusal = .with {
+          $0.code = .wrongPeer
+          $0.message = "the peer isn't avirthostd"
+        }
+        try await outbound.write(refusal.frameBody())
+        return
+      }
     }
     var hello = HelperMessage()
     hello.hello = .with {
