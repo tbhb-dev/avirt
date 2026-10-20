@@ -7,7 +7,7 @@ use super::{
     LockState, lock_state,
 };
 use crate::runtime::containerization::control::{self, Expected};
-use crate::runtime::containerization::proto::{RequestOp, ResponseResult, Status};
+use crate::runtime::containerization::proto::{RefusalCode, RequestOp, ResponseResult, Status};
 use anyhow::{Context as _, Result, bail, ensure};
 use core::time::Duration;
 use std::fs::{self, File, OpenOptions};
@@ -200,6 +200,28 @@ async fn a_live_helper_that_does_not_answer_is_unknown_and_not_ended() -> Result
     for status in &statuses {
         ensure!(matches!(status.state, HelperState::Unknown(_)), "{status:?}");
     }
+    Ok(())
+}
+
+/// A live helper that refuses avirthostd is unknown, and the state says why.
+///
+/// # Errors
+///
+/// Fails when the helper's state differs from the expected one.
+///
+/// # Panics
+///
+/// Panics if the async runtime fails to start.
+#[tokio::test]
+async fn a_live_helper_that_refuses_avirthostd_is_unknown() -> Result<()> {
+    let root = tempfile::tempdir()?;
+    let dir = workload_dir(root.path(), "1a2b3c4d", State::Starting)?;
+    let _lock = hold_lock(&dir)?;
+    let _fake =
+        FakeHelper::spawn_refusing_peers(&dir.join("v.sock"), RefusalCode::WrongPeer, "the peer isn't avirthostd")?;
+    let status = only(listed(root.path()).await?)?;
+    let HelperState::Unknown(why) = &status.state else { bail!("the state is {:?}", status.state) };
+    ensure!(why.contains("refused the connection") && why.contains("the peer isn't avirthostd"), "{why}");
     Ok(())
 }
 

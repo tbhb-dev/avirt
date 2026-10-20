@@ -2,8 +2,8 @@
 
 use super::lifecycle::Incarnation;
 use super::proto::{
-    Event, EventKind, ExitStatus, Failure, HelperBody, HelperHello, HelperMessage, HostBody, HostMessage, Request,
-    RequestOp, Response, ResponseResult, Started, State, StatusReply, Stopped, WorkloadExited,
+    Event, EventKind, ExitStatus, Failure, HelperBody, HelperHello, HelperMessage, HostBody, HostMessage, Refusal,
+    RefusalCode, Request, RequestOp, Response, ResponseResult, Started, State, StatusReply, Stopped, WorkloadExited,
 };
 use alloc::sync::Arc;
 use anyhow::Result;
@@ -80,6 +80,18 @@ impl FakeHelper {
         Self::bind(socket, hello, Starts::Ignore)
     }
 
+    /// Starts a fake on `socket` that answers every connection with a refusal in place of a hello.
+    ///
+    /// # Errors
+    ///
+    /// Returns an error if binding the socket fails.
+    pub(super) fn spawn_refusing_peers(socket: &Path, code: RefusalCode, message: &str) -> Result<Self> {
+        let listener = UnixListener::bind(socket)?;
+        let refusal = Refusal { code: code.into(), message: message.to_owned() };
+        let task = tokio::spawn(refuse_all(listener, refusal));
+        Ok(Self { received: Received::default(), task })
+    }
+
     /// Starts the fake on `socket`, answering every `StartWorkload` with a `Failure`.
     ///
     /// # Errors
@@ -118,6 +130,24 @@ async fn accept(listener: UnixListener, hello: Option<HelperHello>, received: Re
     let mut connections = JoinSet::new();
     while let Ok((stream, _)) = listener.accept().await {
         connections.spawn(converse(stream, hello.clone(), Arc::clone(&received), starts));
+    }
+}
+
+/// Answers every connection with `refusal` and keeps it open until the peer hangs up. The set of
+/// connections drops with the task and takes them down with it.
+async fn refuse_all(listener: UnixListener, refusal: Refusal) {
+    let mut connections = JoinSet::new();
+    while let Ok((stream, _)) = listener.accept().await {
+        let message = HelperMessage::from(HelperBody::Refusal(refusal.clone()));
+        connections.spawn(hold_open(stream, message));
+    }
+}
+
+/// Sends `message` and then reads until the peer hangs up.
+async fn hold_open(stream: UnixStream, message: HelperMessage) {
+    let mut wire = Framed::new(stream, LengthDelimitedCodec::new());
+    if wire.send(Bytes::from(message.encode_to_vec())).await.is_ok() {
+        while wire.next().await.is_some() {}
     }
 }
 

@@ -110,6 +110,32 @@ async fn a_helper_for_another_workload_is_refused_by_name() -> Result<()> {
     expect_refusal(&fake, RefusalCode::WrongWorkload).await
 }
 
+/// The client reports a refusal that arrives in place of the hello, and says which one.
+///
+/// # Errors
+///
+/// Fails when the handshake doesn't end with the helper's refusal.
+///
+/// # Panics
+///
+/// Panics if the async runtime fails to start.
+#[tokio::test]
+async fn a_refusal_in_place_of_the_hello_is_named() -> Result<()> {
+    let dir = tempfile::tempdir()?;
+    let socket = dir.path().join("v.sock");
+    let _fake = FakeHelper::spawn_refusing_peers(&socket, RefusalCode::WrongPeer, "the peer isn't avirthostd")?;
+    let Err(err) = handshake(&socket, SHORT).await? else { bail!("the handshake succeeded") };
+    ensure!(
+        matches!(&err, HandshakeError::Refused { code: RefusalCode::WrongPeer, message } if message == "the peer isn't avirthostd"),
+        "the error is {err}"
+    );
+    ensure!(
+        err.to_string() == "avirtvmd refused the connection (wrong peer): the peer isn't avirthostd",
+        "the message is {err}"
+    );
+    Ok(())
+}
+
 /// A helper that presents an old incarnation gets a named refusal.
 ///
 /// # Errors
