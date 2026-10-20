@@ -11,9 +11,15 @@ generated: { by: codex/gpt-6, at: 2026-10-18T05:14:22Z }
 
 ## avirtvmd control socket
 
-avirtvmd listens without mutual TLS on the Unix socket `workloads/<id>/v.sock`, which has mode 0600 and is in a workload directory with mode 0700. Both sides require the peer to have the same user ID. Each connection has a fixed workload and incarnation. Development builds rely on exactly these checks. avirtvmd runs unconfined as the host user and can reach anything that user can reach.
+avirtvmd listens without mutual TLS on the Unix socket `workloads/<id>/v.sock`, which has mode 0600 and is in a workload directory with mode 0700. At startup, before it binds the socket, avirtvmd reads its own code signature and selects one control-peer policy for the process lifetime. If it can't read its signing information, it exits with status 70 instead of selecting the development policy. avirtvmd runs unconfined as the host user and can reach anything that user can reach.
 
-Status: planned. [Phase 1b](./roadmap.md#phases) adds a Developer ID check on this socket.
+For each accepted connection, avirtvmd first reads the peer's user ID with `LOCAL_PEERCRED`. A mismatch closes the connection without a message. When avirtvmd's own code meets Apple's Developer ID rule for apps and includes a team identifier, avirtvmd next reads the peer's audit token from the accepted connection with `LOCAL_PEERTOKEN` and checks the peer's code. The peer's code must meet Apple's Developer ID rule for apps. Its leaf-certificate team organizational unit must equal avirtvmd's team identifier, and its signing identifier must equal `dev.avirt.hostd`. This check admits avirthostd, but rejects another binary from the same team, including avirtsecretsd. Failure to read the audit token or the peer's code fails the check.
+
+A signature check failure returns a `Refusal` with `REFUSAL_CODE_WRONG_PEER` and closes the connection before the hello. The peer receives neither the workload ID nor the incarnation. The audit token establishes the peer's identity when avirtvmd accepts the connection. avirtvmd doesn't check again after an `exec`, and the connection's authority ends when the connection closes. After these checks, avirtvmd sends the hello and continues the handshake.
+
+Any other avirtvmd signature, including the ad-hoc signature from `build-vmd` and a non-Developer ID certificate, selects the development policy. That policy checks the user ID, the 0700 workload directory, and the incarnation. avirtvmd writes `development build: control peers are checked by user ID only` to `logs/<workload-id>.avirtvmd.log`.
+
+avirthostd doesn't check avirtvmd's signature. If avirtvmd refuses avirthostd instead of sending the hello, launch fails with `avirtvmd refused the connection (wrong peer): ...`. During restart, avirthostd lists a live helper that refuses its connection as unknown, waits through the grace period, and then sends `SIGKILL`.
 
 # Status: planned
 
@@ -67,7 +73,7 @@ On the host, these local listeners don't use mutual TLS either, and authenticate
 
 - avirtedgeproxyd's `edgeproxy.sock`, a user-owned 0600 socket in the runtime directory.
 - the web UI port, a host loopback port, where avirtwebd authenticates web UI users.
-- avirtvmd's `v.sock`, a 0600 socket in the 0700 workload directory, which admits only avirthostd's UID and, from phase 1b, the expected Developer ID.
+- avirtvmd's `v.sock`, a 0600 socket in the 0700 workload directory, which checks avirthostd's user ID and, when avirtvmd selects its Developer ID policy, avirthostd's Developer ID team and signing identifier.
 - avirthostd's `admin.sock`, which admits only avirthostd's own UID or root by peer credentials (see [admin CLI](./admin-cli.md)).
 
 uid 1000 never holds an SVID or its key, the trust bundle, a CA key, or a credential from avirt. A trusted upstream can return an injected credential in its response.

@@ -50,7 +50,7 @@ Constraint: a login keychain ACL trusts avirtsecretsd by its <!-- Apple code-sig
 
 | Build | Signature | <!-- Apple code-signing term. --><!-- vale write-good.TooWordy = NO -->Designated requirement<!-- vale write-good.TooWordy = YES --> | Effect |
 | --- | --- | --- | --- |
-| Distribution | Developer ID, hardened runtime, notarized, with the signing identifier `dev.avirt.avirtsecretsd` | The identifier and the Developer ID team | Stable across releases, so an item trusted once stays trusted after every upgrade |
+| Distribution | Developer ID, hardened runtime, notarized, with the signing identifier `dev.avirt.secretsd` | The identifier and the Developer ID team | Stable across releases, so an item trusted once stays trusted after every upgrade |
 | Development | Ad-hoc | The binary's code directory hash | Changes with every build. The Keychain treats each rebuilt avirtsecretsd as a new app. Existing items refuse it until their ACLs trust it again |
 
 A development avirtsecretsd uses the `env` or `file` provider for its bootstrap credentials by default. It uses the `keychain` provider only with a signature from a stable development identity.
