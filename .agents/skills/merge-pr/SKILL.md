@@ -58,7 +58,7 @@ Merging is the last moment the description can change, and you write the squash 
 
 Read what preflight printed under `== description as published ==` against the commits it collapses. Most merges skip the rest of this step. A description that still fits doesn't need a pass, and a pull request nobody here authored has none of this machinery behind it, so take its description as it stands.
 
-Where it no longer describes the branch, run `write-pr-description` and then `review-pr-description`, following the `pr` review loop, then republish with `bash .agents/skills/pr/scripts/create-pr.sh`.
+Where it no longer describes the branch, revise `PR_AGENTDESC.md` in this session or use the optional `write-pr-description` helper, then run the `pr` review script, following its review loop, then republish with `bash .agents/skills/pr/scripts/create-pr.sh`.
 
 ## Step 3: write the squash message
 
@@ -116,7 +116,7 @@ Fix the prose findings with the `fix-prose` skill first, on `SQUASH_AGENTMSG mis
 mise run lint-squash-msg
 ```
 
-The same four hooks a commit must pass:
+The same four hooks a commit must pass, plus the source-range identity context that requires `Assisted-by` when the squash collapses an agent commit:
 
 - vale under the commit scope, which catches AI tells through `ai-tells-commits`
 - cspell with the commit dictionary
@@ -145,6 +145,7 @@ This step is mandatory, and the merge script enforces it.
 | 75 | Waiting for an approving review GitHub requires |
 | 2 | Changes required: the output lists the findings |
 | 4 | The reviewer failed or replied without a readable verdict |
+| 124 | The reviewer timed out without a stamp |
 | 5 | The draft or the pull request moved while the review ran |
 
 Fix everything it returns and run it again. Push back only where it's demonstrably wrong about the commits, and say why.
