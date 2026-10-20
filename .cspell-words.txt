@@ -73,6 +73,7 @@ canonicalized
 capsys
 CAs
 cdecl
+cdhash
 CDN
 cdylib
 Cedar
@@ -305,6 +306,7 @@ passthrough
 passwordusercontent
 pathbuf
 PEERCRED
+PEERTOKEN
 peekable
 PEM
 PEP

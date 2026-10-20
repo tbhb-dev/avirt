@@ -1,7 +1,9 @@
 import Foundation
 import NIOCore
 import NIOPosix
+import Security
 import Synchronization
+import Testing
 
 @testable import AvirtVMD
 
@@ -103,4 +105,39 @@ func eventually(seconds: Double = 5, _ condition: () -> Bool) async -> Bool {
     try? await Task.sleep(for: .milliseconds(20))
   }
   return condition()
+}
+
+/// A requirement that only the test process's own code satisfies: its code directory hash.
+func ownCdhashRequirementText() throws -> String {
+  let information = try Sys.signingInformation(of: try Sys.selfCode())
+  guard let unique = information[kSecCodeInfoUnique as String] as? Data else {
+    throw SignatureError.security("read the test process's code directory hash", errSecParam)
+  }
+  return "cdhash H\"" + unique.map { ($0 < 16 ? "0" : "") + String($0, radix: 16) }.joined() + "\""
+}
+
+/// The audit token that the helper reads for a connection from the test process.
+func ownAuditToken() async throws -> audit_token_t {
+  let scratch = try ScratchDirectory()
+  defer { scratch.remove() }
+  let group = MultiThreadedEventLoopGroup(numberOfThreads: 1)
+  let socket = scratch.path + "/v.sock"
+  let listener = try await ControlServer.bind(path: socket, group: group)
+  do {
+    let token = try await listener.executeThenClose { connections in
+      let client = try await connect(to: socket, group: group)
+      return try await client.executeThenClose { _, _ in
+        var accepted = connections.makeAsyncIterator()
+        let connection = try #require(try await accepted.next())
+        return try await connection.executeThenClose { _, _ in
+          try await peerAuditToken(of: connection.channel)
+        }
+      }
+    }
+    try await group.shutdownGracefully()
+    return token
+  } catch {
+    try? await group.shutdownGracefully()
+    throw error
+  }
 }

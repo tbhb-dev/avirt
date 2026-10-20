@@ -18,3 +18,16 @@ func peerUID(of channel: any Channel) async throws -> UInt32 {
   ).get()
   return credentials.cr_uid
 }
+
+/// The audit token of the process on the other end of a Unix socket (`LOCAL_PEERTOKEN`).
+///
+/// The token names the peer's current image, so it says who the peer is at the moment of the call.
+func peerAuditToken(of channel: any Channel) async throws -> audit_token_t {
+  guard let provider = channel as? any SocketOptionProvider else {
+    throw PeerError.unsupportedChannel
+  }
+  return try await provider.unsafeGetSocketOption(
+    level: NIOBSDSocket.OptionLevel(rawValue: SOL_LOCAL),
+    name: NIOBSDSocket.Option(rawValue: LOCAL_PEERTOKEN)
+  ).get()
+}
