@@ -1,5 +1,6 @@
 import Darwin
 import Foundation
+import Security
 
 /// The calls into the C library that the rest of the package leans on.
 enum Sys {
@@ -32,6 +33,49 @@ enum Sys {
       throw .unavailable(errno)
     }
     return descriptor
+  }
+
+  /// The code of this process.
+  static func selfCode() throws -> SecCode {
+    var code: SecCode?
+    let status = unsafe SecCodeCopySelf([], &code)
+    guard status == errSecSuccess, let code else { throw SignatureError.security("read its own code", status) }
+    return code
+  }
+
+  /// The signing information of `code`: its flags, team identifier, and code directory hash.
+  static func signingInformation(of code: SecCode) throws -> [String: Any] {
+    var staticCode: SecStaticCode?
+    var status = unsafe SecCodeCopyStaticCode(code, [], &staticCode)
+    guard status == errSecSuccess, let staticCode else {
+      throw SignatureError.security("read the static code", status)
+    }
+    var information: CFDictionary?
+    status = unsafe SecCodeCopySigningInformation(
+      staticCode, SecCSFlags(rawValue: kSecCSSigningInformation), &information)
+    guard status == errSecSuccess, let information = information as? [String: Any] else {
+      throw SignatureError.security("read the signing information", status)
+    }
+    return information
+  }
+
+  /// Compiles `text` into a code requirement.
+  static func requirement(_ text: String) throws -> SecRequirement {
+    var requirement: SecRequirement?
+    let status = unsafe SecRequirementCreateWithString(text as CFString, [], &requirement)
+    guard status == errSecSuccess, let requirement else {
+      throw SignatureError.security("compile a code requirement", status)
+    }
+    return requirement
+  }
+
+  /// The process that holds `token`, or nil if it can't be found.
+  static func process(holding token: audit_token_t) -> SecCode? {
+    let bytes = unsafe withUnsafeBytes(of: token) { unsafe Data($0) }
+    let attributes = [kSecGuestAttributeAudit as String: bytes] as CFDictionary
+    var guest: SecCode?
+    guard unsafe SecCodeCopyGuestWithAttributes(nil, attributes, [], &guest) == errSecSuccess else { return nil }
+    return guest
   }
 
   static func closeDescriptor(_ descriptor: Int32) {

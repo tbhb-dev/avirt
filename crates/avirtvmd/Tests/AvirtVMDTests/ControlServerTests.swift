@@ -41,6 +41,40 @@ struct ControlServerTests {
     }
   }
 
+  @Test("A peer that meets the requirement gets the hello")
+  func aPeerMeetingTheRequirementGetsTheHello() async throws {
+    let policy = PeerPolicy.signed(try PeerRequirement(try ownCdhashRequirementText()))
+    try await withServer(policy: policy) { socket, group, _ in
+      let client = try await connect(to: socket, group: group)
+      try await client.executeThenClose { inbound, _ in
+        var frames = inbound.makeAsyncIterator()
+        let first = try #require(await frames.nextHelperMessage())
+        guard case .hello? = first.body else {
+          Issue.record("the first frame wasn't a hello")
+          return
+        }
+      }
+    }
+  }
+
+  @Test("A peer that fails the requirement is refused before any hello")
+  func aPeerFailingTheRequirementIsRefusedBeforeAnyHello() async throws {
+    let policy = PeerPolicy.signed(try PeerRequirement(hostRequirementText(team: "ABCDE12345")))
+    try await withServer(policy: policy) { socket, group, _ in
+      let client = try await connect(to: socket, group: group)
+      try await client.executeThenClose { inbound, _ in
+        var frames = inbound.makeAsyncIterator()
+        let first = try #require(await frames.nextHelperMessage())
+        guard case .refusal(let refusal)? = first.body else {
+          Issue.record("the first frame wasn't a refusal")
+          return
+        }
+        #expect(refusal.code == .wrongPeer)
+        #expect(await frames.nextHelperMessage() == nil)
+      }
+    }
+  }
+
   @Test("A hello with a version outside the helper's range is refused and the connection closes")
   func unsupportedVersion() async throws {
     try await withServer { socket, group, _ in

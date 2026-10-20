@@ -65,6 +65,13 @@ pub enum HandshakeError {
     NoHello,
     /// The helper sent something other than a well-formed hello.
     Protocol(String),
+    /// The helper refused avirthostd in place of its hello.
+    Refused {
+        /// Why the helper refused.
+        code: RefusalCode,
+        /// The helper's sentence for its log.
+        message: String,
+    },
     /// The helper presented an incarnation other than the one started.
     StaleIncarnation,
     /// The helper's version range doesn't include [`PROTOCOL_VERSION`].
@@ -88,6 +95,9 @@ impl fmt::Display for HandshakeError {
             Self::Io(err) => write!(f, "control connection failed: {err}"),
             Self::NoHello => f.write_str("avirtvmd sent no hello in time"),
             Self::Protocol(why) => write!(f, "avirtvmd broke the protocol: {why}"),
+            Self::Refused { code, message } => {
+                write!(f, "avirtvmd refused the connection ({}): {message}", refusal_name(*code))
+            }
             Self::StaleIncarnation => f.write_str("avirtvmd presented an incarnation other than the one started"),
             Self::UnsupportedVersion { max, min } => {
                 write!(f, "avirtvmd speaks protocol versions {min} to {max}, and avirthostd speaks {PROTOCOL_VERSION}")
@@ -240,6 +250,17 @@ where
     wire.send(Bytes::from(message.encode_to_vec())).await
 }
 
+/// The name of a refusal code, for messages.
+const fn refusal_name(code: RefusalCode) -> &'static str {
+    match code {
+        RefusalCode::StaleIncarnation => "stale incarnation",
+        RefusalCode::Unspecified => "unspecified",
+        RefusalCode::UnsupportedVersion => "unsupported version",
+        RefusalCode::WrongPeer => "wrong peer",
+        RefusalCode::WrongWorkload => "wrong workload",
+    }
+}
+
 /// Tells the helper why avirthostd is hanging up.
 ///
 /// The helper may have exited already, so a failed send doesn't matter.
@@ -252,7 +273,7 @@ async fn refuse(wire: &mut Wire, code: RefusalCode, note: &str) {
 ///
 /// # Errors
 ///
-/// Returns the [`HandshakeError`] for a timeout, a closed connection, or a first frame that isn't a hello.
+/// Returns the [`HandshakeError`] for a timeout, a closed connection, a refusal, or a first frame that isn't a hello.
 async fn read_hello(wire: &mut Wire, limit: Duration) -> Result<HelperHello, HandshakeError> {
     let frame = match time::timeout(limit, wire.next()).await {
         Err(_) => return Err(HandshakeError::NoHello),
@@ -262,7 +283,11 @@ async fn read_hello(wire: &mut Wire, limit: Duration) -> Result<HelperHello, Han
     };
     match HelperMessage::decode(frame).map(HelperMessage::into_body) {
         Ok(Some(HelperBody::Hello(hello))) => Ok(hello),
-        Ok(Some(HelperBody::Event(_) | HelperBody::Refusal(_) | HelperBody::Response(_)) | None) => {
+        Ok(Some(HelperBody::Refusal(refusal))) => Err(HandshakeError::Refused {
+            code: RefusalCode::try_from(refusal.code).unwrap_or(RefusalCode::Unspecified),
+            message: refusal.message,
+        }),
+        Ok(Some(HelperBody::Event(_) | HelperBody::Response(_)) | None) => {
             Err(HandshakeError::Protocol("the first frame isn't a hello".to_owned()))
         }
         Err(err) => Err(HandshakeError::Protocol(err.to_string())),

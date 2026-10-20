@@ -32,6 +32,24 @@ struct HelperTests {
     #expect(!FileManager.default.fileExists(atPath: scratch.path + "/v.sock"))
   }
 
+  @Test(
+    "A helper that can't tell its own signature exits 70 and binds no socket",
+    arguments: [
+      { throw SignatureError.security("read its own code", errSecCSUnsigned) },
+      { SigningInfo(teamID: nil, meetsDeveloperID: true) },
+    ] as [@Sendable () throws -> SigningInfo])
+  func unreadableSignatureFails(reader: @Sendable () throws -> SigningInfo) async throws {
+    let scratch = try ScratchDirectory()
+    defer { scratch.remove() }
+    let pipe = Pipe()
+    try pipe.fileHandleForWriting.write(contentsOf: Self.incarnationLine)
+    let code = await runHelper(
+      workload: "1a2b3c4d", directory: scratch.path, stdin: pipe.fileHandleForReading.fileDescriptor,
+      launcher: refusingLauncher, signingInfo: reader)
+    #expect(code == HelperExit.failure)
+    #expect(!FileManager.default.fileExists(atPath: scratch.path + "/v.sock"))
+  }
+
   @Test("A second helper on the same directory exits 69 and leaves the first running")
   func lockIsExclusive() async throws {
     let scratch = try ScratchDirectory()

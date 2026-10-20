@@ -86,6 +86,30 @@ async fn starting_twice_with_one_incarnation_returns_the_one_helper() -> Result<
     supervised.stop("1a2b3c4d", Duration::from_secs(1)).await
 }
 
+/// A helper signed without a Developer ID certificate says in its log that it checks control peers by user ID only.
+///
+/// # Errors
+///
+/// Fails when the log lacks the line.
+///
+/// # Panics
+///
+/// Panics if the async runtime fails to start.
+#[tokio::test]
+async fn a_development_helper_says_so_in_its_log() -> Result<()> {
+    let root = tempfile::tempdir()?;
+    let incarnation = Incarnation::random();
+    let spec = workload(root.path(), "1a2b3c4d", incarnation)?;
+    let supervised = ChildSupervisor::new(root.path().to_path_buf());
+    supervised.start("1a2b3c4d", &incarnation, &spec).await?;
+    let log = fs::read_to_string(&spec.log)?;
+    ensure!(
+        log.lines().any(|line| line == "avirtvmd: development build: control peers are checked by user ID only"),
+        "the log lacks the development line"
+    );
+    supervised.stop("1a2b3c4d", Duration::from_secs(1)).await
+}
+
 /// Starting with another incarnation fails and leaves the helper running.
 ///
 /// # Errors

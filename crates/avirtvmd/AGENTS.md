@@ -18,7 +18,7 @@ The per-workload VM host helper. It's a SwiftPM package rather than a Cargo crat
 | `avirtvmd.entitlements` | `com.apple.security.virtualization` and nothing else |
 | `Sources/AvirtVMDCommand/` | The executable target, `Avirtvmd.swift` only: the ArgumentParser commands. Its product is `avirtvmd` |
 | `Sources/AvirtVMD/Helper.swift` | `runHelper`, which orders startup: incarnation, lock, socket, then serving until stdin closes or a `Stop` arrives |
-| `Sources/AvirtVMD/Control/` | `ControlServer` (the handshake and the requests), the length framing, `Incarnation`, the stdin watcher, and the peer user check |
+| `Sources/AvirtVMD/Control/` | `ControlServer` (the handshake and the requests), the length framing, `Incarnation`, the stdin watcher, the peer user check, and the peer signature check |
 | `Sources/AvirtVMD/Protocol/` | `avirtvmd.proto`, the wire contract, and `Messages.swift` with aliases for the generated types. `SwiftProtobufPlugin` generates the Swift at build time and needs `protoc` on `PATH` |
 | `Sources/AvirtVMD/Host/` | `WorkloadHost`, the workload's lifecycle (idle, starting, running, exited, stopping), `LaunchSpec`, and `launchContainer`, which boots the VM through Containerization |
 | `Sources/AvirtVMD/Stdio/` | `StdioLog`, the never-block ring and the NDJSON writer for the workload's stdout, stderr, and console |
@@ -32,6 +32,7 @@ The per-workload VM host helper. It's a SwiftPM package rather than a Cargo crat
 - Exit 64 for bad flags or a bad incarnation line. Exit 69 when a precondition outside avirtvmd fails: another process holds the lock, or the socket can't bind. Exit 70 when a `prepare` step fails, with one line on stderr.
 - Take an exclusive `flock` on `<dir>/vmd.lock` before binding, and hold it until the process ends. A free lock tells avirthostd that the helper and its VM have exited.
 - Bind `<dir>/v.sock` with mode 0600 and refuse a connection from any user but this process's, judged by `LOCAL_PEERCRED`. Remove the socket on a clean exit.
+- Choose the peer policy once, before binding, from the helper's own code signature. A helper signed with a Developer ID certificate admits only a peer whose code, found by `LOCAL_PEERTOKEN`, has the helper's team identifier and the signing identifier `dev.avirt.hostd`, and it refuses any other peer with `Refusal` and `REFUSAL_CODE_WRONG_PEER` before the hello. A helper with any other signature checks the user ID alone and logs that to stderr. Exit 70 when the helper can't read its own signing information.
 - Every frame is a 4-byte big-endian length and one Protocol Buffers message of at most 1 MiB. `FrameDecoder` rejects a longer length before it buffers any of the body, which the `NIOExtras` decoder doesn't, so the package doesn't use `NIOExtras`.
 - The helper sends `HelperHello` first on every connection, and the peer replies with `HostHello` or `Refusal` within 5 seconds. A version outside the helper's range gets `Refusal` with `REFUSAL_CODE_UNSUPPORTED_VERSION`. A connection that completes the handshake replaces the previous one.
 - `Status` and `Stop` in the idle state always get an answer. `StartWorkload` with the digest of a start under way or running answers `Started` once the workload runs, and another digest fails.
