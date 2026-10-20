@@ -59,6 +59,7 @@ fn with_intent(state: &state::Root) -> Vec<String> {
 /// Stops one helper if it's alive, and removes the workload's state after the helper exits.
 async fn reap_one(supervisor: &dyn HelperSupervisor, state: &state::Root, status: HelperStatus, swept: &mut Swept) {
     let id = status.workload;
+    let recorded = status.recorded.map_or_else(String::new, |launch| format!(" ({launch})"));
     let gone = match status.state {
         HelperState::Ended => Ok(()),
         HelperState::Incompatible(_) | HelperState::Running | HelperState::Unknown(_) => {
@@ -68,7 +69,7 @@ async fn reap_one(supervisor: &dyn HelperSupervisor, state: &state::Root, status
     let removal = match gone {
         Ok(()) => remove_workload(state, &id),
         Err(err) => {
-            swept.failures.push(format!("workload {id}: {err:#}"));
+            swept.failures.push(format!("workload {id}{recorded}: {err:#}"));
             swept.kept.push(id);
             return;
         }
@@ -76,7 +77,7 @@ async fn reap_one(supervisor: &dyn HelperSupervisor, state: &state::Root, status
     match removal {
         Ok(()) => swept.removed.push(id),
         Err(err) => {
-            swept.failures.push(format!("workload {id}: {err}"));
+            swept.failures.push(format!("workload {id}{recorded}: {err}"));
             swept.kept.push(id);
         }
     }

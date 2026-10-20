@@ -12,7 +12,9 @@ use anyhow::{Context as _, Result, bail, ensure};
 use core::time::Duration;
 use std::fs::{self, File, OpenOptions};
 use std::os::unix::fs as unix_fs;
+use std::os::unix::fs::PermissionsExt as _;
 use std::path::{Path, PathBuf};
+use std::time::Instant;
 
 /// How long a test waits on a helper that doesn't speak.
 const SHORT: Duration = Duration::from_millis(300);
@@ -221,6 +223,8 @@ async fn a_helper_whose_lock_is_free_or_missing_has_ended() -> Result<()> {
     let statuses = listed(root.path()).await?;
     let states: Vec<_> = statuses.iter().map(|status| &status.state).collect();
     ensure!(states == [&HelperState::Ended, &HelperState::Ended], "the states are {states:?}");
+    let recorded: Vec<_> = statuses.iter().map(|status| status.recorded).collect();
+    ensure!(recorded.contains(&Some(State::Intended)) && recorded.contains(&Some(State::Running)), "{recorded:?}");
     Ok(())
 }
 
@@ -243,6 +247,80 @@ async fn a_directory_without_an_intent_is_not_listed_and_a_damaged_intent_is_unk
     let status = only(listed(root.path()).await?)?;
     ensure!(status.workload == "1a2b3c4d", "the workload is {}", status.workload);
     ensure!(matches!(status.state, HelperState::Unknown(_)), "{status:?}");
+    ensure!(status.recorded.is_none(), "{status:?}");
+    Ok(())
+}
+
+/// An ended intent with a held lock is unknown, and a listing doesn't probe it.
+///
+/// # Errors
+///
+/// Fails when the status differs from the expected one or the listing waits for a probe.
+///
+/// # Panics
+///
+/// Panics if the async runtime fails to start.
+#[tokio::test]
+async fn an_ended_intent_with_a_held_lock_is_unknown_and_not_probed() -> Result<()> {
+    let root = tempfile::tempdir()?;
+    let dir = workload_dir(root.path(), "1a2b3c4d", State::Ended)?;
+    let _lock = hold_lock(&dir)?;
+    let started = Instant::now();
+    let status = only(listed(root.path()).await?)?;
+    ensure!(started.elapsed() < SHORT, "the listing waited for a probe");
+    let HelperState::Unknown(why) = &status.state else { bail!("the state is {:?}", status.state) };
+    ensure!(why.contains("records that the helper ended, but its lock is held"), "the text is {why}");
+    Ok(())
+}
+
+/// An ended intent has ended when opening its lock file fails.
+///
+/// # Errors
+///
+/// Fails when the status isn't `Ended`.
+///
+/// # Panics
+///
+/// Panics if the async runtime fails to start.
+#[tokio::test]
+async fn an_ended_intent_with_an_unreadable_lock_has_ended() -> Result<()> {
+    let root = tempfile::tempdir()?;
+    let dir = workload_dir(root.path(), "1a2b3c4d", State::Ended)?;
+    let lock = dir.join("vmd.lock");
+    fs::write(&lock, b"")?;
+    fs::set_permissions(&lock, fs::Permissions::from_mode(0o000))?;
+    // Root opens the file anyway, so the check can't fail for it.
+    if File::open(&lock).is_ok() {
+        return Ok(());
+    }
+    let status = only(listed(root.path()).await?)?;
+    ensure!(status.state == HelperState::Ended, "the state is {:?}", status.state);
+    Ok(())
+}
+
+/// A listing reports the state each intent records.
+///
+/// # Errors
+///
+/// Fails when a recorded state differs from the intent.
+///
+/// # Panics
+///
+/// Panics if the async runtime fails to start.
+#[tokio::test]
+async fn a_listing_reports_the_recorded_state() -> Result<()> {
+    let root = tempfile::tempdir()?;
+    let states = [State::Ended, State::Intended, State::Running, State::Starting, State::Stopping];
+    let ids = ["00000001", "00000002", "00000003", "00000004", "00000005"];
+    for (id, state) in ids.iter().zip(states) {
+        workload_dir(root.path(), id, state)?;
+    }
+    let statuses = listed(root.path()).await?;
+    ensure!(statuses.len() == ids.len(), "the listing has {} statuses", statuses.len());
+    for status in statuses {
+        let index = ids.iter().position(|id| *id == status.workload).context("an unexpected workload")?;
+        ensure!(status.recorded == states.get(index).copied(), "{status:?}");
+    }
     Ok(())
 }
 
@@ -296,7 +374,164 @@ async fn stopping_a_helper_that_is_already_gone_succeeds() -> Result<()> {
     drop(hold_lock(&exited)?);
     let supervised = supervisor(root.path());
     supervised.stop("5e6f7a8b", Duration::ZERO).await?;
+    ensure!(Intent::read(&exited)?.state == State::Ended, "the intent doesn't record the end");
     supervised.stop("00000000", Duration::ZERO).await
+}
+
+/// Stopping a helper whose lock is free records that it ended and clears its pid.
+///
+/// # Errors
+///
+/// Fails when the stop fails or the intent differs from the expected one.
+///
+/// # Panics
+///
+/// Panics if the async runtime fails to start.
+#[tokio::test]
+async fn stopping_a_helper_that_is_already_gone_records_that_it_ended() -> Result<()> {
+    let root = tempfile::tempdir()?;
+    let exited = workload_dir(root.path(), "5e6f7a8b", State::Running)?;
+    let mut intent = Intent::read(&exited)?;
+    intent.pid = Some(4242);
+    intent.write(&exited)?;
+    drop(hold_lock(&exited)?);
+    supervisor(root.path()).stop("5e6f7a8b", Duration::ZERO).await?;
+    let after = Intent::read(&exited)?;
+    ensure!(after.state == State::Ended && after.pid.is_none(), "the intent is {after:?}");
+    Ok(())
+}
+
+/// A second stop of an ended helper leaves the intent alone.
+///
+/// # Errors
+///
+/// Fails when the stop fails or rewrites the intent.
+///
+/// # Panics
+///
+/// Panics if the async runtime fails to start.
+#[tokio::test]
+async fn a_second_stop_of_an_ended_helper_does_nothing() -> Result<()> {
+    let root = tempfile::tempdir()?;
+    let dir = workload_dir(root.path(), "5e6f7a8b", State::Ended)?;
+    let before = fs::read(dir.join("intent.json"))?;
+    supervisor(root.path()).stop("5e6f7a8b", Duration::ZERO).await?;
+    ensure!(fs::read(dir.join("intent.json"))? == before, "the intent changed");
+    Ok(())
+}
+
+/// Makes `dir` read-only, so a read of the intent works and a rewrite fails. Returns whether the
+/// directory is unwritable, which root can always write.
+///
+/// # Errors
+///
+/// Fails when changing the permissions fails.
+fn make_unwritable(dir: &Path) -> Result<bool> {
+    fs::set_permissions(dir, fs::Permissions::from_mode(0o500))?;
+    Ok(File::create(dir.join("probe")).is_err())
+}
+
+/// Makes `dir` writable again, so the temporary directory can clean up.
+///
+/// # Errors
+///
+/// Fails when changing the permissions fails.
+fn make_writable(dir: &Path) -> Result<()> {
+    Ok(fs::set_permissions(dir, fs::Permissions::from_mode(0o700))?)
+}
+
+/// A stop of a helper that keeps its lock leaves the intent at `stopping` with its pid.
+///
+/// # Errors
+///
+/// Fails when the stop succeeds or the intent differs from the expected one.
+///
+/// # Panics
+///
+/// Panics if the async runtime fails to start.
+#[tokio::test]
+async fn a_stop_that_cannot_confirm_the_exit_leaves_the_intent_stopping() -> Result<()> {
+    let root = tempfile::tempdir()?;
+    let dir = workload_dir(root.path(), "5e6f7a8b", State::Running)?;
+    let _lock = hold_lock(&dir)?;
+    let Err(err) = supervisor(root.path()).stop("5e6f7a8b", Duration::ZERO).await else {
+        bail!("the stop succeeded");
+    };
+    ensure!(err.to_string().contains("still running"), "the error is {err:#}");
+    let after = Intent::read(&dir)?;
+    ensure!(after.state == State::Stopping && after.pid.is_none(), "the intent is {after:?}");
+    Ok(())
+}
+
+/// Stops workload `5e6f7a8b` after making its directory read-only, and returns the error text.
+///
+/// Returns `None` for root, which writes to the directory anyway.
+///
+/// # Errors
+///
+/// Fails when preparing the directory fails or the stop succeeds.
+async fn stop_without_write_access(state: State, lock_held: bool) -> Result<Option<String>> {
+    let root = tempfile::tempdir()?;
+    let dir = workload_dir(root.path(), "5e6f7a8b", state)?;
+    let lock = hold_lock(&dir)?;
+    if !lock_held {
+        drop(lock);
+    }
+    if !make_unwritable(&dir)? {
+        return Ok(None);
+    }
+    let outcome = supervisor(root.path()).stop("5e6f7a8b", Duration::ZERO).await;
+    make_writable(&dir)?;
+    let Err(err) = outcome else { bail!("the stop succeeded") };
+    Ok(Some(format!("{err:#}")))
+}
+
+/// A failed write of the end fails the stop, and the error includes the workload.
+///
+/// # Errors
+///
+/// Fails when the stop succeeds or its error lacks the workload.
+///
+/// # Panics
+///
+/// Panics if the async runtime fails to start.
+#[tokio::test]
+async fn a_failed_write_of_the_end_fails_the_stop() -> Result<()> {
+    let Some(text) = stop_without_write_access(State::Running, false).await? else { return Ok(()) };
+    ensure!(text.contains("record that the helper of workload 5e6f7a8b ended"), "the error is {text}");
+    Ok(())
+}
+
+/// A failed write of `stopping`, then a failed stop, gives an error that includes both failures.
+///
+/// # Errors
+///
+/// Fails when the stop succeeds or its error lacks either failure.
+///
+/// # Panics
+///
+/// Panics if the async runtime fails to start.
+#[tokio::test]
+async fn a_failed_write_of_stopping_is_in_the_error_when_the_stop_fails() -> Result<()> {
+    let Some(text) = stop_without_write_access(State::Running, true).await? else { return Ok(()) };
+    ensure!(text.contains("still running") && text.contains("was not rewritten to stopping"), "the error is {text}");
+    Ok(())
+}
+
+/// A stop leaves an intent that already says `stopping` alone, so no write fails.
+///
+/// # Errors
+///
+/// Fails when the stop succeeds or its error includes a write.
+///
+/// # Panics
+///
+/// Panics if the async runtime fails to start.
+#[tokio::test]
+async fn a_stop_does_not_rewrite_an_intent_that_says_stopping() -> Result<()> {
+    let Some(text) = stop_without_write_access(State::Stopping, true).await? else { return Ok(()) };
+    ensure!(text.contains("still running") && !text.contains("rewritten"), "the error is {text}");
+    Ok(())
 }
 
 /// A helper that exits before it binds its socket fails the start.

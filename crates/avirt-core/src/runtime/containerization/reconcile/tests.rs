@@ -22,6 +22,8 @@ struct Canned {
     ended: Vec<&'static str>,
     /// Whether `list` fails.
     list_fails: bool,
+    /// The state that the launch intent of each stubborn workload records.
+    recorded: Option<State>,
     /// Workloads with a live helper.
     running: Vec<&'static str>,
     /// The workloads that the reaper asked `stop` about.
@@ -38,6 +40,7 @@ impl HelperSupervisor for Canned {
         }
         let status = |workload: &&str, state: HelperState| HelperStatus {
             incarnation: Some(Incarnation::random()),
+            recorded: self.recorded,
             state,
             workload: (*workload).to_owned(),
         };
@@ -124,6 +127,24 @@ async fn a_helper_that_cannot_be_confirmed_gone_keeps_its_state() -> Result<()> 
     ensure!(swept.kept == ["1a2b3c4d"] && swept.removed == ["5e6f7a8b"], "{swept:?}");
     ensure!(root.workloads().join("1a2b3c4d").is_dir() && root.containers().join("1a2b3c4d").is_dir(), "state went");
     ensure!(!swept.failures.is_empty(), "no failure was reported");
+    Ok(())
+}
+
+/// A failure line includes the state that the launch intent records.
+///
+/// # Errors
+///
+/// Fails when the line lacks the state.
+///
+/// # Panics
+///
+/// Panics if the async runtime fails to start.
+#[tokio::test]
+async fn a_failure_line_names_the_recorded_state() -> Result<()> {
+    let (root, _base) = root_with(&["1a2b3c4d"])?;
+    let canned = Canned { recorded: Some(State::Stopping), stubborn: vec!["1a2b3c4d"], ..Canned::default() };
+    let swept = reap(&canned, &root).await;
+    ensure!(swept.failures.iter().any(|line| line.contains("workload 1a2b3c4d (stopping):")), "{swept:?}");
     Ok(())
 }
 

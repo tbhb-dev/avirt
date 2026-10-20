@@ -35,6 +35,47 @@ fn an_intent_reads_back_as_written_and_is_private() -> Result<()> {
     Ok(())
 }
 
+/// Stopping and ended intents read back as written, and an ended intent has a null pid.
+///
+/// The ended intent clears its pid to `null`. A restart can then never signal a pid that the system
+/// has reused.
+///
+/// # Errors
+///
+/// Fails when an intent changes on the way through the file.
+#[test]
+fn stopping_and_ended_read_back_as_written() -> Result<()> {
+    let dir = tempfile::tempdir()?;
+    for (state, pid, name) in [(State::Stopping, Some(4242), "stopping"), (State::Ended, None, "ended")] {
+        let written = intent(state, pid);
+        written.write(dir.path())?;
+        ensure!(Intent::read(dir.path())? == written, "the {name} intent changed");
+        let text = fs::read_to_string(dir.path().join(FILE))?;
+        ensure!(text.contains(&format!(r#""state":"{name}""#)), "unexpected JSON: {text}");
+        ensure!(pid.is_some() || text.contains(r#""pid":null"#), "unexpected JSON: {text}");
+    }
+    Ok(())
+}
+
+/// An intent written before the stop states existed still reads.
+///
+/// # Errors
+///
+/// Fails when the literal intent doesn't parse into the expected value.
+#[test]
+fn an_intent_written_before_the_stop_states_still_reads() -> Result<()> {
+    let dir = tempfile::tempdir()?;
+    let text = format!(
+        r#"{{"workload":"1a2b3c4d","incarnation":"{}","spec_digest":"{}","state":"running","pid":4242}}"#,
+        "00".repeat(16),
+        "ab".repeat(32)
+    );
+    fs::write(dir.path().join(FILE), text)?;
+    let read = Intent::read(dir.path())?;
+    ensure!(read.state == State::Running && read.pid == Some(4242), "the intent is {read:?}");
+    Ok(())
+}
+
 /// A write replaces the intent atomically.
 ///
 /// A rewrite removes its temporary file. A temporary file left by an interrupted write doesn't affect

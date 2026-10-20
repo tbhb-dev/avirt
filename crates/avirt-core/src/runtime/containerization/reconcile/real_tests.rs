@@ -92,3 +92,70 @@ async fn a_crash_after_the_spawn_is_reaped_and_another_root_is_untouched() -> Re
     drop(first);
     Ok(())
 }
+
+/// Reaps `root` with a fresh supervisor, as a restarted avirthostd does, then checks that workload
+/// `1a2b3c4d` and its VM state no longer exist.
+///
+/// # Errors
+///
+/// Fails when the workload remains in `kept` or either directory remains.
+async fn reap_and_ensure_removed(root: &Root) -> Result<()> {
+    let swept = reap(&ChildSupervisor::new(root.workloads()), root).await;
+    ensure!(swept.removed == ["1a2b3c4d"] && swept.kept.is_empty(), "{swept:?}");
+    ensure!(!root.workloads().join("1a2b3c4d").exists(), "the workload directory remains");
+    ensure!(!root.containers().join("1a2b3c4d").exists(), "the VM state remains");
+    Ok(())
+}
+
+/// The reaper stops a helper after avirthostd died during the stop.
+///
+/// # Errors
+///
+/// Fails when the helper outlasts the reaper or its directories remain.
+///
+/// # Panics
+///
+/// Panics if the async runtime fails to start.
+#[tokio::test]
+async fn a_crash_while_stopping_is_reaped() -> Result<()> {
+    let base = tempfile::tempdir()?;
+    let root = Root::open_in(base.path())?;
+    let incarnation = Incarnation::random();
+    let spec = workload(&root, "1a2b3c4d", incarnation)?;
+    // Dropping the first supervisor would close the helper's stdin, so it outlasts the reap.
+    let first = ChildSupervisor::new(root.workloads());
+    first.start("1a2b3c4d", &incarnation, &spec).await?;
+    let mut intent = Intent::read(&spec.dir)?;
+    intent.state = State::Stopping;
+    intent.write(&spec.dir)?;
+
+    reap_and_ensure_removed(&root).await?;
+    drop(first);
+    Ok(())
+}
+
+/// The reaper removes a workload whose intent records the end, without a dial.
+///
+/// # Errors
+///
+/// Fails when the stop doesn't record the end or the directories remain.
+///
+/// # Panics
+///
+/// Panics if the async runtime fails to start.
+#[tokio::test]
+async fn a_crash_after_the_end_is_recorded_is_reaped_without_a_dial() -> Result<()> {
+    let base = tempfile::tempdir()?;
+    let root = Root::open_in(base.path())?;
+    let incarnation = Incarnation::random();
+    let spec = workload(&root, "1a2b3c4d", incarnation)?;
+    let supervisor = ChildSupervisor::new(root.workloads());
+    supervisor.start("1a2b3c4d", &incarnation, &spec).await?;
+    supervisor.stop("1a2b3c4d", Duration::from_secs(5)).await?;
+    ensure!(Intent::read(&spec.dir)?.state == State::Ended, "the stop didn't record the end");
+    // The helper has exited, so nothing answers on its socket.
+    drop(fs::remove_file(spec.dir.join("v.sock")));
+
+    reap_and_ensure_removed(&root).await?;
+    Ok(())
+}
