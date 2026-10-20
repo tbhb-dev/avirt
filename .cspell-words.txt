@@ -5,6 +5,7 @@ addrs
 agentclientprotocol
 AGENTDESC
 agentr
+agentrepo
 AGPL
 ahash
 AliasMode

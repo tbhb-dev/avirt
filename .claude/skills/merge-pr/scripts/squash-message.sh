@@ -62,6 +62,9 @@ section() { printf '\n== %s ==\n' "$1"; }
 none() { printf '(none)\n'; }
 
 command -v gh >/dev/null 2>&1 || die "gh is not installed"
+command -v commit-lint >/dev/null 2>&1 ||
+  die 'commit-lint is not installed; add "go:github.com/tbhb-dev/devtools/cmd/commit-lint" = "<devtools-version>" to mise.toml [tools]'
+signoff_identity=$(dt_signoff_identity) || exit $?
 dt_gh_login >/dev/null || exit $?
 
 number=${1:-}
@@ -125,6 +128,30 @@ trailers=$(printf '%s\n' "$commits" | awk '
   { buf[++n] = $0 }
   END { flush() }
 ' | awk '!seen[$0]++')
+
+# Validate carried sign-offs through the same repository identity rules.
+filtered=""
+while IFS= read -r trailer; do
+  case $trailer in
+  [Ss][Ii][Gg][Nn][Ee][Dd]-[Oo][Ff][Ff]-[Bb][Yy]:*)
+    identity=${trailer#*:}
+    identity=${identity# }
+    if commit-lint --check-signoff "$identity"; then
+      :
+    else
+      status=$?
+      [ "$status" -eq 1 ] || exit "$status"
+      printf 'Dropped sign-off: %s\n' "$trailer" >&2
+      continue
+    fi
+    ;;
+  esac
+  filtered="${filtered}${trailer}"$'\n'
+done <<<"$trailers"
+trailers=$filtered
+if ! grep -Fqx -- "Signed-off-by: $signoff_identity" <<<"$trailers"; then
+  trailers="${trailers}Signed-off-by: ${signoff_identity}"$'\n'
+fi
 
 # Order follows the shared trailer rule: attribution first, sign-off
 # last. Anything else this repository's rule permits sits between them,

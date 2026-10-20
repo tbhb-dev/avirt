@@ -37,7 +37,7 @@ repos:
   # sits in front of prek's pre-push hook, because prek hides git's ref
   # lines from its hooks.
   - repo: https://github.com/tbhb-dev/devtools
-    rev: 7a880f49f2bfc912f757eda4e320168b8c8fa855  # frozen: v0.12.0
+    rev: 46c288f4e186271c1bd62f8843a1cb2ad28a4746  # frozen: v0.13.0
     hooks:
       - id: commit-trailers
       - id: commitlint

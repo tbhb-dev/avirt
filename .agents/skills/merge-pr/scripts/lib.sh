@@ -30,6 +30,9 @@ export PYTHONUTF8=1
 unset CDPATH GH_REPO GH_HOST GREP_OPTIONS
 IFS=$' \t\n'
 
+# Workflow context belongs to this shell, not repository gates or reviewers.
+export -n DT_UNATTENDED
+
 DT_LIB_DIR=$(cd "$(dirname "${BASH_SOURCE[0]}")" && pwd)
 
 # Exit status for an action nobody has decided on yet: no confirmation,
@@ -169,6 +172,33 @@ dt_conf() {
     return 0
   fi
   printf '%s\n' "$default"
+}
+
+# dt_signoff_identity prints the configured responsible person, falling
+# back to Git's identity for consumers that have not needed an override.
+# The repository's identity policy judges either source before a caller
+# can put it in a message.
+dt_signoff_identity() {
+  local configured identity name email status
+  configured=$(dt_conf signoff_identity) || return $?
+  if [ -n "$configured" ]; then
+    identity=$configured
+  else
+    name=$(git config --get user.name || printf 'UNSET\n')
+    email=$(git config --get user.email || printf 'UNSET\n')
+    identity="$name <$email>"
+  fi
+
+  if commit-lint --check-signoff "$identity"; then
+    printf '%s\n' "$identity"
+    return 0
+  else
+    status=$?
+  fi
+  if [ -z "$configured" ] && [ "$status" -eq 1 ]; then
+    printf 'set signoff_identity in ~/.config/devtools/<repository>.conf or ~/.config/devtools/devtools.conf\n' >&2
+  fi
+  return "$status"
 }
 
 # A configured path may start with ~/.
@@ -354,12 +384,19 @@ dt_reviewer_label() {
 # Both were probed against the installed CLIs (Claude Code 2.1.301,
 # codex-cli 0.162.1): asked to create a file, neither could.
 dt_run_reviewer() {
-  local root=$1 inputs=$2 custom model effort
+  local root=$1 inputs=$2 custom model effort timeout
+  local runner=(env)
+  timeout=$(dt_conf review_timeout 900)
+  if command -v agentrepo >/dev/null 2>&1; then
+    runner=(agentrepo review run --timeout "${timeout}s" --)
+  else
+    printf 'review: unbounded because agentrepo is missing\n' >&2
+  fi
   custom=$(dt_conf review_cmd)
   model=$(dt_conf review_model)
   effort=$(dt_conf review_effort)
   if [ -n "$custom" ]; then
-    (cd "$root" && DEVTOOLS_REVIEW_INPUTS=$inputs bash -c "$custom")
+    (cd "$root" && DEVTOOLS_REVIEW_INPUTS=$inputs "${runner[@]}" bash -c "$custom")
     return
   fi
   case $(dt_harness) in
@@ -370,13 +407,13 @@ dt_run_reviewer() {
     [ -z "$model" ] || set -- "$@" --model "$model"
     [ -z "$effort" ] || set -- "$@" --effort "$effort"
     # The child is a session of its own, not this one.
-    (cd "$root" && env -u CLAUDE_CODE_SESSION_ID "$@")
+    (cd "$root" && "${runner[@]}" env -u CLAUDE_CODE_SESSION_ID "$@")
     ;;
   codex)
     set -- codex exec --sandbox read-only --ephemeral --color never -C "$root"
     [ -z "$model" ] || set -- "$@" -m "$model"
     [ -z "$effort" ] || set -- "$@" -c "model_reasoning_effort=\"$effort\""
-    (cd "$root" && env -u CODEX_THREAD_ID "$@" - 2>/dev/null)
+    (cd "$root" && "${runner[@]}" env -u CODEX_THREAD_ID "$@" - 2>/dev/null)
     ;;
   *)
     printf 'review: no harness detected, so no default reviewer applies. Set DEVTOOLS_REVIEW_CMD\nor DEVTOOLS_HARNESS (claude or codex).\n' >&2
@@ -442,10 +479,11 @@ dt_new_inputs() {
 #   2  changes required; revise and review again
 #   4  the reviewer failed, or its reply had no verdict a script reads
 #   5  the draft or what the review read changed while it ran
+#   124 the reviewer timed out
 dt_review() {
   local kind=$1 draft=$2 snapshot=$3 criteria=$4 arguments=$5 inputs=$6 still_current=$7
   shift 7
-  local state reply before verdict root prompt draft_digest snapshot_digest
+  local state reply before verdict root prompt draft_digest snapshot_digest repo_digest status
   state=$(dt_state_dir) || return 4
   reply=$state/$kind.review
   root=$(dt_root) || return 4
@@ -457,6 +495,12 @@ dt_review() {
 
   # A review that does not pass leaves nothing behind it to commit on.
   rm -f "$state/$kind.stamp"
+  if [ "${DT_UNATTENDED:-0}" = 1 ]; then
+    dt_agent_context || return $?
+    dt_agent_rounds "$kind" || return $?
+    repo_digest=$(dt_repo_digest) || return $?
+    set -- "$@" repo_config "$repo_digest"
+  fi
   before=$(dt_digest "$snapshot") || return 4
   if [ -f "$inputs/review-policy-report.txt" ]; then
     cat "$inputs/review-policy-report.txt"
@@ -466,7 +510,14 @@ dt_review() {
   fi
 
   prompt=$(dt_review_prompt "$criteria" "$arguments" "$inputs") || return 4
-  if ! dt_run_reviewer "$root" "$inputs" <<<"$prompt" >"$reply"; then
+  if dt_run_reviewer "$root" "$inputs" <<<"$prompt" >"$reply"; then
+    :
+  else
+    status=$?
+    if [ "$status" -eq 124 ]; then
+      printf 'review: reviewer timed out; nothing stamped\n' >&2
+      return 124
+    fi
     printf 'review: the reviewer failed to run; nothing stamped\n' >&2
     return 4
   fi
@@ -481,6 +532,11 @@ dt_review() {
     return 5
   fi
 
+  if [ "${DT_UNATTENDED:-0}" = 1 ]; then
+    local live_config
+    live_config=$(dt_repo_digest) || return 5
+    [ "$live_config" = "$repo_digest" ] || return 5
+  fi
   verdict=$(dt_verdict "$reply") || return 4
   case $verdict in
   pass)
@@ -490,6 +546,9 @@ dt_review() {
     ;;
   changes)
     cat "$reply"
+    if [ "${DT_UNATTENDED:-0}" = 1 ]; then
+      dt_agent_rounds "$kind" finding || return $?
+    fi
     return 2
     ;;
   *)
@@ -547,6 +606,11 @@ dt_require_stamp() {
       dt_die "The $1 changed after the review (reviewed ${recorded:-nothing}, now $2). Run the review script again."
     shift 2
   done
+  if [ "${DT_UNATTENDED:-0}" = 1 ]; then
+    recorded=$(dt_stamp_value "$kind" repo_config) || return $?
+    digest=$(dt_repo_digest) || return $?
+    [ "$recorded" = "$digest" ] || dt_die "Repository configuration changed after review. Run the review again."
+  fi
   local policy_ref policy_oid
   policy_ref=$(dt_stamp_value "$kind" policy_ref) || return $?
   policy_oid=$(dt_stamp_value "$kind" policy_oid) || return $?
@@ -565,7 +629,7 @@ dt_require_stamp() {
 dt_clear() {
   local state dir
   state=$(dt_state_dir)
-  rm -f "$state/$1.stamp" "$state/$1.review"
+  rm -f "$state/$1.stamp" "$state/$1.review" "$state/$1.rounds"
   for dir in "$state/$1".inputs.*; do
     [ -d "$dir" ] && [ ! -L "$dir" ] || continue
     rm -rf "$dir"
@@ -611,7 +675,7 @@ dt_delegation() {
   fi
   status=0
   repo=$(dt_repo_name) || return "$DT_HELD"
-  "$checker" check "$repo" "$1" || status=$?
+  "$checker" check "$repo" "$@" || status=$?
   case $status in
   0 | 1) return "$status" ;;
   *) return "$DT_HELD" ;;
@@ -623,6 +687,10 @@ dt_delegation() {
 #   0 granted, 1 refused by the delegation, 75 held
 dt_confirm() {
   local action=$1 operator=$2 grant status
+  shift 2
+  if [ "${DT_UNATTENDED:-0}" = 1 ] && [ "$operator" = true ]; then
+    dt_die "Unattended workflows refuse --confirmed; use pre-approval or delegation."
+  fi
   if [ "$operator" = true ]; then
     printf 'confirmation: operator, answered in this session\n'
     return 0
@@ -633,7 +701,7 @@ dt_confirm() {
     return 0
   fi
   status=0
-  dt_delegation "$action" || status=$?
+  dt_delegation "$action" "$@" || status=$?
   case $status in
   0)
     # shellcheck disable=SC2312 # Diagnostic text cannot change the confirmation or review verdict.
@@ -646,6 +714,10 @@ dt_confirm() {
     return 1
     ;;
   esac
+  if [ "${DT_UNATTENDED:-0}" = 1 ]; then
+    printf 'HELD: no pre-approval or delegation grants %s. Report the hold without prompting.\n' "$action" >&2
+    return "$DT_HELD"
+  fi
   printf 'HELD: nobody has confirmed this %s. No operator flag, no pre-approval for this\nsession, and no delegation that grants it. Ask the operator, then run this again\nwith --confirmed.\n' "$action" >&2
   return "$DT_HELD"
 }
@@ -704,3 +776,9 @@ dt_gh_repo() {
 dt_gate() {
   python3 "$DT_LIB_DIR/gates.py" "$@"
 }
+
+# Shared workflow behavior, generated beside this library.
+# shellcheck disable=SC1091 # generator deploys these files together
+. "$DT_LIB_DIR/agent.sh"
+# shellcheck disable=SC1091 # generator deploys these files together
+. "$DT_LIB_DIR/signing.sh"

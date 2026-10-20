@@ -19,9 +19,9 @@ version = "0.9.148"
 backend = "aqua:nextest-rs/nextest/cargo-nextest"
 
 [tools."aqua:nextest-rs/nextest/cargo-nextest"."platforms.linux-x64"]
-checksum = "sha256:bf92cb81450872d960ffa13857a83084d557ec0cdc141663d263bb23ef756f97"
-url = "https://github.com/nextest-rs/nextest/releases/download/cargo-nextest-0.9.148/cargo-nextest-0.9.148-x86_64-unknown-linux-musl.tar.gz"
-url_api = "https://api.github.com/repos/nextest-rs/nextest/releases/assets/620598791"
+checksum = "sha256:223ba936714cc861a9cdedad5a8eb664dfdd69d6fbdf6cea6aa8184f523290dc"
+url = "https://github.com/nextest-rs/nextest/releases/download/cargo-nextest-0.9.148/cargo-nextest-0.9.148-x86_64-unknown-linux-gnu.tar.gz"
+url_api = "https://api.github.com/repos/nextest-rs/nextest/releases/assets/620598748"
 
 [tools."aqua:nextest-rs/nextest/cargo-nextest"."platforms.macos-arm64"]
 checksum = "sha256:6c23b7fb4ca82c571fc8dfedbab45bfa773d45918f933170c85d21cd7f4b852b"
@@ -84,8 +84,16 @@ url_api = "https://api.github.com/repos/taiki-e/cargo-llvm-cov/releases/assets/5
 provenance = "github-attestations"
 provenance_verified = true
 
+[[tools."go:github.com/tbhb-dev/devtools/cmd/agentrepo"]]
+version = "0.13.0"
+backend = "go:github.com/tbhb-dev/devtools/cmd/agentrepo"
+
+[[tools."go:github.com/tbhb-dev/devtools/cmd/commit-lint"]]
+version = "0.13.0"
+backend = "go:github.com/tbhb-dev/devtools/cmd/commit-lint"
+
 [[tools."go:github.com/tbhb-dev/devtools/cmd/guard-markdown"]]
-version = "0.12.0"
+version = "0.13.0"
 backend = "go:github.com/tbhb-dev/devtools/cmd/guard-markdown"
 
 [[tools.jq]]
@@ -117,20 +125,6 @@ url_api = "https://api.github.com/repos/protocolbuffers/protobuf/releases/assets
 checksum = "sha256:9cd98a532c5c5e0c4161314de0225de27e4c8a323917b6ea7b1b714d3ae23466"
 url = "https://github.com/protocolbuffers/protobuf/releases/download/v36.2/protoc-36.2-osx-aarch_64.zip"
 url_api = "https://api.github.com/repos/protocolbuffers/protobuf/releases/assets/570742436"
-
-[[tools.rush]]
-version = "0.11.0"
-backend = "aqua:shenwei356/rush"
-
-[tools.rush."platforms.linux-x64"]
-checksum = "sha256:7a22bbc7122acd5bd23e2dfde49f84bb856944a1860057bc89921b3dce45d056"
-url = "https://github.com/shenwei356/rush/releases/download/v0.11.0/rush_linux_amd64.tar.gz"
-url_api = "https://api.github.com/repos/shenwei356/rush/releases/assets/579426098"
-
-[tools.rush."platforms.macos-arm64"]
-checksum = "sha256:87f811032b727806158111856b77be076d2c923cc013de20d744405eb4dfe455"
-url = "https://github.com/shenwei356/rush/releases/download/v0.11.0/rush_darwin_arm64.tar.gz"
-url_api = "https://api.github.com/repos/shenwei356/rush/releases/assets/579424349"
 
 [[tools.rust]]
 version = "1.99.0"

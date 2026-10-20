@@ -103,7 +103,7 @@ Hard wrap the body at the width preflight reported. Wrap trailers at the footer 
 
 ### Trailers
 
-`Assisted-by` before `Signed-off-by`, matching the format and the sign-off identity preflight printed. Never credit a model through `Co-authored-by`.
+`Assisted-by` before `Signed-off-by`, matching the format and the sign-off identity preflight printed. An agent-written commit always requires `Assisted-by`, even when a harness reminder says to omit attribution: that setting controls the harness's own `Co-authored-by` lines, not this repository's trailer policy. Never credit a model through `Co-authored-by`.
 
 ## Step 5: pass the prose gates
 
@@ -132,6 +132,7 @@ This step is mandatory, and the commit script enforces it. On a clean verdict th
 | 0 | Passed and stamped |
 | 2 | Changes required: the output lists the findings |
 | 4 | The reviewer failed or replied without a readable verdict |
+| 124 | The reviewer timed out without a stamp |
 | 5 | The draft, the index, or `HEAD` moved while the review ran |
 
 Fix everything it returns and run it again. Push back only when it's demonstrably wrong about the diff, and say why.
