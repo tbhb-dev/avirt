@@ -14,6 +14,7 @@ use std::fs::{self, File, OpenOptions};
 use std::os::unix::fs as unix_fs;
 use std::os::unix::fs::PermissionsExt as _;
 use std::path::{Path, PathBuf};
+use std::process::{Child, Command};
 use std::time::Instant;
 use tokio::time::sleep;
 
@@ -554,6 +555,76 @@ async fn a_failed_write_of_stopping_is_in_the_error_when_the_stop_fails() -> Res
 async fn a_stop_does_not_rewrite_an_intent_that_says_stopping() -> Result<()> {
     let Some(text) = stop_without_write_access(State::Stopping, true).await? else { return Ok(()) };
     ensure!(text.contains("still running") && !text.contains("rewritten"), "the error is {text}");
+    Ok(())
+}
+
+/// Stops workload `5e6f7a8b` in `dir`, where opening the lock fails, with the pid of `helper` in the
+/// intent and a fake helper listening, and checks that neither the process nor the fake hears from it.
+///
+/// # Errors
+///
+/// Fails when the stop succeeds or any check differs from the expected one.
+async fn stop_with_a_failed_lock_check(root: &Path, dir: &Path, helper: &mut Child, fake: &FakeHelper) -> Result<()> {
+    let denied = File::open(dir.join("vmd.lock")).err().context("the lock opened")?;
+    let pid = helper.id();
+    let mut intent = Intent::read(dir)?;
+    intent.pid = Some(pid);
+    intent.write(dir)?;
+    let Err(err) = supervisor(root).stop("5e6f7a8b", Duration::ZERO).await else {
+        bail!("the stop succeeded");
+    };
+    let text = format!("{err:#}");
+    ensure!(
+        text.contains("cannot tell whether avirtvmd for workload 5e6f7a8b is gone")
+            && text.contains(&denied.to_string()),
+        "the error is {text}"
+    );
+    ensure!(fake.received().is_empty(), "the helper received {:?}", fake.received());
+    // A signal takes a moment to land, so watch the process for a while.
+    let watched = Instant::now();
+    while watched.elapsed() < SHORT {
+        ensure!(helper.try_wait()?.is_none(), "the helper's process was signalled");
+        sleep(Duration::from_millis(10)).await;
+    }
+    let after = Intent::read(dir)?;
+    ensure!(after.state == State::Stopping && after.pid == Some(pid), "the intent is {after:?}");
+    ensure!(dir.is_dir() && dir.join("vmd.lock").exists(), "the workload directory lost its files");
+    Ok(())
+}
+
+/// A stop whose lock check fails sends nothing to the helper or its process.
+///
+/// The stop returns an error with the lock failure, and leaves the intent at `stopping` with its pid
+/// and the directory in place.
+///
+/// # Errors
+///
+/// Fails when the stop succeeds or any check differs from the expected one.
+///
+/// # Panics
+///
+/// Panics if the async runtime fails to start.
+#[tokio::test]
+async fn a_stop_whose_lock_check_fails_sends_nothing_and_leaves_the_intent_stopping() -> Result<()> {
+    let root = tempfile::tempdir()?;
+    let dir = workload_dir(root.path(), "5e6f7a8b", State::Running)?;
+    let lock = dir.join("vmd.lock");
+    fs::write(&lock, b"")?;
+    fs::set_permissions(&lock, fs::Permissions::from_mode(0o000))?;
+    // Root opens the file anyway, so the check can't fail for it.
+    if File::open(&lock).is_ok() {
+        return Ok(());
+    }
+    let fake = FakeHelper::spawn(&dir.join("v.sock"), Some(hello("5e6f7a8b", &incarnation()?, 1, 1)))?;
+    let mut helper = Command::new("sleep").arg("60").spawn()?;
+    let outcome = stop_with_a_failed_lock_check(root.path(), &dir, &mut helper, &fake).await;
+    let restored = fs::set_permissions(&lock, fs::Permissions::from_mode(0o600));
+    let killed = helper.kill();
+    let reaped = helper.wait();
+    outcome?;
+    restored?;
+    killed?;
+    reaped?;
     Ok(())
 }
 
