@@ -59,7 +59,7 @@ func runHelper(
     log("its Developer ID signature has no team identifier")
     return HelperExit.failure
   } catch {
-    log("can't read its own signing information: \(error)")
+    log("can't choose the control-peer policy: \(error)")
     return HelperExit.failure
   }
   if case .sameUser = policy {
