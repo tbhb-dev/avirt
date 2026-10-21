@@ -237,13 +237,16 @@ impl ChildSupervisor {
 
     /// Sends the helper its incarnation on stdin, then dials it.
     ///
-    /// A failed write means the helper has closed its stdin, and that counts as the helper exiting
-    /// during startup. The intent records the spawn before this function reports either failure.
+    /// A failed write means the helper has closed its stdin. If the helper exits within
+    /// `BIND_TIMEOUT`, the start fails as an exit during startup. If it keeps running, the start
+    /// fails with the write error. The intent records the spawn before this function reports either
+    /// failure.
     ///
     /// # Errors
     ///
-    /// Returns an error if the helper exits first, never binds the socket, fails the handshake, or
-    /// the intent can't record the spawn.
+    /// Returns an error if the write fails and the helper exits first or keeps running for
+    /// `BIND_TIMEOUT`, the intent can't record the spawn, or the helper exits first, never binds
+    /// the socket, or fails the handshake.
     async fn handshake(
         child: &mut Child,
         stdin: &mut ChildStdin,

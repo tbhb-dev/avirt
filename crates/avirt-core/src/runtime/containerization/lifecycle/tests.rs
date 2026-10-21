@@ -15,6 +15,7 @@ use std::os::unix::fs as unix_fs;
 use std::os::unix::fs::PermissionsExt as _;
 use std::path::{Path, PathBuf};
 use std::time::Instant;
+use tokio::time::sleep;
 
 /// How long a test waits on a helper that doesn't speak.
 const SHORT: Duration = Duration::from_millis(300);
@@ -606,6 +607,49 @@ async fn a_helper_that_exited_before_the_incarnation_is_written_fails_the_start(
     ensure!(err.to_string().contains("exited during startup"), "the error is {err:#}");
     let intent = Intent::read(&dir)?;
     ensure!(intent.state == State::Starting, "the intent is {intent:?}");
+    Ok(())
+}
+
+/// A helper that closes its stdin and keeps running fails the start with the write error once `BIND_TIMEOUT` passes.
+///
+/// The helper creates `closed` after it closes its stdin, and the test waits for that file before the write. The
+/// write then fails, and the helper keeps running until the test kills it.
+///
+/// # Errors
+///
+/// Fails when the start succeeds, the error isn't the write error, the intent isn't `starting`, or the helper has
+/// exited.
+///
+/// # Panics
+///
+/// Panics if the async runtime fails to start.
+#[tokio::test]
+async fn a_helper_that_closes_stdin_and_keeps_running_fails_the_start_with_the_write_error() -> Result<()> {
+    let root = tempfile::tempdir()?;
+    let dir = workload_dir(root.path(), "1a2b3c4d", State::Intended)?;
+    let bin = root.path().join("helper.sh");
+    fs::write(&bin, "#!/bin/sh\nexec 0<&-\n: > \"$5/closed\"\nexec sleep 30\n")?;
+    fs::set_permissions(&bin, fs::Permissions::from_mode(0o700))?;
+    let spec = HelperSpec { bin, dir: dir.clone(), log: root.path().join("helper.log") };
+    let (mut child, mut stdin) = ChildSupervisor::launch("1a2b3c4d", &spec)?;
+    let started = Instant::now();
+    while !dir.join("closed").exists() {
+        ensure!(started.elapsed() < Duration::from_secs(5), "the helper never closed its stdin");
+        sleep(Duration::from_millis(10)).await;
+    }
+    let expected = Expected { incarnation: &incarnation()?, workload: "1a2b3c4d" };
+    let Err(err) = ChildSupervisor::handshake(&mut child, &mut stdin, &expected, &spec).await else {
+        bail!("the handshake succeeded");
+    };
+    let text = format!("{err:#}");
+    ensure!(
+        text.contains("write the incarnation to avirtvmd") && !text.contains("exited during startup"),
+        "the error is {text}"
+    );
+    let intent = Intent::read(&dir)?;
+    ensure!(intent.state == State::Starting && intent.pid.is_some(), "the intent is {intent:?}");
+    ensure!(child.try_wait()?.is_none(), "the helper exited");
+    child.kill().await?;
     Ok(())
 }
 
