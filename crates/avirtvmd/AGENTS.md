@@ -26,7 +26,7 @@ The per-workload VM host helper. It's a SwiftPM package rather than a Cargo crat
 | `Sources/AvirtVMD/Sys.swift` | The C library calls that need an `unsafe` expression. No other file may use one |
 | `Tests/AvirtVMDTests/` | The tests, and `fixtures/` with the golden protocol encodings |
 
-## Invariants
+## Conditions
 
 - The helper reads one stdin line, 32 lowercase hexadecimal characters, within 5 seconds. After that, end-of-file on stdin means avirthostd has exited, and the helper stops and exits 0. Nothing else about a workload arrives on argv or in the environment.
 - Exit 64 for bad flags or a bad incarnation line. Exit 69 when a precondition outside avirtvmd fails: another process holds the lock, or the socket can't bind. Exit 70 when a `prepare` step fails, with one line on stderr.

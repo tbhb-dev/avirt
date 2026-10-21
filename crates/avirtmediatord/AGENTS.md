@@ -18,7 +18,7 @@ The mediator binary. It runs one Pingora `Server` with two Unix-socket services 
 | `policy.rs` | Re-exports of authority parsing and destination checks from `avirt_connect` |
 | `events.rs` | The event thread that writes one NDJSON line per proxied connection to the `EGRESS` connection |
 
-## Invariants
+## Conditions
 
 - Accept only `CONNECT host:port` with an explicit port and a hostname or canonical IP literal. Refuse anything else with the status in `docs/egress.md`.
 - Apply `is_private` and the host-address check to every resolved address before dialing. Never relax them through a rule. They cover IPv4-mapped, 6to4, and NAT64 forms.
