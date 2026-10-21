@@ -246,7 +246,8 @@ impl ChildSupervisor {
     ///
     /// Returns an error if the write fails and the helper exits first or keeps running for
     /// `BIND_TIMEOUT`, the intent can't record the spawn, or the helper exits first, never binds
-    /// the socket, or fails the handshake.
+    /// the socket, or fails the handshake. When the write failed, an error from recording the spawn
+    /// or from waiting for the helper reports the write error as well.
     async fn handshake(
         child: &mut Child,
         stdin: &mut ChildStdin,
@@ -260,15 +261,18 @@ impl ChildSupervisor {
             stdin.flush().await
         }
         .await;
-        Self::record_spawn(&spec.dir, child.id()).await?;
+        let recorded = Self::record_spawn(&spec.dir, child.id()).await;
         if let Err(err) = sent {
+            let write_failed = || format!("write the incarnation to avirtvmd: {err}");
+            recorded.with_context(write_failed)?;
             // A closed pipe can precede the exit by a moment. A helper that closed it and kept running
             // never read the incarnation, so the write error is the better report.
             return match time::timeout(BIND_TIMEOUT, child.wait()).await {
-                Ok(status) => bail!("avirtvmd exited during startup ({})", status?),
+                Ok(status) => bail!("avirtvmd exited during startup ({})", status.with_context(write_failed)?),
                 Err(_) => Err(err).context("write the incarnation to avirtvmd"),
             };
         }
+        recorded?;
         Self::dial(child, &spec.dir, expected).await
     }
 

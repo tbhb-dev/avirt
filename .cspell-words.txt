@@ -512,6 +512,7 @@ vmnet
 VMs
 VPN
 vsock
+waitpid
 wconn
 webd
 webpki
