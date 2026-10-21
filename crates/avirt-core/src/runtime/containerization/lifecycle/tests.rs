@@ -580,6 +580,35 @@ async fn a_started_helper_that_exits_before_binding_fails_the_start() -> Result<
     Ok(())
 }
 
+/// A helper that has exited before it receives the incarnation fails the start as an exit during startup.
+///
+/// The test waits for the helper to exit first. The write then fails every time.
+///
+/// # Errors
+///
+/// Fails when the start succeeds, the error isn't the exit report, or the intent isn't `starting`.
+///
+/// # Panics
+///
+/// Panics if the async runtime fails to start.
+#[tokio::test]
+async fn a_helper_that_exited_before_the_incarnation_is_written_fails_the_start() -> Result<()> {
+    let root = tempfile::tempdir()?;
+    let dir = workload_dir(root.path(), "1a2b3c4d", State::Intended)?;
+    let spec =
+        HelperSpec { bin: PathBuf::from("/usr/bin/false"), dir: dir.clone(), log: root.path().join("helper.log") };
+    let (mut child, mut stdin) = ChildSupervisor::launch("1a2b3c4d", &spec)?;
+    child.wait().await?;
+    let expected = Expected { incarnation: &incarnation()?, workload: "1a2b3c4d" };
+    let Err(err) = ChildSupervisor::handshake(&mut child, &mut stdin, &expected, &spec).await else {
+        bail!("the handshake succeeded");
+    };
+    ensure!(err.to_string().contains("exited during startup"), "the error is {err:#}");
+    let intent = Intent::read(&dir)?;
+    ensure!(intent.state == State::Starting, "the intent is {intent:?}");
+    Ok(())
+}
+
 /// A missing binary fails the start before any intent changes.
 ///
 /// # Errors
