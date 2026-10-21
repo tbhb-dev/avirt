@@ -474,19 +474,15 @@ fn make_writable(dir: &Path) -> Result<()> {
     Ok(fs::set_permissions(dir, fs::Permissions::from_mode(0o700))?)
 }
 
-/// A stop of a helper that keeps its lock leaves the intent at `stopping` with its pid.
+/// Stops workload `5e6f7a8b` whose intent says `state` and whose helper keeps its lock, and checks that
+/// the stop fails and leaves the intent at `stopping` with its pid.
 ///
 /// # Errors
 ///
 /// Fails when the stop succeeds or the intent differs from the expected one.
-///
-/// # Panics
-///
-/// Panics if the async runtime fails to start.
-#[tokio::test]
-async fn a_stop_that_cannot_confirm_the_exit_leaves_the_intent_stopping() -> Result<()> {
+async fn stop_that_cannot_confirm_the_exit(state: State) -> Result<()> {
     let root = tempfile::tempdir()?;
-    let dir = workload_dir(root.path(), "5e6f7a8b", State::Running)?;
+    let dir = workload_dir(root.path(), "5e6f7a8b", state)?;
     // The test holds the lock, and a stop signals the recorded pid then. Record a process the test owns.
     let _lock = hold_lock(&dir)?;
     let owned = OwnedSleep(Command::new("sleep").arg("60").spawn().context("spawn sleep")?);
@@ -498,6 +494,28 @@ async fn a_stop_that_cannot_confirm_the_exit_leaves_the_intent_stopping() -> Res
     ensure!(err.to_string().contains("still running"), "the error is {err:#}");
     let after = Intent::read(&dir)?;
     ensure!(after.state == State::Stopping && after.pid == intent.pid, "the intent is {after:?}");
+    Ok(())
+}
+
+/// A stop of a helper that keeps its lock leaves the intent at `stopping` with its pid, whether the
+/// intent said `intended`, `starting` or `running`.
+///
+/// The stops run together, because each takes about 10 seconds.
+///
+/// # Errors
+///
+/// Fails when a stop succeeds or an intent differs from the expected one.
+///
+/// # Panics
+///
+/// Panics if the async runtime fails to start.
+#[tokio::test]
+async fn a_stop_that_cannot_confirm_the_exit_leaves_the_intent_stopping() -> Result<()> {
+    tokio::try_join!(
+        stop_that_cannot_confirm_the_exit(State::Intended),
+        stop_that_cannot_confirm_the_exit(State::Starting),
+        stop_that_cannot_confirm_the_exit(State::Running),
+    )?;
     Ok(())
 }
 
