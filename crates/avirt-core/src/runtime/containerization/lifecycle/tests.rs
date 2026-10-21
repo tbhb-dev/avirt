@@ -10,11 +10,13 @@ use crate::runtime::containerization::control::{self, Expected};
 use crate::runtime::containerization::proto::{RefusalCode, RequestOp, ResponseResult, Status};
 use anyhow::{Context as _, Result, bail, ensure};
 use core::time::Duration;
+use rustix::process::{self, Pid};
 use std::fs::{self, File, OpenOptions};
 use std::os::unix::fs as unix_fs;
 use std::os::unix::fs::PermissionsExt as _;
 use std::path::{Path, PathBuf};
 use std::time::Instant;
+use tokio::process::{Child, ChildStdin};
 use tokio::time::sleep;
 
 /// How long a test waits on a helper that doesn't speak.
@@ -610,6 +612,19 @@ async fn a_helper_that_exited_before_the_incarnation_is_written_fails_the_start(
     Ok(())
 }
 
+/// The error chain of a handshake that fails.
+///
+/// # Errors
+///
+/// Fails when the handshake succeeds.
+async fn handshake_error(child: &mut Child, stdin: &mut ChildStdin, spec: &HelperSpec) -> Result<String> {
+    let expected = Expected { incarnation: &incarnation()?, workload: "1a2b3c4d" };
+    let Err(err) = ChildSupervisor::handshake(child, stdin, &expected, spec).await else {
+        bail!("the handshake succeeded");
+    };
+    Ok(format!("{err:#}"))
+}
+
 /// A failed write of the incarnation stays in the error when recording the spawn fails too.
 ///
 /// The test waits for the helper to exit and makes the workload directory read-only, so the write fails and
@@ -639,7 +654,37 @@ async fn a_failed_record_of_the_spawn_keeps_the_write_error() -> Result<()> {
     let Err(err) = outcome else { bail!("the handshake succeeded") };
     let text = format!("{err:#}");
     ensure!(
-        text.contains("the write of the incarnation to avirtvmd failed") && text.contains("record the helper's pid"),
+        text.contains("write the incarnation to avirtvmd") && text.contains("record the helper's pid"),
+        "the error is {text}"
+    );
+    Ok(())
+}
+
+/// A failed write of the incarnation stays in the error when waiting for the helper fails too.
+///
+/// The test reaps the helper itself, so the write fails and the wait fails with `No child processes`.
+///
+/// # Errors
+///
+/// Fails when the handshake succeeds or its error lacks either failure.
+///
+/// # Panics
+///
+/// Panics if the async runtime fails to start.
+#[tokio::test]
+async fn a_failed_wait_for_the_helper_keeps_the_write_error() -> Result<()> {
+    let root = tempfile::tempdir()?;
+    let spec = HelperSpec {
+        bin: PathBuf::from("/usr/bin/false"),
+        dir: workload_dir(root.path(), "1a2b3c4d", State::Intended)?,
+        log: root.path().join("helper.log"),
+    };
+    let (mut child, mut stdin) = ChildSupervisor::launch("1a2b3c4d", &spec)?;
+    let pid = child.id().and_then(|raw| i32::try_from(raw).ok()).and_then(Pid::from_raw).context("the helper's pid")?;
+    process::waitpid(Some(pid), process::WaitOptions::empty())?;
+    let text = handshake_error(&mut child, &mut stdin, &spec).await?;
+    ensure!(
+        text.contains("write the incarnation to avirtvmd") && text.contains("No child processes"),
         "the error is {text}"
     );
     Ok(())

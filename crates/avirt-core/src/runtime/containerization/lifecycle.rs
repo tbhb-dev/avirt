@@ -263,7 +263,7 @@ impl ChildSupervisor {
         .await;
         let recorded = Self::record_spawn(&spec.dir, child.id()).await;
         if let Err(err) = sent {
-            let write_failed = || format!("the write of the incarnation to avirtvmd failed ({err})");
+            let write_failed = || format!("write the incarnation to avirtvmd: {err}");
             recorded.with_context(write_failed)?;
             // A closed pipe can precede the exit by a moment. A helper that closed it and kept running
             // never read the incarnation, so the write error is the better report.
