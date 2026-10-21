@@ -16,7 +16,7 @@ use std::os::unix::fs as unix_fs;
 use std::os::unix::fs::PermissionsExt as _;
 use std::path::{Path, PathBuf};
 use std::time::Instant;
-use tokio::process::{Child, ChildStdin};
+use tokio::process::{Child as TokioChild, ChildStdin};
 use tokio::time::sleep;
 
 /// How long a test waits on a helper that doesn't speak.
@@ -617,7 +617,7 @@ async fn a_helper_that_exited_before_the_incarnation_is_written_fails_the_start(
 /// # Errors
 ///
 /// Fails when the handshake succeeds.
-async fn handshake_error(child: &mut Child, stdin: &mut ChildStdin, spec: &HelperSpec) -> Result<String> {
+async fn handshake_error(child: &mut TokioChild, stdin: &mut ChildStdin, spec: &HelperSpec) -> Result<String> {
     let expected = Expected { incarnation: &incarnation()?, workload: "1a2b3c4d" };
     let Err(err) = ChildSupervisor::handshake(child, stdin, &expected, spec).await else {
         bail!("the handshake succeeded");
