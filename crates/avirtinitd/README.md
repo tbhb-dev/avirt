@@ -14,5 +14,3 @@ The workload entrypoint for avirt, built as the `avirtinitd` binary. It's a Linu
 ```bash
 mise run build-images
 ```
-
-See [ACP](../../docs/acp.md) and [workload hardening](../../docs/workload-hardening.md).

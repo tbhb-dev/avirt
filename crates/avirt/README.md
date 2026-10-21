@@ -15,5 +15,3 @@ The operator CLI for avirt, built as the `avirt` binary. `avirt launch --agent c
 cargo build -p avirt
 mise run launch claude "Reply with the word pong" -- --follow
 ```
-
-See [the operator CLI](../../docs/operator-cli.md).

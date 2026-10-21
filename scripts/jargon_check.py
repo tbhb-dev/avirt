@@ -16,8 +16,8 @@ HTML never count as prose. It flags a hyphenated compound or a 2 to 4 word phras
 ref's prose and code never use and that nothing allows. Without --head it reads the working tree;
 --staged reads the index. The base is compared at its merge base with the head.
 
-A term is allowed by an entry heading in docs/glossary.md, a line of
-.vale/config/vocabularies/project/accept.txt, or a line of jargon-accept.txt with a `# reason`.
+A term is allowed by a line of .vale/config/vocabularies/project/accept.txt or a line of
+jargon-accept.txt with a `# reason`.
 Candidates are advisory for human review. The report exits 0 even when it finds candidates.
 """
 
@@ -57,7 +57,6 @@ VERB_STEMS = _words.VERB_STEMS
 INDEX_VERSION = 2
 ALLOW_FILE = "jargon-accept.txt"
 ACCEPT_FILE = ".vale/config/vocabularies/project/accept.txt"
-GLOSSARY = "docs/glossary.md"
 LOCK_FILE = "apm.lock.yaml"
 CODE_SUFFIXES = (".rs", ".toml", ".yml", ".yaml", ".json", ".sh", ".py")
 MAX_CODE_BYTES = 400_000
@@ -343,10 +342,6 @@ class Allowed:
         return term in self.terms or any(p.fullmatch(raw) for p in self.patterns)
 
 
-def glossary_terms(text: str | None) -> list[str]:
-    return [norm_term(m) for m in re.findall(r"^#{2,6}\s+(.+?)\s*$", re.sub(r"<!--.*?-->", "", text or "", flags=re.S), re.M)]
-
-
 def allow_entries(text: str | None) -> tuple[dict[str, int], list[tuple[int, str]]]:
     """Parse jargon-accept.txt into ({term: line}, [(line, term)] of entries with no reason)."""
     good: dict[str, int] = {}
@@ -537,12 +532,10 @@ def run(base: str, head: str | None, staged: bool) -> tuple[list[Finding], list[
             if text is not None:
                 files[path] = (text, lines)
 
-    gloss_now = glossary_terms(read_blob(blob_ref, GLOSSARY, from_index))
-    gloss_base = glossary_terms(read_blob(base_commit, GLOSSARY))
     allow_now, missing = allow_entries(read_blob(blob_ref, ALLOW_FILE, from_index))
     allow_base, _ = allow_entries(read_blob(base_commit, ALLOW_FILE))
     accept_now = accept_patterns(read_blob(blob_ref, ACCEPT_FILE, from_index))
-    allowed = Allowed(set(gloss_now) | set(allow_now), accept_now)
+    allowed = Allowed(set(allow_now), accept_now)
 
     findings = find_terms(files, load_index(base_commit), allowed) if files else []
     for n, term in missing:
@@ -550,11 +543,9 @@ def run(base: str, head: str | None, staged: bool) -> tuple[list[Finding], list[
 
     summary = []
     new_allow = sorted(set(allow_now) - set(allow_base))
-    new_gloss = sorted(set(gloss_now) - set(gloss_base))
     old_accept = {l.strip() for l in (read_blob(base_commit, ACCEPT_FILE) or "").split("\n")}
     new_accept = sorted({l.strip() for l in (read_blob(blob_ref, ACCEPT_FILE, from_index) or "").split("\n") if l.strip()} - old_accept)
     summary.append(f"allow entries added: {len(new_allow)}" + "".join(f"\n  {ALLOW_FILE}: {t}" for t in new_allow))
-    summary.append(f"glossary entries added: {len(new_gloss)}" + "".join(f"\n  {GLOSSARY}: {t}" for t in new_gloss))
     summary.append(f"accept.txt entries added: {len(new_accept)}" + "".join(f"\n  accept.txt: {t}" for t in new_accept))
     return findings, summary
 

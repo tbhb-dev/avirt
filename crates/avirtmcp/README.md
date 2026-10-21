@@ -11,4 +11,4 @@ generated: { by: claude-code/claude-sonnet-5-5, at: 2026-10-17T19:16:42Z }
 
 The MCP stdio proxy to avirtmcpgwd, launched on demand by the agent. It runs in the sandbox container.
 
-Status: planned. See [docs/components.md](../../docs/components.md).
+Status: planned.

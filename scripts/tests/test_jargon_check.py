@@ -218,18 +218,6 @@ def test_only_added_lines_are_read(tmp_path, monkeypatch):
 # --- allowed terms -----------------------------------------------------------------------------
 
 TWICE = "# B\n\nThe drift budget matters. The drift budget again.\n"
-GLOSSARY = "# Terms\n\n## Drift budget\n\nHow far the replica may lag.\n"
-
-
-def test_glossary_heading_allows_term(tmp_path, monkeypatch):
-    findings, summary = terms(tmp_path, monkeypatch, {"docs/b.md": TWICE, "docs/glossary.md": GLOSSARY})
-    assert findings == []
-    assert any("glossary entries added: 1" in s for s in summary)
-
-
-def test_glossary_entry_in_base_allows_term(tmp_path, monkeypatch):
-    findings, _ = terms(tmp_path, monkeypatch, {"docs/b.md": TWICE}, base={**BASE, "docs/glossary.md": GLOSSARY})
-    assert findings == []
 
 
 def test_accept_txt_pattern_allows_term(tmp_path, monkeypatch):

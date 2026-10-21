@@ -20,7 +20,7 @@ The mediator binary. It runs one Pingora `Server` with two Unix-socket services 
 
 ## Conditions
 
-- Accept only `CONNECT host:port` with an explicit port and a hostname or canonical IP literal. Refuse anything else with the status in `docs/egress.md`.
+- Accept only `CONNECT host:port` with an explicit port and a hostname or canonical IP literal. Refuse anything else.
 - Apply `is_private` and the host-address check to every resolved address before dialing. Never relax them through a rule. They cover IPv4-mapped, 6to4, and NAT64 forms.
 - Produce exactly one event per proxied connection. Flush connections still open at shutdown with `error: "shutdown"`.
 - Create both sockets with mode 0600. Their mode is the access control, so don't loosen it.

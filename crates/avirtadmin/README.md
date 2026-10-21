@@ -11,4 +11,4 @@ generated: { by: codex/gpt-6, at: 2026-10-18T03:13:20Z }
 
 The local admin CLI. It runs on the host.
 
-Status: planned. See [docs/components.md](../../docs/components.md).
+Status: planned.

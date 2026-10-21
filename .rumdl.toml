@@ -24,9 +24,6 @@ exclude = [
 # for that path: GitHub renders the pull request title above the body,
 # and a level 1 heading inside the template would repeat it.
 [per-file-ignores]
-# OKF indexes use star markers and docs use named top-level sections.
-"docs/index.md" = ["MD004"]
-"docs/*.md" = ["MD025"]
 ".github/pull_request_template.md" = ["MD041"]
 
 [MD003]

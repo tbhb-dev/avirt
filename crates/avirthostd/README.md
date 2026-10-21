@@ -15,5 +15,3 @@ The host daemon for avirt, built as the `avirthostd` binary. Running it starts t
 cargo build -p avirthostd -p avirtmediatord
 mise run serve
 ```
-
-See [the avirthostd API and log format](../../docs/hostd-api.md), [lifecycle and state](../../docs/lifecycle.md), and [credentials](../../docs/egress-credentials.md).

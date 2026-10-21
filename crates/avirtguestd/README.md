@@ -11,4 +11,4 @@ generated: { by: codex/gpt-6, at: 2026-10-18T02:56:31Z }
 
 The workload services daemon provides a file server and snapshots, plus the guest MCP tool surface. It runs in the sandbox container.
 
-Status: planned. See [docs/components.md](../../docs/components.md).
+Status: planned.

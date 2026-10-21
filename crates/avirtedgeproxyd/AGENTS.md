@@ -10,4 +10,4 @@ generated: { by: codex/gpt-6, at: 2026-10-18T04:57:58Z }
 
 The edge proxy evaluates host policy and resolves external names. It checks private addresses before opening upstream connections. It runs on the host and is a stub binary for now.
 
-See [docs/components.md](../../docs/components.md) for the component design and the root [AGENTS.md](../../AGENTS.md) for repository conventions.
+See the root [AGENTS.md](../../AGENTS.md) for repository conventions.

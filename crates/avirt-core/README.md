@@ -16,5 +16,3 @@ The mediator process receives only `PATH`, `HOME`, `TMPDIR` and its per-workload
 ```bash
 cargo test -p avirt-core
 ```
-
-See [architecture](../../docs/architecture.md) and [the avirthostd API and log format](../../docs/hostd-api.md).
