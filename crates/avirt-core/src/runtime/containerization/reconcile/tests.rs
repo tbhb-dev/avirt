@@ -13,6 +13,7 @@ use anyhow::{Result, bail, ensure};
 use async_trait::async_trait;
 use core::time::Duration;
 use std::fs;
+use std::os::unix::fs::PermissionsExt as _;
 use std::sync::{Mutex, PoisonError};
 
 /// A supervisor that reports what a test tells it to.
@@ -145,6 +146,31 @@ async fn a_failure_line_names_the_recorded_state() -> Result<()> {
     let canned = Canned { recorded: Some(State::Stopping), stubborn: vec!["1a2b3c4d"], ..Canned::default() };
     let swept = reap(&canned, &root).await;
     ensure!(swept.failures.iter().any(|line| line.contains("workload 1a2b3c4d (stopping):")), "{swept:?}");
+    Ok(())
+}
+
+/// A removal failure line includes the state that the launch intent records.
+///
+/// # Errors
+///
+/// Fails when the removal succeeds or the line lacks the state.
+///
+/// # Panics
+///
+/// Panics if the async runtime fails to start.
+#[tokio::test]
+async fn a_removal_failure_line_names_the_recorded_state() -> Result<()> {
+    let (root, _base) = root_with(&["1a2b3c4d"])?;
+    // Removing the VM state needs write access to the directory that holds it.
+    fs::set_permissions(root.containers(), fs::Permissions::from_mode(0o500))?;
+    let canned = Canned { ended: vec!["1a2b3c4d"], recorded: Some(State::Ended), ..Canned::default() };
+    let swept = reap(&canned, &root).await;
+    fs::set_permissions(root.containers(), fs::Permissions::from_mode(0o700))?;
+    // Root removes the directory anyway.
+    if swept.kept.is_empty() {
+        return Ok(());
+    }
+    ensure!(swept.failures.iter().any(|line| line.contains("workload 1a2b3c4d (ended):")), "{swept:?}");
     Ok(())
 }
 

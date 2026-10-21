@@ -14,6 +14,7 @@ use std::fs::{self, File, OpenOptions};
 use std::os::unix::fs as unix_fs;
 use std::os::unix::fs::PermissionsExt as _;
 use std::path::{Path, PathBuf};
+use std::process::Command;
 use std::time::Instant;
 use tokio::time::sleep;
 
@@ -476,13 +477,19 @@ fn make_writable(dir: &Path) -> Result<()> {
 async fn a_stop_that_cannot_confirm_the_exit_leaves_the_intent_stopping() -> Result<()> {
     let root = tempfile::tempdir()?;
     let dir = workload_dir(root.path(), "5e6f7a8b", State::Running)?;
+    // The test holds the lock below, and a stop signals the recorded pid then. Record a process the test owns.
+    let mut owned = Command::new("sleep").arg("60").spawn().context("spawn sleep")?;
+    let mut intent = Intent::read(&dir)?;
+    intent.pid = Some(owned.id());
+    intent.write(&dir)?;
     let _lock = hold_lock(&dir)?;
-    let Err(err) = supervisor(root.path()).stop("5e6f7a8b", Duration::ZERO).await else {
-        bail!("the stop succeeded");
-    };
+    let outcome = supervisor(root.path()).stop("5e6f7a8b", Duration::ZERO).await;
+    let reaped = owned.kill().and_then(|()| owned.wait());
+    let Err(err) = outcome else { bail!("the stop succeeded") };
+    reaped.context("clean up sleep")?;
     ensure!(err.to_string().contains("still running"), "the error is {err:#}");
     let after = Intent::read(&dir)?;
-    ensure!(after.state == State::Stopping && after.pid.is_none(), "the intent is {after:?}");
+    ensure!(after.state == State::Stopping && after.pid == intent.pid, "the intent is {after:?}");
     Ok(())
 }
 
