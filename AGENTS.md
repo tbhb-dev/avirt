@@ -34,27 +34,6 @@ Every crate lives directly under `crates/`, and each directory uses its package 
 | `avirtinitd` | Binary | Linux guest only (the workload) | The ACP client spawns the adapter and taps JSON-RPC. It drops to uid 1000 under seccomp |
 | `avirt-connect` | Library | Both | CONNECT authority parsing and destination checks for the Pingora CONNECT app |
 | `avirt-core` | Library | Both | Shared code for the `api` module and the `avirthostd` server. Includes the `avirtinitd` harness and the client for the workload's HTTP/2 connection to its mediator. Also includes the log envelope and runtime directory |
-| `avirtadmin` | Binary | Host | The local admin CLI (not implemented) |
-| `avirtwebd` | Binary | Host | The backend for the avirt web UI (not implemented) |
-| `avirtapid` | Binary | Host | The API server: the gRPC and REST API in front of the local avirthostd and peers' API servers, reached through the edge proxy (not implemented) |
-| `avirtedgeproxyd` | Binary | Host | The edge proxy: host policy evaluation, external resolution, private-address checks and upstream connections (not implemented) |
-| `avirtdnsd` | Binary | Host | The DNS resolver for `<name>.<ns>.svc.host.avirt.internal` and `<name>.<ns>.workload.host.avirt.internal`, which answers with the local avirtedgeproxyd or, for avirt hostnames under a peer's host name, their host's avirtedgeproxyd (not implemented) |
-| `avirtmcpgwd` | Binary | Host | The MCP gateway (not implemented) |
-| `avirtmodelgwd` | Binary | Host | The model gateway, which injects model credentials (not implemented) |
-| `avirtbuilderd` | Binary | Host | The builder, which watches VCS and builds repository OCI artifacts for fast workload startup (not implemented) |
-| `avirtpolicyd` | Binary | Host | The policy service, which stores, compiles, proves, and distributes Cedar policy snapshots (not implemented) |
-| `avirtregistryd` | Binary | Host | The workspace image registry, which wraps an OCI registry and adds avirt's index and search API for workspace images (not implemented) |
-| `avirtsecretsd` | Binary | Host | The secrets broker, which fetches secrets from providers and serves the credential broker API. It serves leases for mediator-injected bindings through the broker API (not implemented) |
-| `avirtlogd` | Binary | Host | The log collector, which gathers workload stdout and stderr, transforms it and sends it to avirtoteld as OpenTelemetry Logs (not implemented) |
-| `avirtauditd` | Binary | Host | The audit logger, which delivers audit events as OCSF (not implemented) |
-| `avirtoteld` | Binary | Host | The OpenTelemetry Collector for the host (not implemented) |
-| `avirtacp` | Binary | Workload guest | The workload process that runs an agent through the Agent Client Protocol (not implemented) |
-| `avirtagent` | Binary | Workload guest | The workload process that runs an agent through its native harness (not implemented) |
-| `avirtexec` | Binary | Workload guest | The workload process for generic execution (not implemented) |
-| `avirtnetd` | Binary | Workload guest | The guest networking daemon provides the client end of the workload's HTTP/2 connection to its mediator. It also provides the forward and reverse proxies, the stub DNS resolver, and the guest control API (not implemented) |
-| `avirtguestd` | Binary | Workload guest | The workload services daemon provides a file server and snapshots, plus the guest MCP tool surface (not implemented) |
-| `avirtmcp` | Binary | Workload guest | The MCP stdio proxy to avirtmcpgwd, launched on demand by the agent (not implemented) |
-| `avirtguest` | Binary | Workload guest | The guest CLI that's in the image and connects to avirtapid through the mediator (not implemented) |
 
 `avirt-connect` is part of the root workspace.
 
