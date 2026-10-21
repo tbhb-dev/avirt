@@ -235,12 +235,49 @@ impl ChildSupervisor {
         }
     }
 
-    /// Opens the helper's log and starts the helper with the incarnation on its stdin.
+    /// Sends the helper its incarnation on stdin, then dials it.
+    ///
+    /// A failed write means the helper has closed its stdin. If the helper exits within
+    /// `BIND_TIMEOUT`, the start fails as an exit during startup. If it keeps running, the start
+    /// fails with the write error. The intent records the spawn before this function reports either
+    /// failure.
+    ///
+    /// # Errors
+    ///
+    /// Returns an error if the write fails and the helper exits first or keeps running for
+    /// `BIND_TIMEOUT`, the intent can't record the spawn, or the helper exits first, never binds
+    /// the socket, or fails the handshake.
+    async fn handshake(
+        child: &mut Child,
+        stdin: &mut ChildStdin,
+        expected: &Expected<'_>,
+        spec: &HelperSpec,
+    ) -> Result<Client> {
+        // The first line is the incarnation. After it avirthostd writes nothing more, and the
+        // helper treats the end of this pipe as avirthostd's death.
+        let sent = async {
+            stdin.write_all(format!("{}\n", expected.incarnation.to_hex()).as_bytes()).await?;
+            stdin.flush().await
+        }
+        .await;
+        Self::record_spawn(&spec.dir, child.id()).await?;
+        if let Err(err) = sent {
+            // A closed pipe can precede the exit by a moment. A helper that closed it and kept running
+            // never read the incarnation, so the write error is the better report.
+            return match time::timeout(BIND_TIMEOUT, child.wait()).await {
+                Ok(status) => bail!("avirtvmd exited during startup ({})", status?),
+                Err(_) => Err(err).context("write the incarnation to avirtvmd"),
+            };
+        }
+        Self::dial(child, &spec.dir, expected).await
+    }
+
+    /// Opens the helper's log and starts the helper.
     ///
     /// # Errors
     ///
     /// Returns an error if the log exists already or the helper fails to start.
-    async fn launch(workload: &str, incarnation: &Incarnation, spec: &HelperSpec) -> Result<(Child, ChildStdin)> {
+    fn launch(workload: &str, spec: &HelperSpec) -> Result<(Child, ChildStdin)> {
         let log = OpenOptions::new().create_new(true).append(true).mode(0o600).open(&spec.log)?;
         let mut child = Command::new(&spec.bin)
             .args(["run", "--workload", workload, "--dir"])
@@ -256,11 +293,7 @@ impl ChildSupervisor {
             .process_group(0)
             .spawn()
             .with_context(|| format!("spawn {}", spec.bin.display()))?;
-        let mut stdin = child.stdin.take().context("avirtvmd's stdin")?;
-        // The first line is the incarnation. After it avirthostd writes nothing more, and the
-        // helper treats the end of this pipe as avirthostd's death.
-        stdin.write_all(format!("{}\n", incarnation.to_hex()).as_bytes()).await?;
-        stdin.flush().await?;
+        let stdin = child.stdin.take().context("avirtvmd's stdin")?;
         Ok((child, stdin))
     }
 
@@ -404,10 +437,9 @@ impl HelperSupervisor for ChildSupervisor {
             }
             bail!("workload {workload} already has a helper with another incarnation");
         }
-        let (mut child, stdin) = Self::launch(workload, incarnation, spec).await?;
-        Self::record_spawn(&spec.dir, child.id()).await?;
+        let (mut child, mut stdin) = Self::launch(workload, spec)?;
         let expected = Expected { incarnation, workload };
-        let handle = HelperHandle(Self::dial(&mut child, &spec.dir, &expected).await?);
+        let handle = HelperHandle(Self::handshake(&mut child, &mut stdin, &expected, spec).await?);
         let record = Record { _stdin: stdin, child, handle: handle.clone(), incarnation: *incarnation };
         self.records().insert(workload.to_owned(), record);
         Ok(handle)
