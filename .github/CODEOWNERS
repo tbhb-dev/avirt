@@ -10,6 +10,9 @@
 /Cargo.toml     @tbhb
 /Cargo.lock     @tbhb
 /deny.toml      @tbhb
+/experiments/*/Cargo.toml @tbhb
+/experiments/*/Cargo.lock @tbhb
+/experiments/*/deny.toml  @tbhb
 /mise.toml      @tbhb
 /mise.lock      @tbhb
 
