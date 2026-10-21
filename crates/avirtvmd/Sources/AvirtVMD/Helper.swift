@@ -55,6 +55,9 @@ func runHelper(
   let policy: PeerPolicy
   do {
     policy = try peerPolicy(for: signingInfo())
+  } catch SignatureError.noTeam {
+    log("its Developer ID signature has no team identifier")
+    return HelperExit.failure
   } catch {
     log("can't read its own signing information: \(error)")
     return HelperExit.failure
