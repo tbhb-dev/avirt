@@ -95,8 +95,8 @@ Status: implemented.
 - **Development.** The avirtvmd build signs the helper with the `com.apple.security.virtualization` entitlement. avirthostd and its tests don't need it.
 - **Control peer.** A Developer ID-signed avirtvmd requires control-peer code to meet Apple's Developer ID rule for apps. The peer's leaf-certificate team organizational unit must equal avirtvmd's team identifier, and its signing identifier must equal `dev.avirt.hostd`. avirtvmd doesn't check or set its own `dev.avirt.vmd` signing identifier.
 - **Verification.** Tests cover the code-signing rule text, policy selection, and real audit-token checks against the test process's code. The manual acceptance and rejection checks below confirm that a Developer ID-signed avirthostd launches a workload and that avirtvmd refuses one signed by the same team with another signing identifier.
-- **Manual acceptance.** The owner signs `target/debug/avirthostd` with `--identifier dev.avirt.hostd` and `target/debug/avirtvmd` with the virtualization entitlement, using their Developer ID Application certificate for both, and runs one end-to-end launch. The launch must succeed.
-- **Manual rejection.** The owner signs avirthostd with another identifier and launches again. avirtvmd must refuse the connection, and the launch must fail with the refusal.
+- **Manual acceptance.** In this check, the owner signs `target/debug/avirthostd` with `--identifier dev.avirt.hostd` and `target/debug/avirtvmd` with the virtualization entitlement, using their Developer ID Application certificate for both. The owner runs one end-to-end launch, which succeeds.
+- **Manual rejection.** In this check, the owner signs avirthostd with the same Developer ID Application certificate and another identifier, then launches again. avirtvmd refuses the connection. The launch fails with the refusal.
 
 Status: planned.
 
