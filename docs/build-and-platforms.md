@@ -94,13 +94,13 @@ Status: implemented.
 
 - **Development.** The avirtvmd build signs the helper with the `com.apple.security.virtualization` entitlement. avirthostd and its tests don't need it.
 - **Control peer.** A Developer ID-signed avirtvmd requires control-peer code to meet Apple's Developer ID rule for apps. The peer's leaf-certificate team organizational unit must equal avirtvmd's team identifier, and its signing identifier must equal `dev.avirt.hostd`. avirtvmd doesn't check or set its own `dev.avirt.vmd` signing identifier.
-- **Verification.** Tests cover the code-signing rule text, policy selection, and real audit-token checks against the test process's code. Positive acceptance of a Developer ID-signed avirthostd remains unverified because no Developer ID build has run.
+- **Verification.** Tests cover the code-signing rule text, policy selection, and real audit-token checks against the test process's code. The manual acceptance and rejection checks below confirm that a Developer ID-signed avirthostd launches a workload and that avirtvmd refuses one signed by the same team with another signing identifier.
+- **Manual acceptance.** The owner signs `target/debug/avirthostd` with `--identifier dev.avirt.hostd` and `target/debug/avirtvmd` with the virtualization entitlement, using their Developer ID Application certificate for both, and runs one end-to-end launch. The launch must succeed.
+- **Manual rejection.** The owner signs avirthostd with another identifier and launches again. avirtvmd must refuse the connection, and the launch must fail with the refusal.
 
 Status: planned.
 
 - **Distribution.** A Developer ID build pipeline signs `avirthostd` as `dev.avirt.hostd` and signs `avirtvmd` with the `com.apple.security.virtualization` entitlement, both with a Developer ID Application certificate, and notarizes the binaries.
-- **Manual acceptance.** The owner signs `target/debug/avirthostd` with `--identifier dev.avirt.hostd` and `target/debug/avirtvmd` with the virtualization entitlement, using their Developer ID Application certificate for both, and runs one end-to-end launch. The launch must succeed.
-- **Manual rejection.** The owner signs avirthostd with another identifier and launches again. avirtvmd must refuse the connection, and the launch must fail with the refusal.
 - **Secrets broker.** The pipeline signs `avirtsecretsd` and `avirtsecrets-1password` with Developer ID and notarizes them. Each has a stable signing identifier that keeps its designated requirements unchanged across releases (see [macOS Keychain](./secrets-keychain.md#code-signing-and-entitlements)).
 
 ## CI matrix
