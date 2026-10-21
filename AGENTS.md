@@ -10,9 +10,16 @@ generated: { by: codex/gpt-6, at: 2026-10-18T04:56:05Z }
 
 Guidance for AI coding agents working in this repository. Read it alongside the per-crate `AGENTS.md` files and any memory files the harness loads.
 
+## Project status
+
+- The design is a draft, and this repository doesn't keep draft design.
+- The code under `crates/` is a proof of concept, not the product.
+- Limit work on code to isolated experiments, each answering a stated design question. Don't harden or polish the existing code, add test coverage to it, or scaffold planned components.
+- Ask the owner before you write or fix code or add tests.
+
 ## What this is
 
-`avirt` runs ACP agents (Claude and Codex) in isolated workloads on an Apple silicon Mac. The host daemon, `avirthostd`, launches one workload per request, and every byte the agent sends out passes through that workload's mediator. [docs/architecture.md](docs/architecture.md) is the entry point to the design, and it distinguishes working features from plans.
+`avirt` runs ACP agents (Claude and Codex) in isolated workloads on an Apple silicon Mac. The host daemon, `avirthostd`, launches one workload per request, and every byte the agent sends out passes through that workload's mediator.
 
 ## Crate map
 
@@ -85,15 +92,15 @@ Pre-commit hooks run rustfmt, cargo-shear and cargo-deny on the files they cover
 
 ## Conventions
 
-- **Terms.** Use the project's terms consistently. The project name is always lowercase **avirt**. **avirthostd** is the host daemon. The **control plane** is avirthostd plus the host services that configure and decide, and the **data plane** is **avirtmediatord** (the mediator) and **avirtedgeproxyd** (the edge proxy), which forward traffic. A **workload** is the whole unit avirthostd launches. It consists of the **sandbox container**, which runs the agent, plus its **mediator**. The mediator is the per-workload container that contains avirtinitd and avirtmediatord. All the workload's traffic passes through it. Today the mediator is the avirtmediatord host process. **avirtinitd** is the root process in each container. **avirtapid** is the API server. An ACP session stays an ACP session. See [docs/glossary.md](docs/glossary.md) for every other term.
+- **Terms.** Use the project's terms consistently. The project name is always lowercase **avirt**. **avirthostd** is the host daemon. The **control plane** is avirthostd plus the host services that configure and decide, and the **data plane** is **avirtmediatord** (the mediator) and **avirtedgeproxyd** (the edge proxy), which forward traffic. A **workload** is the whole unit avirthostd launches. It consists of the **sandbox container**, which runs the agent, plus its **mediator**. The mediator is the per-workload container that contains avirtinitd and avirtmediatord. All the workload's traffic passes through it. Today the mediator is the avirtmediatord host process. **avirtinitd** is the root process in each container. **avirtapid** is the API server. An ACP session stays an ACP session.
 - **Docs format.** Every Markdown file in the repository has OKF v0.2 frontmatter, and `docs/` is an OKF v0.2 bundle:
-  - every document has YAML frontmatter with a non-empty `type`, plus `title`, `description`, `tags` and `generated`, and `implementation` where it applies (every document in `docs/`, and crate READMEs).
-  - `docs/index.md` lists every document under `docs/`, and Markdown files outside `docs/` don't need an index entry.
+  - every document has YAML frontmatter with a non-empty `type`, plus `title`, `description`, `tags` and `generated`, and `implementation` where it applies (crate READMEs).
+  - `docs/README.md` lists the durable docs. Draft design, proposals and plans don't belong in this repository. Ask the owner about them.
   - after editing, run `mise run check-docs`, which runs `scripts/okf-check.py docs` and `scripts/okf-check.py --repo .`.
-- **Docs content.** Docs and code comments describe what the system is and does. Don't include history or decision rationale. State facts that constrain behavior as constraints. Mark planned work with a `Status: planned` section, never with version names.
+- **Docs content.** Docs and code comments describe what the system is and does. Don't include history or decision rationale. State facts that constrain behavior as constraints.
 - **Markdown.** Diagrams are Mermaid. Each paragraph is one line, with no hard wrapping. Run `guard-markdown <file>` on every Markdown file you edit.
-- **Invented terms.** Don't coin terms. Write for the reader in ordinary words, or use terms established by the glossary or a standard. Vale's banned-term rules block lint. Don't add a term to the Vale lists yourself.
-- **Jargon report.** `scripts/jargon_check.py` (`mise run lint-jargon`) is an optional report for human review, outside lint and pre-commit. It prints candidate terms from added prose and exits 0 whatever it finds. A usage error such as a bad `--base` exits 1. Judge each candidate in context. Preserve correct grammar and reserve glossary entries for real terms. Its tests are part of `mise run check`. Set `JARGON_BASE` to the parent branch when checking a stacked branch. An explicit `--base` takes precedence. The report skips a term that a glossary heading, a line of `.vale/config/vocabularies/project/accept.txt`, or a line of `jargon-accept.txt` at the repository root names. Each `jargon-accept.txt` line is a term, then `#` and the reason, and the report flags a line with no reason.
+- **Invented terms.** Don't coin terms. Write for the reader in ordinary words, or use terms from the code or a standard. Vale's banned-term rules block lint. Don't add a term to the Vale lists yourself.
+- **Jargon report.** `scripts/jargon_check.py` (`mise run lint-jargon`) is an optional report for human review, outside lint and pre-commit. It prints candidate terms from added prose and exits 0 whatever it finds. A usage error such as a bad `--base` exits 1. Judge each candidate in context. Preserve correct grammar. Its tests are part of `mise run check`. Set `JARGON_BASE` to the parent branch when checking a stacked branch. An explicit `--base` takes precedence. The report skips a term that a line of `.vale/config/vocabularies/project/accept.txt` or a line of `jargon-accept.txt` at the repository root names. Each `jargon-accept.txt` line is a term, then `#` and the reason, and the report flags a line with no reason.
 
 ## Secrets
 
@@ -112,8 +119,8 @@ An end-to-end run launches a real workload:
 
 `AVIRT_RUNTIME` picks the runtime: `containerization` (the default) or `container`, which drives Apple's `container` command. The Containerization runtime runs without a `container` binary.
 
-The regression suite, with its bypass, positive and lifecycle checks, is in [docs/roadmap.md](docs/roadmap.md#regression-suite). Run bypass checks inside the agent's own process tree, by prompting the agent to run the script. A process started from outside the agent's tree isn't under its restrictions, and checking from there doesn't prove the restrictions apply.
+Run bypass checks inside the agent's own process tree, by prompting the agent to run the script. A process started from outside the agent's tree isn't under its restrictions, and checking from there doesn't prove the restrictions apply.
 
 ## Signing
 
-`avirtvmd` on macOS must have the `com.apple.security.virtualization` entitlement, and `mise run build-vmd` signs it. `avirthostd` doesn't need the entitlement. [docs/build-and-platforms.md](docs/build-and-platforms.md) describes the targets, the signing setup, and the CI matrix.
+`avirtvmd` on macOS must have the `com.apple.security.virtualization` entitlement, and `mise run build-vmd` signs it. `avirthostd` doesn't need the entitlement.

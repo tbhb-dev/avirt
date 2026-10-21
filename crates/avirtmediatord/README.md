@@ -15,4 +15,4 @@ The per-workload egress mediator for avirt, built as the `avirtmediatord` binary
 cargo build -p avirtmediatord
 ```
 
-`avirthostd` finds it next to its own binary, or at `AVIRT_MEDIATOR_BIN`. See [egress and TLS termination](../../docs/egress.md), [egress policies](../../docs/egress-policies.md), and [workload topology](../../docs/workload-topology.md).
+`avirthostd` finds it next to its own binary, or at `AVIRT_MEDIATOR_BIN`.

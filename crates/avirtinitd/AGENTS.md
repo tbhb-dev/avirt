@@ -28,4 +28,4 @@ The `avirtinitd` binary, which runs only inside a Linux workload. The shared mec
 
 ## Testing
 
-This crate doesn't have unit tests. `cargo test -p avirt-core` covers the harness helpers. The behavior is verified end to end: `mise run build-images`, then the regression suite in `docs/roadmap.md`, with bypass checks run inside the agent's own process tree.
+This crate doesn't have unit tests. `cargo test -p avirt-core` covers the harness helpers. End-to-end checks need `mise run build-images`, with bypass checks run inside the agent's own process tree.
