@@ -29,5 +29,5 @@
     },
   ],
 
-  repositories: ["tbhb-dev/avirt-poc"],
+  repositories: ["tbhb-dev/avirt"],
 }
