@@ -12,7 +12,7 @@ use crate::state::Root;
 use anyhow::{Result, bail, ensure};
 use async_trait::async_trait;
 use core::time::Duration;
-use std::fs;
+use std::fs::{self, File};
 use std::os::unix::fs::PermissionsExt as _;
 use std::sync::{Mutex, PoisonError};
 
@@ -153,7 +153,8 @@ async fn a_failure_line_names_the_recorded_state() -> Result<()> {
 ///
 /// # Errors
 ///
-/// Fails when the removal succeeds or the line lacks the state.
+/// Fails when the removal succeeds or the line lacks the state. Returns early, without checking
+/// anything, when the process can write to the read-only directory, as root can.
 ///
 /// # Panics
 ///
@@ -163,13 +164,15 @@ async fn a_removal_failure_line_names_the_recorded_state() -> Result<()> {
     let (root, _base) = root_with(&["1a2b3c4d"])?;
     // Removing the VM state needs write access to the directory that holds it.
     fs::set_permissions(root.containers(), fs::Permissions::from_mode(0o500))?;
+    let writable = File::create(root.containers().join("probe")).is_ok();
     let canned = Canned { ended: vec!["1a2b3c4d"], recorded: Some(State::Ended), ..Canned::default() };
     let swept = reap(&canned, &root).await;
     fs::set_permissions(root.containers(), fs::Permissions::from_mode(0o700))?;
     // Root removes the directory anyway.
-    if swept.kept.is_empty() {
+    if writable {
         return Ok(());
     }
+    ensure!(swept.kept == ["1a2b3c4d"], "the removal didn't fail: {swept:?}");
     ensure!(swept.failures.iter().any(|line| line.contains("workload 1a2b3c4d (ended):")), "{swept:?}");
     Ok(())
 }

@@ -14,12 +14,22 @@ use std::fs::{self, File, OpenOptions};
 use std::os::unix::fs as unix_fs;
 use std::os::unix::fs::PermissionsExt as _;
 use std::path::{Path, PathBuf};
-use std::process::Command;
+use std::process::{Child, Command};
 use std::time::Instant;
 use tokio::time::sleep;
 
 /// How long a test waits on a helper that doesn't speak.
 const SHORT: Duration = Duration::from_millis(300);
+
+/// A child process that dropping kills and reaps, so a failing test doesn't leave it running.
+struct OwnedSleep(Child);
+
+impl Drop for OwnedSleep {
+    fn drop(&mut self) {
+        drop(self.0.kill());
+        drop(self.0.wait());
+    }
+}
 
 /// The incarnation the launch intents record.
 ///
@@ -477,16 +487,14 @@ fn make_writable(dir: &Path) -> Result<()> {
 async fn a_stop_that_cannot_confirm_the_exit_leaves_the_intent_stopping() -> Result<()> {
     let root = tempfile::tempdir()?;
     let dir = workload_dir(root.path(), "5e6f7a8b", State::Running)?;
-    // The test holds the lock below, and a stop signals the recorded pid then. Record a process the test owns.
-    let mut owned = Command::new("sleep").arg("60").spawn().context("spawn sleep")?;
-    let mut intent = Intent::read(&dir)?;
-    intent.pid = Some(owned.id());
-    intent.write(&dir)?;
+    // The test holds the lock, and a stop signals the recorded pid then. Record a process the test owns.
     let _lock = hold_lock(&dir)?;
+    let owned = OwnedSleep(Command::new("sleep").arg("60").spawn().context("spawn sleep")?);
+    let mut intent = Intent::read(&dir)?;
+    intent.pid = Some(owned.0.id());
+    intent.write(&dir)?;
     let outcome = supervisor(root.path()).stop("5e6f7a8b", Duration::ZERO).await;
-    let reaped = owned.kill().and_then(|()| owned.wait());
     let Err(err) = outcome else { bail!("the stop succeeded") };
-    reaped.context("clean up sleep")?;
     ensure!(err.to_string().contains("still running"), "the error is {err:#}");
     let after = Intent::read(&dir)?;
     ensure!(after.state == State::Stopping && after.pid == intent.pid, "the intent is {after:?}");

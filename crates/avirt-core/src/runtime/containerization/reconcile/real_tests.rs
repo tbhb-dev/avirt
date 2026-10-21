@@ -135,8 +135,7 @@ async fn a_crash_while_stopping_is_reaped() -> Result<()> {
     Ok(())
 }
 
-/// The reaper removes a workload whose intent records the end, without a stop, when the lock check
-/// fails.
+/// The reaper removes a workload whose intent records the end when the lock file won't open.
 ///
 /// # Errors
 ///
