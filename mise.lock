@@ -85,15 +85,15 @@ provenance = "github-attestations"
 provenance_verified = true
 
 [[tools."go:github.com/tbhb-dev/devtools/cmd/agentrepo"]]
-version = "0.13.0"
+version = "0.14.0"
 backend = "go:github.com/tbhb-dev/devtools/cmd/agentrepo"
 
 [[tools."go:github.com/tbhb-dev/devtools/cmd/commit-lint"]]
-version = "0.13.0"
+version = "0.14.0"
 backend = "go:github.com/tbhb-dev/devtools/cmd/commit-lint"
 
 [[tools."go:github.com/tbhb-dev/devtools/cmd/guard-markdown"]]
-version = "0.13.0"
+version = "0.14.0"
 backend = "go:github.com/tbhb-dev/devtools/cmd/guard-markdown"
 
 [[tools.jq]]
