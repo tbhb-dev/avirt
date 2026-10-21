@@ -610,6 +610,41 @@ async fn a_helper_that_exited_before_the_incarnation_is_written_fails_the_start(
     Ok(())
 }
 
+/// A failed write of the incarnation stays in the error when recording the spawn fails too.
+///
+/// The test waits for the helper to exit and makes the workload directory read-only, so the write fails and
+/// the handshake can't record the spawn. It returns early for root, which writes to the directory anyway.
+///
+/// # Errors
+///
+/// Fails when the handshake succeeds or its error lacks either failure.
+///
+/// # Panics
+///
+/// Panics if the async runtime fails to start.
+#[tokio::test]
+async fn a_failed_record_of_the_spawn_keeps_the_write_error() -> Result<()> {
+    let root = tempfile::tempdir()?;
+    let dir = workload_dir(root.path(), "1a2b3c4d", State::Intended)?;
+    let spec =
+        HelperSpec { bin: PathBuf::from("/usr/bin/false"), dir: dir.clone(), log: root.path().join("helper.log") };
+    let (mut child, mut stdin) = ChildSupervisor::launch("1a2b3c4d", &spec)?;
+    child.wait().await?;
+    if !make_unwritable(&dir)? {
+        return Ok(());
+    }
+    let expected = Expected { incarnation: &incarnation()?, workload: "1a2b3c4d" };
+    let outcome = ChildSupervisor::handshake(&mut child, &mut stdin, &expected, &spec).await;
+    make_writable(&dir)?;
+    let Err(err) = outcome else { bail!("the handshake succeeded") };
+    let text = format!("{err:#}");
+    ensure!(
+        text.contains("the write of the incarnation to avirtvmd failed") && text.contains("record the helper's pid"),
+        "the error is {text}"
+    );
+    Ok(())
+}
+
 /// A helper that closes its stdin and keeps running fails the start with the write error once `BIND_TIMEOUT` passes.
 ///
 /// The helper creates `closed` after it closes its stdin, and the test waits for that file before the write. The
