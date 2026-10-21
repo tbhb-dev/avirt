@@ -18,7 +18,7 @@ The `avirt` binary, in `src/main.rs`.
 | `launch` | Builds a `LaunchRequest`, makes `--cwd` absolute, posts it to `/launch`, and prints the workload ID and log path |
 | `follow` | Reads the workload log as it grows and probes `/health` when it stalls |
 
-## Invariants
+## Conditions
 
 - Request and response types, routes and the default port come from `avirt_core::api`. Don't redefine them here, because avirthostd and the command-line interface must agree on them.
 - `--follow` stops only on `api::is_terminal_event` (the `container_exit` meta event, parsed as JSON). Never pattern-match raw log text.

@@ -24,7 +24,7 @@ The shared library. The avirthostd server and the avirtinitd harness both live h
 | `envelope` | `Dir`, `Envelope`, `parse_line`, `MAX_LINE` (16 MiB) and `LineSplitter` |
 | `h2c` | Cleartext HTTP/2 client helpers |
 
-## Invariants
+## Conditions
 
 - **Workload startup order.** Don't start anything in the sandbox container until avirthostd has accepted `POST /workloads/<id>/stream`. Install seccomp before the adapter starts. The agent's environment must never contain `AVIRT_WORKLOAD_ID`, `AVIRT_PROMPT`, `AVIRT_CWD`, `AVIRT_CONNECTION_TOKEN` or `AVIRT_AGENT`.
 - **Proxy half-close.** The TCP proxy to `proxy.sock` never forwards a client's end-of-stream to the socket, because nothing on a forwarded socket may half-close.

@@ -18,7 +18,7 @@ The `avirthostd` binary. Most of the server is in `avirt-core` (`hostd`, `runtim
 | `profiles.rs` | The per-agent launch profiles: image names (`CLAUDE_IMAGE`, `CODEX_IMAGE`), the variables passed to the workload, and the per-launch hook with its cleanup |
 | `codex_auth.rs` | The Codex `CODEX_HOME` seed and the `auth.json` write-back |
 
-## Invariants
+## Conditions
 
 - Pass secrets to the workload as `EnvVar::Inherit`, so no runtime puts a value on argv. A profile only names variables, it never formats their values into arguments.
 - Refuse a launch whose credentials are missing with a `Refused` message (a 400). Never start it without them.

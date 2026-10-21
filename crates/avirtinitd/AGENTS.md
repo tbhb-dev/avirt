@@ -18,7 +18,7 @@ The `avirtinitd` binary, which runs only inside a Linux workload. The shared mec
 | `claude.rs` | ACP v2 (`schema::v2`, `CLAUDE_AGENT_ACP_EXPERIMENTAL_V2=1`): initialize, ACP session, prompt, permission approvals, update printing |
 | `codex.rs` | ACP v1 follows the same steps. It consumes session updates concurrently with the prompt and skips the `authenticate` call |
 
-## Invariants
+## Conditions
 
 - Verify the `protocolVersion` in the initialize response and fail when it differs from the one sent.
 - Permission approval goes through `harness::pick_option` (`allow_once`, else `allow_always`, else the first option), and logs every approval as `auto_approve`.
