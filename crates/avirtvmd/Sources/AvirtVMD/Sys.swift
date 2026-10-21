@@ -71,7 +71,8 @@ enum Sys {
 
   /// The process that holds `token`, or nil if it can't be found.
   static func process(holding token: audit_token_t) -> SecCode? {
-    let bytes = unsafe withUnsafeBytes(of: token) { unsafe Data($0) }
+    var token = token
+    let bytes = unsafe Data(bytes: &token, count: MemoryLayout<audit_token_t>.size)
     let attributes = [kSecGuestAttributeAudit as String: bytes] as CFDictionary
     var guest: SecCode?
     guard unsafe SecCodeCopyGuestWithAttributes(nil, attributes, [], &guest) == errSecSuccess else { return nil }
