@@ -12,6 +12,7 @@ use anyhow::{Context as _, Result, ensure};
 use core::time::Duration;
 use std::env;
 use std::fs;
+use std::os::unix::fs::PermissionsExt as _;
 use std::path::PathBuf;
 
 /// A workload under `root` with its launch intent, and the spec to start a helper in it.
@@ -134,7 +135,7 @@ async fn a_crash_while_stopping_is_reaped() -> Result<()> {
     Ok(())
 }
 
-/// The reaper removes a workload whose intent records the end, without a dial.
+/// The reaper removes a workload whose intent records the end when the lock file won't open.
 ///
 /// # Errors
 ///
@@ -155,6 +156,10 @@ async fn a_crash_after_the_end_is_recorded_is_reaped_without_a_dial() -> Result<
     ensure!(Intent::read(&spec.dir)?.state == State::Ended, "the stop didn't record the end");
     // The helper has exited, so nothing answers on its socket.
     drop(fs::remove_file(spec.dir.join("v.sock")));
+    // With a lock file that won't open, the record is the only evidence that the helper ended.
+    // Without the record, the reaper sends a stop and keeps a workload it can't confirm gone.
+    // Root opens the file anyway, so for root the lock check doesn't fail.
+    fs::set_permissions(spec.dir.join("vmd.lock"), fs::Permissions::from_mode(0o000))?;
 
     reap_and_ensure_removed(&root).await?;
     Ok(())
