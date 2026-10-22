@@ -1,5 +1,5 @@
-# These rules list the paths that need the owner's review.
+# Files where every change needs the owner's review.
 /.github/CODEOWNERS          @tbhb
-/.github/workflows/          @tbhb
+/.github/rulesets/           @tbhb
 /.agents/agent-skills.conf   @tbhb
 /.claude/settings*.json      @tbhb
