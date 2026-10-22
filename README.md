@@ -8,19 +8,19 @@ generated: { by: codex/gpt-6, at: 2026-10-18T04:57:34Z }
 
 # avirt
 
-`avirt` runs ACP agents in isolated containers on an Apple silicon Mac. The supported agents are Claude, through [claude-agent-acp](https://github.com/agentclientprotocol/claude-agent-acp), and Codex, through [codex-acp](https://github.com/agentclientprotocol/codex-acp). `avirthostd`, the host daemon, launches one workload per request. A workload is a sandbox container plus its egress mediator (`avirtmediatord`). Inside the sandbox container, `avirtinitd` drives the agent over ACP and streams every JSON-RPC message to `avirthostd`, which writes it to `logs/<workload-id>.ndjson`. In the implemented system, the agent's only way out is the mediator's logged CONNECT proxy. Everything except `avirtvmd`, the Swift VM helper, is Rust, and the ACP client uses the official [`agent-client-protocol`](https://github.com/agentclientprotocol/rust-sdk) crate.
+`avirt` runs ACP agents in isolated containers on an Apple silicon Mac. The supported agents are Claude, through [claude-agent-acp](https://github.com/agentclientprotocol/claude-agent-acp), and Codex, through [codex-acp](https://github.com/agentclientprotocol/codex-acp). `avirthostd`, the host daemon, launches one workload per request. A workload is a sandbox container plus its egress mediator (`avirtmediatord`). Inside the sandbox container, `avirtinitd` drives the agent over ACP and streams every JSON-RPC message to `avirthostd`, which writes it to `experiments/poc/logs/<workload-id>.ndjson`. In the implemented system, the agent's only way out is the mediator's logged CONNECT proxy. Everything except `avirtvmd`, the Swift VM helper, is Rust, and the ACP client uses the official [`agent-client-protocol`](https://github.com/agentclientprotocol/rust-sdk) crate.
 
 Agents working in this repository should read [AGENTS.md](AGENTS.md).
 
 ## Layout
 
-- `crates/avirthostd/` contains the `avirthostd` binary (running it starts the server) and the per-agent launch profiles. It also handles Codex's credentials.
-- `crates/avirt/` contains the `avirt` operator CLI (`avirt launch`).
-- `crates/avirtmediatord/` contains the `avirtmediatord` binary, the per-workload egress proxy. It uses the Pingora CONNECT app.
-- `crates/avirtinitd/` contains the `avirtinitd` binary, which runs in the workload (`AVIRT_AGENT=claude|codex`).
-- `crates/avirt-connect/` contains the `avirt-connect` library, CONNECT authority parsing and destination checks for the Pingora CONNECT app.
-- `crates/avirt-core/` contains the shared library. It contains the control API types (`api`) and log envelope, along with the h2c client and the client for the workload's HTTP/2 connection to its mediator. It includes the `avirthostd` server and workload registry, plus the `avirtinitd` harness and runtime directory.
-- `workloads/claude/` and `workloads/codex/` contain the image build directories, each with a Containerfile and `image/` holding the pinned adapter. The images are `avirt-workload-claude:dev` and `avirt-workload-codex:dev`.
+- `experiments/poc/crates/avirthostd/` contains the `avirthostd` binary (running it starts the server) and the per-agent launch profiles. It also handles Codex's credentials.
+- `experiments/poc/crates/avirt/` contains the `avirt` operator CLI (`avirt launch`).
+- `experiments/poc/crates/avirtmediatord/` contains the `avirtmediatord` binary, the per-workload egress proxy. It uses the Pingora CONNECT app.
+- `experiments/poc/crates/avirtinitd/` contains the `avirtinitd` binary, which runs in the workload (`AVIRT_AGENT=claude|codex`).
+- `experiments/poc/crates/avirt-connect/` contains the `avirt-connect` library, CONNECT authority parsing and destination checks for the Pingora CONNECT app.
+- `experiments/poc/crates/avirt-core/` contains the shared library. It contains the control API types (`api`) and log envelope, along with the h2c client and the client for the workload's HTTP/2 connection to its mediator. It includes the `avirthostd` server and workload registry, plus the `avirtinitd` harness and runtime directory.
+- `experiments/poc/workloads/claude/` and `experiments/poc/workloads/codex/` contain the image build directories, each with a Containerfile and `image/` holding the pinned adapter. The images are `avirt-workload-claude:dev` and `avirt-workload-codex:dev`.
 
 ## Prerequisites
 

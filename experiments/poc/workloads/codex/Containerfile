@@ -1,4 +1,4 @@
-# Build context is the repository root: container build -f workloads/codex/Containerfile -t IMAGE .
+# Build context is experiments/poc: container build -f workloads/codex/Containerfile -t IMAGE .
 FROM rust:1.97.1-bookworm AS build
 WORKDIR /src
 COPY Cargo.toml Cargo.lock ./

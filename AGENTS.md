@@ -13,7 +13,7 @@ Guidance for AI coding agents working in this repository. Read it alongside the 
 ## Project status
 
 - The design is a draft, and this repository doesn't keep draft design.
-- The code under `crates/` is a proof of concept, not the product.
+- The code under `experiments/poc/` is a proof of concept, not the product.
 - Limit work on code to isolated experiments, each answering a stated design question. Don't harden or polish the existing code, add test coverage to it, or scaffold planned components.
 - Ask the owner before you write or fix code or add tests.
 
@@ -23,7 +23,7 @@ Guidance for AI coding agents working in this repository. Read it alongside the 
 
 ## Crate map
 
-Every crate lives directly under `crates/`, and each directory uses its package name.
+Every crate lives directly under `experiments/poc/crates/`, and each directory uses its package name.
 
 | Crate | Kind | Runs | Role |
 | --- | --- | --- | --- |
@@ -35,9 +35,9 @@ Every crate lives directly under `crates/`, and each directory uses its package 
 | `avirt-connect` | Library | Both | CONNECT authority parsing and destination checks for the Pingora CONNECT app |
 | `avirt-core` | Library | Both | Shared code for the `api` module and the `avirthostd` server. Includes the `avirtinitd` harness and the client for the workload's HTTP/2 connection to its mediator. Also includes the log envelope and runtime directory |
 
-`avirt-connect` is part of the root workspace.
+`avirt-connect` is part of the `experiments/poc` workspace.
 
-`workloads/claude/` and `workloads/codex/` contain only the sandbox image build directories.
+`experiments/poc/workloads/claude/` and `experiments/poc/workloads/codex/` contain only the sandbox image build directories.
 
 ## Commands
 
@@ -54,7 +54,7 @@ mise run launch claude "Reply with the word pong" -- --follow     # avirt launch
 
 ### Rust toolchain
 
-Any lint in the `all` and `pedantic` groups fails the build, and so does each nursery, cargo and restriction lint that `Cargo.toml` lists. The comment that precedes that list says why each missing lint is missing. Thresholds live in `clippy.toml`. Fix a finding in the code. The tree has no lint attributes and no per-lint exceptions, so a new one is a defect.
+Any lint in the `all` and `pedantic` groups fails the build, and so does each nursery, cargo and restriction lint that `experiments/poc/Cargo.toml` lists. The comment that precedes that list says why each missing lint is missing. Thresholds live in `experiments/poc/clippy.toml`. Fix a finding in the code. The tree has no lint attributes and no per-lint exceptions, so a new one is a defect.
 
 ```bash
 mise run lint-rust       # clippy, all targets, warnings denied
@@ -86,7 +86,7 @@ Pre-commit hooks run rustfmt, cargo-shear and cargo-deny on the files they cover
 - Never print, log or echo `CLAUDE_CODE_OAUTH_TOKEN` or the contents of any `auth.json`.
 - The token is in `mise.local.toml`. Git ignores this file, and mise loads it on top of `mise.toml`. Don't commit it, copy it elsewhere, or read it into output.
 - Don't change `~/.codex/` yourself. `avirthostd`'s own write-back is the only thing that changes `~/.codex/auth.json`.
-- Workload logs (`logs/`) can contain prompts and tool output. They can also contain credentials and the Codex account email and plan. Treat them as secret, and quote only the lines you need.
+- Workload logs (`experiments/poc/logs/`) can contain prompts and tool output. They can also contain credentials and the Codex account email and plan. Treat them as secret, and quote only the lines you need.
 
 ## End-to-end checks
 
@@ -94,7 +94,7 @@ An end-to-end run launches a real workload:
 
 1. Start avirthostd with `mise run serve`.
 2. Launch with `mise run launch <agent> "<prompt>" -- --follow`.
-3. Read `logs/<workload-id>.ndjson`. It ends with a `container_exit` meta event, and the `dir: "egress"` lines record every proxied connection. On the Containerization runtime, `logs/<workload-id>.stdio.ndjson` holds the container's stdout, stderr, and console, and `logs/<workload-id>.avirtvmd.log` holds the helper's stderr. If the VM fails to start after its stdio log opens, avirtvmd renames the log to `logs/<workload-id>.stdio.ndjson.failed`, which keeps the boot log.
+3. Read `experiments/poc/logs/<workload-id>.ndjson`. It ends with a `container_exit` meta event, and the `dir: "egress"` lines record every proxied connection. On the Containerization runtime, `experiments/poc/logs/<workload-id>.stdio.ndjson` holds the container's stdout, stderr, and console, and `experiments/poc/logs/<workload-id>.avirtvmd.log` holds the helper's stderr. If the VM fails to start after its stdio log opens, avirtvmd renames the log to `experiments/poc/logs/<workload-id>.stdio.ndjson.failed`, which keeps the boot log.
 
 `AVIRT_RUNTIME` picks the runtime: `containerization` (the default) or `container`, which drives Apple's `container` command. The Containerization runtime runs without a `container` binary.
 
