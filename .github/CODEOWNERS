@@ -1,20 +1,5 @@
-# Review routing for avirt. GitHub applies the last matching rule, so the
-# supply-chain rules below override the default for the paths they name.
-
-# Default owner for everything.
-*           @tbhb
-
-# Supply-chain and CI surface. The /.github/ rule already covers
-# renovate.json5 and every workflow, so neither needs its own line.
-/.github/       @tbhb
-/experiments/poc/Cargo.toml     @tbhb
-/experiments/poc/Cargo.lock     @tbhb
-/experiments/poc/deny.toml      @tbhb
-/mise.toml      @tbhb
-/mise.lock      @tbhb
-
-# Changes to accepted terminology require the maintainer's review.
-/.vale/project/RejectedTerms.yml @tbhb
-/.vale/project/RejectedTermsReplaced.yml @tbhb
-/.vale/project/RejectedTermsScript.yml @tbhb
-/.vale/project/Carry.yml @tbhb
+# These rules list the paths that need the owner's review.
+/.github/CODEOWNERS          @tbhb
+/.github/workflows/          @tbhb
+/.agents/agent-skills.conf   @tbhb
+/.claude/settings*.json      @tbhb
