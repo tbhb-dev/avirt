@@ -67,10 +67,12 @@ run = "vale sync"
 
 [tasks.build]
 description = "Build every crate"
+dir = "experiments/poc"
 run = "cargo build --workspace"
 
 [tasks.test]
 description = "Run every test under nextest (NEXTEST_PROFILE=ci selects the CI profile), then the doc tests"
+dir = "experiments/poc"
 run = [
   "cargo nextest run --workspace --locked",
   "cargo test --workspace --doc --locked",
@@ -78,27 +80,33 @@ run = [
 
 [tasks.lint-rust]
 description = "clippy with every group at deny and warnings denied"
+dir = "experiments/poc"
 run = "cargo clippy --workspace --all-targets --locked -- -D warnings"
 
 [tasks.lint-rustdoc]
 description = "rustdoc with warnings denied, private items and intra-doc links included"
+dir = "experiments/poc"
 env = { RUSTDOCFLAGS = "-D warnings" }
 run = "cargo doc --workspace --no-deps --document-private-items --locked"
 
 [tasks.lint-shear]
 description = "cargo-shear: fail on an unused or misplaced dependency"
+dir = "experiments/poc"
 run = "cargo shear"
 
 [tasks.deny]
 description = "cargo-deny: advisories, licenses, bans and sources"
+dir = "experiments/poc"
 run = "cargo deny check"
 
 [tasks.fmt]
 description = "Format the code"
+dir = "experiments/poc"
 run = "cargo fmt"
 
 [tasks.fmt-check]
 description = "Fail if rustfmt would change a file"
+dir = "experiments/poc"
 run = "cargo fmt --check"
 
 [tasks.check-docs]
@@ -137,6 +145,7 @@ run = [
 # share one invocation.
 [tasks.coverage]
 description = "Run the tests under cargo-llvm-cov and fail below the line and region floors"
+dir = "experiments/poc"
 run = [
   "cargo llvm-cov nextest --workspace --locked --no-report",
   "cargo llvm-cov report --summary-only --fail-under-lines 23 --fail-under-regions 22",
@@ -144,6 +153,7 @@ run = [
 
 [tasks.coverage-report]
 description = "Write an HTML coverage report to target/llvm-cov/html"
+dir = "experiments/poc"
 run = [
   "cargo llvm-cov nextest --workspace --locked --no-report",
   "cargo llvm-cov report --html",
@@ -152,6 +162,7 @@ run = [
 # No score gate: cargo-mutants has no threshold flag, and the floor is the maintainer's to set.
 [tasks.mutants]
 description = "Run cargo-mutants over the workspace with nextest; writes mutants.out and gates nothing"
+dir = "experiments/poc"
 run = "cargo mutants --workspace --test-tool nextest --jobs 2 --no-shuffle"
 
 [tasks.install-fuzz-toolchain]
@@ -161,7 +172,7 @@ run = "rustup toolchain install $AVIRT_FUZZ_TOOLCHAIN --profile minimal"
 [tasks.fuzz]
 description = "Run one fuzz target until stopped: mise run fuzz connect_authority -- -max_total_time=60"
 depends = ["install-fuzz-toolchain"]
-dir = "fuzz"
+dir = "experiments/poc/fuzz"
 usage = '''
 arg "<target>" help="a target under fuzz/fuzz_targets"
 arg "[flags]" var=#true help="libFuzzer flags after --"
@@ -171,7 +182,7 @@ run = 'RUSTUP_TOOLCHAIN=$AVIRT_FUZZ_TOOLCHAIN cargo fuzz run "${usage_target}" -
 [tasks.fuzz-smoke]
 description = "Run every fuzz target for 20 seconds each"
 depends = ["install-fuzz-toolchain"]
-dir = "fuzz"
+dir = "experiments/poc/fuzz"
 run = '''
 #!/usr/bin/env bash
 set -euo pipefail
@@ -187,10 +198,12 @@ run = ["mise run check", "mise run lint", "mise run devtools:gitleaks"]
 
 [tasks.vuln]
 description = "Fail when Cargo.lock holds a dependency with a published RustSec advisory"
+dir = "experiments/poc"
 run = "cargo deny check advisories"
 
 [tasks.build-image]
 description = "Build one workload image (claude or codex) and save it as an OCI archive in target/images"
+dir = "experiments/poc"
 usage = 'arg "<agent>" help="claude or codex"'
 run = [
   "container build -f workloads/${usage_agent}/Containerfile -t avirt-workload-${usage_agent}:dev .",
@@ -204,11 +217,13 @@ depends = ["build-image claude", "build-image codex"]
 
 [tasks.serve]
 description = "Run avirthostd (picks CLAUDE_CODE_OAUTH_TOKEN up from mise.local.toml)"
+dir = "experiments/poc"
 depends = ["build-hostd", "build-vmd"]
 run = "./target/debug/avirthostd"
 
 [tasks.build-vmd]
 description = "Build avirtvmd and its tests, and sign avirtvmd with the virtualization entitlement"
+dir = "experiments/poc"
 hide = true
 shell = "bash -c"
 run = """
@@ -222,6 +237,7 @@ codesign --force --sign - --entitlements crates/avirtvmd/avirtvmd.entitlements t
 
 [tasks.check-vmd]
 description = "Build, sign, lint and test avirtvmd, and run the avirt-core tests that start it (macOS)"
+dir = "experiments/poc"
 depends = ["build-vmd"]
 shell = "bash -c"
 run = """
@@ -237,11 +253,13 @@ AVIRT_VMD_BIN="$PWD/target/debug/avirtvmd" cargo nextest run -p avirt-core --fea
 
 [tasks.build-hostd]
 description = "Build avirthostd and the mediator it starts for each workload"
+dir = "experiments/poc"
 hide = true
 run = "cargo build --quiet -p avirthostd -p avirtmediatord"
 
 [tasks.launch]
 description = "Start a workload on a running avirthostd: mise run launch claude \"prompt\" -- --follow"
+dir = "experiments/poc"
 usage = '''
 arg "<agent>" help="claude or codex"
 arg "<prompt>"
