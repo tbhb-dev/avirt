@@ -96,7 +96,7 @@ jobs:
         with:
           persist-credentials: false
           # The self-hosted runner's pre-job hook cleans the workspace and
-          # keeps `target/` warm, which the default `git clean -ffdx` would wipe.
+          # keeps `experiments/poc/target/` warm, which the default `git clean -ffdx` would wipe.
           clean: ${{ runner.environment == 'github-hosted' }}
 
       - name: Set up the toolchain
@@ -105,9 +105,9 @@ jobs:
           # renovate: datasource=github-releases depName=jdx/mise
           version: 2026.10.9
 
-      # Registry downloads and the compiled dependencies. `target/avirtvmd`
+      # Registry downloads and the compiled dependencies. `experiments/poc/target/avirtvmd`
       # holds the Swift build, which this cache leaves out. It runs only on
-      # GitHub-hosted runners, because the self-hosted runner keeps `target/`
+      # GitHub-hosted runners, because the self-hosted runner keeps `experiments/poc/target/`
       # between jobs.
       - name: Cache the Rust build
         if: runner.environment == 'github-hosted'
@@ -116,13 +116,13 @@ jobs:
           path: |
             ~/.cargo/registry
             ~/.cargo/git
-            target
-            !target/avirtvmd
-          key: rust-${{ runner.os }}-${{ runner.arch }}-${{ hashFiles('Cargo.lock', 'mise.toml') }}
+            experiments/poc/target
+            !experiments/poc/target/avirtvmd
+          key: rust-${{ runner.os }}-${{ runner.arch }}-${{ hashFiles('experiments/poc/Cargo.lock', 'mise.toml') }}
           restore-keys: |
             rust-${{ runner.os }}-${{ runner.arch }}-
 
-      # The ci profile in .config/nextest.toml: no retries, a flaky pass fails.
+      # The ci profile in experiments/poc/.config/nextest.toml: no retries, a flaky pass fails.
       - name: Check
         env:
           NEXTEST_PROFILE: ci
@@ -174,7 +174,7 @@ jobs:
           MISE_TASK_RUN_AUTO_INSTALL: "0"
         run: mise run vuln
 
-  # cargo-deny: advisories, licenses, bans and sources, under deny.toml.
+  # cargo-deny: advisories, licenses, bans and sources, under experiments/poc/deny.toml.
   deny:
     name: deny
     runs-on: ubuntu-24.04

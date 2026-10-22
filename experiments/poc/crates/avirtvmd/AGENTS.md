@@ -59,8 +59,8 @@ The task builds `target/debug/avirtvmd` and signs it, then checks the entitlemen
 The golden fixtures in `Tests/AvirtVMDTests/fixtures/` are the contract with avirthostd's Rust side. A `.txtpb` file holds a message in text format, and the matching `.bin` file holds its encoding. Names starting `host-` are `HostMessage`, and names starting `helper-` are `HelperMessage`. After changing `avirtvmd.proto`, regenerate every `.bin` file from the repository root with `protoc`:
 
 ```bash
-for f in crates/avirtvmd/Tests/AvirtVMDTests/fixtures/*.txtpb; do
+for f in experiments/poc/crates/avirtvmd/Tests/AvirtVMDTests/fixtures/*.txtpb; do
   case $(basename "$f") in host-*) type=HostMessage ;; *) type=HelperMessage ;; esac
-  protoc --proto_path=crates/avirtvmd/Sources/AvirtVMD/Protocol --encode="avirt.vmd.v1.$type" avirtvmd.proto <"$f" >"${f%.txtpb}.bin"
+  protoc --proto_path=experiments/poc/crates/avirtvmd/Sources/AvirtVMD/Protocol --encode="avirt.vmd.v1.$type" avirtvmd.proto <"$f" >"${f%.txtpb}.bin"
 done
 ```

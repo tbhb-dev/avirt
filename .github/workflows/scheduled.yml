@@ -47,14 +47,14 @@ jobs:
       # fails the job: the outcomes are the product, not a gate. A run that
       # wrote no outcomes file still fails.
       - name: Run cargo-mutants
-        run: mise run mutants || test -f mutants.out/outcomes.json
+        run: mise run mutants || test -f experiments/poc/mutants.out/outcomes.json
 
       - name: Upload the outcomes
         if: always()
         uses: actions/upload-artifact@cf430e030ddbb5b0abf93d22962f4752f3646cd9 # v7.0.2
         with:
           name: mutants
-          path: mutants.out/
+          path: experiments/poc/mutants.out/
           if-no-files-found: warn
 
   coverage-history:
@@ -75,6 +75,7 @@ jobs:
       - name: Measure coverage
         env:
           NEXTEST_PROFILE: ci
+        working-directory: experiments/poc
         run: |
           cargo llvm-cov nextest --workspace --locked --no-report
           cargo llvm-cov report --json --summary-only --output-path coverage-summary.json
@@ -85,8 +86,8 @@ jobs:
         with:
           name: coverage
           path: |
-            coverage-summary.json
-            target/llvm-cov/html/
+            experiments/poc/coverage-summary.json
+            experiments/poc/target/llvm-cov/html/
 
   fuzz-smoke:
     name: fuzz-smoke
@@ -116,5 +117,5 @@ jobs:
         uses: actions/upload-artifact@cf430e030ddbb5b0abf93d22962f4752f3646cd9 # v7.0.2
         with:
           name: fuzz-artifacts
-          path: fuzz/artifacts/
+          path: experiments/poc/fuzz/artifacts/
           if-no-files-found: warn

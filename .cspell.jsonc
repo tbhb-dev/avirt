@@ -39,8 +39,8 @@
   "overrides": [
     {
       "filename": [
-        "crates/avirt-connect/src/lib.rs",
-        "crates/avirt-connect/src/tests.rs"
+        "experiments/poc/crates/avirt-connect/src/lib.rs",
+        "experiments/poc/crates/avirt-connect/src/tests.rs"
       ],
       "ignoreRegExpList": [
         "/the_hosts_own_addresses_are_recognised/g",

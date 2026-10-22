@@ -7,9 +7,9 @@
 # Supply-chain and CI surface. The /.github/ rule already covers
 # renovate.json5 and every workflow, so neither needs its own line.
 /.github/       @tbhb
-/Cargo.toml     @tbhb
-/Cargo.lock     @tbhb
-/deny.toml      @tbhb
+/experiments/poc/Cargo.toml     @tbhb
+/experiments/poc/Cargo.lock     @tbhb
+/experiments/poc/deny.toml      @tbhb
 /mise.toml      @tbhb
 /mise.lock      @tbhb
 
