@@ -20,26 +20,6 @@ Agents working in this repository should read [AGENTS.md](AGENTS.md).
 - `crates/avirtinitd/` contains the `avirtinitd` binary, which runs in the workload (`AVIRT_AGENT=claude|codex`).
 - `crates/avirt-connect/` contains the `avirt-connect` library, CONNECT authority parsing and destination checks for the Pingora CONNECT app.
 - `crates/avirt-core/` contains the shared library. It contains the control API types (`api`) and log envelope, along with the h2c client and the client for the workload's HTTP/2 connection to its mediator. It includes the `avirthostd` server and workload registry, plus the `avirtinitd` harness and runtime directory.
-- `crates/avirtadmin/` contains the `avirtadmin` binary, the local admin CLI (not implemented).
-- `crates/avirtwebd/` contains the `avirtwebd` binary, the backend for the avirt web UI (not implemented).
-- `crates/avirtapid/` contains the `avirtapid` binary, the REST and gRPC proxy to the local avirthostd and to peers' avirtapid (not implemented).
-- `crates/avirtdnsd/` contains the `avirtdnsd` binary, the DNS resolver for `<name>.<ns>.svc.host.avirt.internal` and `<name>.<ns>.workload.host.avirt.internal`, which answers with the local avirtedgeproxyd or, for avirt hostnames under a peer's host name, their host's avirtedgeproxyd (not implemented).
-- `crates/avirtmcpgwd/` contains the `avirtmcpgwd` binary, the MCP gateway (not implemented).
-- `crates/avirtmodelgwd/` contains the `avirtmodelgwd` binary. The model gateway injects model credentials (not implemented).
-- `crates/avirtbuilderd/` contains the `avirtbuilderd` binary. The builder watches VCS and builds repository OCI artifacts for fast workload startup (not implemented).
-- `crates/avirtpolicyd/` contains the `avirtpolicyd` binary. The policy service stores, compiles, proves, and distributes Cedar policy snapshots (not implemented).
-- `crates/avirtregistryd/` contains the `avirtregistryd` binary. The workspace image registry wraps an OCI registry and adds avirt's index and search API for workspace images (not implemented).
-- `crates/avirtsecretsd/` contains the `avirtsecretsd` binary. The secrets broker fetches secrets from providers and serves the credential broker API. It serves leases for mediator-injected bindings through the broker API (not implemented).
-- `crates/avirtlogd/` contains the `avirtlogd` binary. The log collector gathers workload stdout and stderr, transforms it and sends it to avirtoteld as OpenTelemetry Logs (not implemented).
-- `crates/avirtauditd/` contains the `avirtauditd` binary. The audit logger delivers audit events as OCSF (not implemented).
-- `crates/avirtoteld/` contains the `avirtoteld` binary, the OpenTelemetry Collector for the host (not implemented).
-- `crates/avirtacp/` contains the `avirtacp` binary, the workload process that runs an agent through the Agent Client Protocol (not implemented).
-- `crates/avirtagent/` contains the `avirtagent` binary, the workload process that runs an agent through its native harness (not implemented).
-- `crates/avirtexec/` contains the `avirtexec` binary, the workload process for generic execution (not implemented).
-- `crates/avirtnetd/` contains the `avirtnetd` binary, the guest networking daemon. It provides the client end of the workload's HTTP/2 connection to its mediator and the forward and reverse proxies, plus the stub DNS resolver and guest control API (not implemented).
-- `crates/avirtguestd/` contains the `avirtguestd` binary, the workload services daemon. It provides a file server and snapshots, plus the guest MCP tool surface (not implemented).
-- `crates/avirtmcp/` contains the `avirtmcp` binary, the MCP stdio proxy to avirtmcpgwd, launched on demand by the agent (not implemented).
-- `crates/avirtguest/` contains the `avirtguest` binary, the guest CLI that's in the image and connects to avirtapid through the mediator (not implemented).
 - `workloads/claude/` and `workloads/codex/` contain the image build directories, each with a Containerfile and `image/` holding the pinned adapter. The images are `avirt-workload-claude:dev` and `avirt-workload-codex:dev`.
 
 ## Prerequisites
