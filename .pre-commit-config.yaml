@@ -71,7 +71,7 @@ repos:
         name: cargo-deny (advisories, licenses, bans, sources)
         entry: mise run deny
         language: system
-        files: ^(Cargo\.toml|Cargo\.lock|deny\.toml|crates/[^/]+/Cargo\.toml)$
+        files: ^(experiments/[^/]+/)?(Cargo\.toml|Cargo\.lock|deny\.toml|crates/[^/]+/Cargo\.toml)$
         pass_filenames: false
         stages: [pre-commit]
 
