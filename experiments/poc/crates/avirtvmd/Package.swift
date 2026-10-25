@@ -19,7 +19,7 @@ let package = Package(
     .package(url: "https://github.com/apple/swift-argument-parser.git", from: "1.8.2"),
     .package(url: "https://github.com/apple/swift-protobuf.git", from: "1.36.0"),
     .package(url: "https://github.com/apple/swift-nio.git", from: "2.104.0"),
-    .package(url: "https://github.com/apple/swift-system.git", from: "1.5.0"),
+    .package(url: "https://github.com/apple/swift-system.git", from: "1.8.1"),
   ],
   targets: [
     .executableTarget(
