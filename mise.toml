@@ -23,7 +23,7 @@ protoc = "36.2"
 "go:github.com/tbhb-dev/devtools/cmd/gh-post" = "v0.18.0"
 # The Rust toolchain pin. `rust-version` in Cargo.toml, `msrv` in clippy.toml and the Containerfiles'
 # builder stage (`rust:1.97.1-bookworm`) are 1.97.1.
-rust = { version = "1.99.0", profile = "minimal", components = "clippy,rustfmt,llvm-tools" }
+rust = { version = "1.99.1", profile = "minimal", components = "clippy,rustfmt,llvm-tools" }
 
 [env]
 DEVTOOLS_LOCK_PLATFORMS = "linux-x64,macos-arm64"
