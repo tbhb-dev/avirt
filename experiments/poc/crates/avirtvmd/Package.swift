@@ -15,7 +15,7 @@ let package = Package(
     .executable(name: "avirtvmd", targets: ["AvirtVMDCommand"])
   ],
   dependencies: [
-    .package(url: "https://github.com/apple/containerization.git", exact: "0.47.0"),
+    .package(url: "https://github.com/apple/containerization.git", exact: "0.53.0"),
     .package(url: "https://github.com/apple/swift-argument-parser.git", from: "1.8.2"),
     .package(url: "https://github.com/apple/swift-protobuf.git", from: "1.36.0"),
     .package(url: "https://github.com/apple/swift-nio.git", from: "2.104.0"),
