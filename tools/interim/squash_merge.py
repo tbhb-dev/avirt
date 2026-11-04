@@ -36,6 +36,10 @@ behind, dirty or unknown (which includes failing required checks), and it names
 any failing checks. It leaves the rules themselves to GitHub. The merge passes
 ``--match-head-commit`` so that a push after the preview cannot slip in.
 ``--dry-run`` previews the message and the command and merges nothing.
+
+A pull request from the Renovate app is the exception to the body rule: its
+release notes and configuration notes are dropped, and the body is one line
+per update from Renovate's update table.
 """
 
 import argparse
@@ -58,7 +62,7 @@ GH = "gh"
 GIT = "git"
 VIEW_FIELDS = (
     "title,body,headRefOid,baseRefName,state,isDraft,mergeable,"
-    "mergeStateStatus,statusCheckRollup"
+    "mergeStateStatus,statusCheckRollup,author"
 )
 # gh's merge states that mean "not now", with the reason GitHub already computed.
 REFUSED_STATES = frozenset({"BLOCKED", "BEHIND", "DIRTY", "DRAFT", "UNKNOWN"})
@@ -73,6 +77,9 @@ AUTOLINK = re.compile(r"<(https?://[^>\s]+)>")
 STRONG = re.compile(r"(\*\*|__)(?=\S)(.+?)(?<=\S)\1")
 EMPHASIS = re.compile(r"(?<![\w*])\*(?=[^\s*])(.+?)(?<=[^\s*])\*(?![\w*])")
 PLACEHOLDER = re.compile("\x00(\\d+)\x00")
+# Renovate's pull requests come from its GitHub App, whose gh login is
+# ``app/<name>``; the name is the tbhb-dev-renovate app's.
+RENOVATE = "renovate"
 
 
 @dataclass(frozen=True)
@@ -87,6 +94,7 @@ class PullRequest:
     mergeable: str
     merge_state: str
     failing: list[str]
+    renovate: bool = False
 
 
 @dataclass(frozen=True)
@@ -187,14 +195,21 @@ class Renderer:
     pending: Pending | None = None
     code: list[str] | None = None
     marker: str = ""
+    # The last block is a list item with no blank line after it, so the next
+    # item joins that block instead of starting one.
+    in_list: bool = False
 
     def flush(self) -> None:
         """End the paragraph or list item being collected."""
         if self.pending is not None:
             text = inline(" ".join(self.pending.parts), self.refs)
-            self.blocks.append(
-                "\n".join(wrap(text, self.pending.first, self.pending.rest))
-            )
+            lines = "\n".join(wrap(text, self.pending.first, self.pending.rest))
+            item = bool(self.pending.first)
+            if item and self.in_list:
+                self.blocks[-1] += "\n" + lines
+            else:
+                self.blocks.append(lines)
+            self.in_list = item
         self.pending = None
 
     def feed_code(self, line: pr.Line, code: list[str]) -> None:
@@ -211,10 +226,12 @@ class Renderer:
             self.feed_code(line, self.code)
         elif line.code:
             self.flush()
+            self.in_list = False
             self.marker = pr.FENCE.findall(line.raw)[0]  # line.code opens a fence
             self.code = []
         elif pr.is_blank(line):
             self.flush()
+            self.in_list = False
         elif item := ITEM.fullmatch(line.text):
             self.flush()
             prefix = f"{item[1]}{item[2]} "
@@ -286,6 +303,49 @@ def check_round_trip(message: str, trailers: Sequence[str]) -> None:
     if done.stdout != "\n".join(trailers) + "\n":
         reason = f"git interpret-trailers --parse read back: {done.stdout!r}"
         stop(f"the trailer block did not survive the message: {reason}")
+
+
+def table_cells(row: str) -> list[str]:
+    """The cells of one Markdown table row, stripped."""
+    return [cell.strip() for cell in row.strip().strip("|").split("|")]
+
+
+def plain_cell(cell: str) -> str:
+    """A table cell as plain text: link labels kept, code backticks dropped."""
+    return MD_LINK.sub(r"\2", cell).replace("`", "")
+
+
+def renovate_body(body: str) -> str:
+    """One list item per update from a Renovate PR body's update table.
+
+    Renovate's body opens with a ``| Package | ... | Change |`` table, then
+    release notes and its own configuration notes, which don't belong in a
+    commit message. Only the table survives, as ``- name change (update)``.
+    A body without that table gives none.
+    """
+    lines = body.splitlines()
+    start = next(
+        (
+            index
+            for index, line in enumerate(lines)
+            if line.strip().startswith("|")
+            and table_cells(line)[0].lower() == "package"
+        ),
+        None,
+    )
+    if start is None:
+        return ""
+    header = [cell.lower() for cell in table_cells(lines[start])]
+    items: list[str] = []
+    for line in lines[start + 2 :]:
+        if not line.strip().startswith("|"):
+            break
+        row = dict(zip(header, map(plain_cell, table_cells(line)), strict=False))
+        update = f" ({row['update']})" if row.get("update") else ""
+        items.append(f"- {row['package']} {row.get('change', '')}".rstrip() + update)
+    # Renovate lists one dependency once per manager that found it.
+    unique = list(dict.fromkeys(items))
+    return "\n".join(unique) + "\n" if unique else ""
 
 
 def build_message(title: str, number: int, body: str) -> Message:
@@ -366,7 +426,10 @@ def fetch(number: int) -> PullRequest:
         data: dict[str, object] = json.loads(done.stdout)
     except ValueError as exc:
         stop(f"gh pr view returned something that is not JSON: {exc}")
+    author = data.get("author")
+    who = cast("dict[str, object]", author) if isinstance(author, dict) else {}
     return PullRequest(
+        renovate=who.get("is_bot") is True and RENOVATE in str(who.get("login", "")),
         title=str(data.get("title", "")),
         body=str(data.get("body") or ""),
         head=str(data.get("headRefOid", "")),
@@ -394,7 +457,8 @@ def main(argv: Sequence[str] | None = None) -> int:
     request = fetch(args.number)
     if reasons := refusals(request):
         stop(f"not merging PR #{args.number}: " + "; ".join(reasons))
-    message = build_message(request.title, args.number, request.body)
+    body = renovate_body(request.body) if request.renovate else request.body
+    message = build_message(request.title, args.number, body)
     argv_gh = [
         GH, "pr", "merge", str(args.number), "--squash", "--subject", message.subject,
         "--body-file", "-", "--match-head-commit", request.head,
