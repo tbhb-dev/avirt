@@ -42,7 +42,6 @@ frontmatter
 fsfe
 funlen
 genrule
-gobco
 gochecknoglobals
 gochecksumtype
 gocognit
@@ -104,7 +103,6 @@ prek
 pretooluse
 pylock
 recvcheck
-rillig
 rollouts
 rollup
 rumdl
