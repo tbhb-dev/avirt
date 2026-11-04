@@ -13,6 +13,7 @@ ignore_directories([
     ".venv",
     "tmp",
     ".worktrees",
+    ".claude/worktrees",
     "**/__pycache__",
     "**/.*_cache",
     ".hypothesis",
