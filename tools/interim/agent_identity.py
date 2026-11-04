@@ -626,13 +626,17 @@ def finish_command(
 
 
 def ps_row(pid: str) -> tuple[str, str] | None:
-    """(parent PID, command line) of a process, or None if it is gone."""
-    result = subprocess.run(  # nosec B603 B607
-        ["ps", "-ww", "-o", "ppid=,command=", "-p", pid],
-        capture_output=True,
-        text=True,
-        check=False,
-    )
+    """(parent PID, command line) of a process, or None when unavailable."""
+    try:
+        result = subprocess.run(  # nosec B603 B607
+            ["ps", "-ww", "-o", "ppid=,command=", "-p", pid],
+            capture_output=True,
+            text=True,
+            check=False,
+        )
+    except PermissionError:
+        # A sandbox can deny starting ps, as well as deny its process lookup.
+        return None
     line = result.stdout.strip()
     if result.returncode != 0 or not line:
         return None

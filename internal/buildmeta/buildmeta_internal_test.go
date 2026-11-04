@@ -27,6 +27,7 @@ func TestResolve(t *testing.T) {
 	}
 
 	filled := Info{"v1.2.3", "abc123", "2026-01-02T03:04:05Z"}
+	injected := Info{"1.0.0", "c", "d"}
 
 	// The same settings in reverse, the unrelated one first: each value
 	// must come from its own key, not from whichever setting comes first.
@@ -42,7 +43,25 @@ func TestResolve(t *testing.T) {
 	}{
 		{nil, "no build info", defaults, defaults, false},
 		{full, "fills defaults", defaults, filled, true},
-		{full, "keeps injected", Info{"1.0.0", "c", "d"}, Info{"1.0.0", "c", "d"}, true},
+		{full, "keeps injected", injected, injected, true},
+		{
+			full, "keeps injected version",
+			Info{injected.Version, unknown, unknown},
+			Info{injected.Version, filled.Commit, filled.Date},
+			true,
+		},
+		{
+			full, "keeps injected commit",
+			Info{devVersion, "c", unknown},
+			Info{filled.Version, "c", filled.Date},
+			true,
+		},
+		{
+			full, "keeps injected date",
+			Info{devVersion, unknown, "d"},
+			Info{filled.Version, filled.Commit, "d"},
+			true,
+		},
 		{reordered, "matches keys in any order", defaults, filled, true},
 		{
 			&debug.BuildInfo{Main: debug.Module{Version: "(devel)"}},
