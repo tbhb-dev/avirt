@@ -75,6 +75,7 @@ localmodule
 lockfiles
 mapfile
 mapliteral
+mcpjson
 mdfile
 mdir
 msgfile
