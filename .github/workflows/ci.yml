@@ -107,7 +107,7 @@ jobs:
       # the working tree, YAML, TOML, Markdown, prose, EditorConfig,
       # workflows, shell, CODEOWNERS paths), the format check, Starlark
       # lint, nogo during the build, the Go and Python tests and linters,
-      # the coverage floor, the docs bundle and REUSE checks, the import
+      # the docs bundle and REUSE checks, the import
       # contracts, and the preset staleness test.
       - name: Test
         run: bazelisk test --config=ci //...
