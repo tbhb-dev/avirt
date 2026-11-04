@@ -1,6 +1,7 @@
 [Ff]rontmatter
 avirt
 Bazel
+gobco_test
 prek
 subcommand
 x_defs
