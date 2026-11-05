@@ -7,6 +7,9 @@ import %workspace%/preset.bazelrc
 # and module versions in use unless told not to.
 common --repo_env=DO_NOT_TRACK=1
 
+# Keep build-output links hidden from editors and repository scans.
+common --symlink_prefix=.bazel-
+
 common --lockfile_mode=error
 
 # Fail when a bazel_dep version is lower than what the module graph resolves
