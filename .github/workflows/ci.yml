@@ -65,7 +65,7 @@ jobs:
       # //... is every hermetic gate: the whole-tree lint tests (secrets in
       # the working tree, YAML, TOML, Markdown, prose, EditorConfig,
       # workflows, shell, CODEOWNERS paths), the format check, Starlark
-      # lint, nogo during the build, the Go and Python tests and linters,
+      # lint, nogo during the build, the Go tests and linters,
       # the docs bundle and REUSE checks, the import
       # contracts, and the preset staleness test.
       - name: Test
@@ -98,7 +98,7 @@ jobs:
     uses: tbhb-dev/rules/.github/workflows/repo-checks.yml@6c4ec7bf56f52b316557b7c7dec53b30b6ffbbe6  # main
     with:
       timeout-minutes: 10
-      pip-audit-target: //tools:pip_audit
+      pip-audit-target: ""
       govulncheck-target: //:govulncheck
       gazelle-dirs: .
       module-dirs: .

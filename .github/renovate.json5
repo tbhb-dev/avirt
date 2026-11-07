@@ -10,9 +10,8 @@
     "github>tbhb-dev/renovate-config//default.json5#60386b29f6edfb9a5a921578110d794e32f6baf6", // main
     "github>tbhb-dev/renovate-config//bazel.json5#60386b29f6edfb9a5a921578110d794e32f6baf6", // main
     "github>tbhb-dev/renovate-config//go.json5#60386b29f6edfb9a5a921578110d794e32f6baf6", // main
-    "github>tbhb-dev/renovate-config//python.json5#60386b29f6edfb9a5a921578110d794e32f6baf6", // main
   ],
 
-  // avirt needs nothing beyond the presets: its Go module, Bazel pins and uv
-  // lock are all covered there.
+  // avirt needs nothing beyond the presets: its Go module and Bazel pins are
+  // both covered there.
 }
