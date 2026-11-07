@@ -3,7 +3,8 @@
 # Copyright Tony Burns
 
 # Tool bootstrap only. Bazel pins and runs every gate (`bazelisk test //...`,
-# the same command CI runs). There are no tasks.
+# the same command CI runs). There are no tasks: agents run `tbhbdev alpha`
+# directly for pull requests.
 
 [settings]
 # Record resolved versions, URLs, and digests in mise.lock (committed).
@@ -18,3 +19,5 @@ _.path = [".bazel_env/bin"]
 
 [tools]
 bazelisk = "1.30.0"
+# Runs the git hooks that `tbhbdev alpha install` installs.
+prek = "0.5.9"
