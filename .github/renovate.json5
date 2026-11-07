@@ -7,10 +7,10 @@
   // The presets track tbhb-dev/renovate-config's main branch, pinned by
   // commit; Renovate bumps the pins (the "renovate-config" group).
   extends: [
-    "github>tbhb-dev/renovate-config//default.json5#653205d61dc0646bb96ae5731b93410667fbb37e", // main
-    "github>tbhb-dev/renovate-config//bazel.json5#653205d61dc0646bb96ae5731b93410667fbb37e", // main
-    "github>tbhb-dev/renovate-config//go.json5#653205d61dc0646bb96ae5731b93410667fbb37e", // main
-    "github>tbhb-dev/renovate-config//python.json5#653205d61dc0646bb96ae5731b93410667fbb37e", // main
+    "github>tbhb-dev/renovate-config//default.json5#60386b29f6edfb9a5a921578110d794e32f6baf6", // main
+    "github>tbhb-dev/renovate-config//bazel.json5#60386b29f6edfb9a5a921578110d794e32f6baf6", // main
+    "github>tbhb-dev/renovate-config//go.json5#60386b29f6edfb9a5a921578110d794e32f6baf6", // main
+    "github>tbhb-dev/renovate-config//python.json5#60386b29f6edfb9a5a921578110d794e32f6baf6", // main
   ],
 
   // avirt needs nothing beyond the presets: its Go module, Bazel pins and uv
