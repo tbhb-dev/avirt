@@ -4,9 +4,10 @@
 
 # Git hooks for this clone, installed by `tbhbdev alpha install`. The lint
 # and format hooks call the Bazel-pinned tools through the bazel_env shims in
-# .bazel_env/bin (`bazel run //:bazel_env` builds them), never `bazel run`, so a running
-# build's server lock can't stall a commit. They are the fast per-file
-# subset; `bazel test //...` runs every gate, whole-tree ones included.
+# .bazel_env/bin (`bazel run //:bazel_env` builds them), never `bazel run`,
+# so a running build's server lock can't stall a commit. They are the fast
+# per-file subset; `bazel test //...` runs every gate, whole-tree ones
+# included.
 default_stages: [pre-commit]
 
 # Never touch Vale's synced style packages, build output, scratch work, agent
@@ -92,13 +93,12 @@ repos:
         language: system
         entry: .bazel_env/bin/editorconfig-checker -config .editorconfig-checker.json
 
-  # Interim agent identity (replaced by `ascm git-hook` at M1). The module
-  # needs Python 3.15, and the python3 on PATH may be older, so it runs
-  # through uv. Only stamp-docs runs under prek: `tbhbdev alpha install`
-  # installs the trailer, check and consume hooks (prepare-commit-msg,
-  # commit-msg, post-commit) as plain git hooks, because prek stashes unstaged
-  # changes around every stage and fails a hook when the work tree changes
-  # while it runs, which a concurrent agent's edit does.
+  # Agent identity, from `tbhbdev alpha identity`. Only stamp-docs runs under
+  # prek: `tbhbdev alpha install` installs the trailer, check and consume
+  # hooks (prepare-commit-msg, commit-msg, post-commit) as plain git hooks,
+  # because prek stashes unstaged changes around every stage and fails a hook
+  # when the work tree changes while it runs, which a concurrent agent's edit
+  # does.
   #
   # stamp-docs rewrites the staged blob and the work-tree file together, so
   # prek's modified-files check passes. With unstaged edits next to the
@@ -109,7 +109,7 @@ repos:
       - id: agent-identity-stamp-docs
         name: agent identity stamp docs
         language: system
-        entry: uv run --no-project --quiet --python ">=3.15" python tools/interim/agent_identity.py stamp-docs
+        entry: tbhbdev alpha identity stamp-docs
         stages: [pre-commit]
         types: [markdown]
         pass_filenames: false

@@ -4,7 +4,7 @@ avirt is a command-line tool written in Go. The repository is at the bootstrap s
 
 ## Development
 
-Bazel pins and runs every gate. [mise](https://mise.jdx.dev) only installs `bazelisk` and `uv`, pinned in `mise.toml` and locked in `mise.lock`. Run every gate with:
+Bazel pins and runs every gate. [mise](https://mise.jdx.dev) only installs `bazelisk` and `prek`, pinned in `mise.toml` and locked in `mise.lock`. Run every gate with:
 
 ```sh
 bazelisk test //...
